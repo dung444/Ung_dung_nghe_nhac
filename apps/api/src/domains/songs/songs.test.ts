@@ -40,6 +40,14 @@ describe("Songs Endpoints", () => {
     expect(Array.isArray(res.body.data)).toBe(true);
   });
 
+  it("should handle string pagination query parameters correctly", async () => {
+    const res = await request(app).get("/api/v1/songs?page=1&limit=5");
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.pagination.limit).toBe(5);
+    expect(res.body.pagination.page).toBe(1);
+  });
+
   it("should fail to create a song if not admin", async () => {
     const res = await request(app)
       .post("/api/v1/songs")

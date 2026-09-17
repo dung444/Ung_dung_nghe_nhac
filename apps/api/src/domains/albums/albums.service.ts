@@ -8,7 +8,8 @@ const albumSelect = {
 };
 
 export async function getAlbums(q?: { page?: number; limit?: number }) {
-  const page = q?.page ?? 1; const limit = q?.limit ?? 20;
+  const page = Math.max(1, Number(q?.page) || 1);
+  const limit = Math.max(1, Math.min(100, Number(q?.limit) || 20));
   const [albums, total] = await Promise.all([
     prisma.album.findMany({ select: albumSelect, orderBy: { releaseDate: "desc" }, skip: (page-1)*limit, take: limit }),
     prisma.album.count(),

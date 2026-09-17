@@ -9,7 +9,8 @@ const artistSelect = {
 };
 
 export async function getArtists(q?: { page?: number; limit?: number }) {
-  const page = q?.page ?? 1; const limit = q?.limit ?? 20;
+  const page = Math.max(1, Number(q?.page) || 1);
+  const limit = Math.max(1, Math.min(100, Number(q?.limit) || 20));
   const [artists, total] = await Promise.all([
     prisma.artist.findMany({ select: artistSelect, orderBy: { name: "asc" }, skip: (page - 1) * limit, take: limit }),
     prisma.artist.count(),
