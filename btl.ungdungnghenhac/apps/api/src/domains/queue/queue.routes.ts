@@ -1,0 +1,10 @@
+﻿import { Router } from "express";
+import { authenticate } from "../../middleware/auth.middleware";
+import * as ctrl from "./queue.controller";
+export const queueRouter = Router();
+queueRouter.use(authenticate);
+queueRouter.get("/",          ctrl.getQueue);
+queueRouter.post("/",         ctrl.replace);
+queueRouter.post("/add",      ctrl.add);
+queueRouter.delete("/clear",  ctrl.clear);
+queueRouter.delete("/:itemId",ctrl.remove);
