@@ -1,0 +1,304 @@
+﻿generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── ENUMS ───────────────────────────────────────────────────────────────────
+
+enum Role {
+  USER
+  ARTIST
+  ADMIN
+}
+
+enum NotificationType {
+  NEW_FOLLOWER
+  PLAYLIST_SHARED
+  FRIEND_INVITE_ROOM
+  SONG_LIKED
+  NEW_RELEASE
+}
+
+// ─── AUTH ────────────────────────────────────────────────────────────────────
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  username     String   @unique
+  passwordHash String
+  displayName  String?
+  avatarUrl    String?
+  isPremium    Boolean  @default(false)
+  role         Role     @default(USER)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  refreshTokens    RefreshToken[]
+  playlists        Playlist[]
+  likedSongs       LikedSong[]
+  listeningHistory ListeningHistory[]
+  followedArtists  UserFollowArtist[]
+  queueItems       QueueItem[]
+  artist           Artist?
+  roomsOwned       Room[]             @relation("RoomOwner")
+  roomParticipants RoomParticipant[]
+  notifications    Notification[]
+
+  @@index([email])
+  @@index([username])
+}
+
+model RefreshToken {
+  id        String   @id @default(uuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+// ─── MUSIC CORE ──────────────────────────────────────────────────────────────
+
+model Artist {
+  id        String   @id @default(uuid())
+  name      String
+  bio       String?  @db.Text
+  avatarUrl String?
+  coverUrl  String?
+  verified  Boolean  @default(false)
+  userId    String?  @unique
+  user      User?    @relation(fields: [userId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  albums    Album[]
+  songs     SongArtist[]
+  genres    ArtistGenre[]
+  followers UserFollowArtist[]
+
+  @@index([name])
+}
+
+model Genre {
+  id   String @id @default(uuid())
+  name String @unique
+  slug String @unique
+
+  songs   SongGenre[]
+  artists ArtistGenre[]
+}
+
+model Album {
+  id          String    @id @default(uuid())
+  title       String
+  coverUrl    String?
+  releaseDate DateTime?
+  artistId    String
+  artist      Artist    @relation(fields: [artistId], references: [id])
+  createdAt   DateTime  @default(now())
+
+  songs Song[]
+
+  @@index([artistId])
+  @@index([title])
+}
+
+model Song {
+  id          String    @id @default(uuid())
+  title       String
+  duration    Int
+  fileUrl     String
+  coverUrl    String?
+  plays       Int       @default(0)
+  isPublic    Boolean   @default(true)
+  releaseDate DateTime?
+  albumId     String?
+  album       Album?    @relation(fields: [albumId], references: [id])
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  artists          SongArtist[]
+  genres           SongGenre[]
+  likedBy          LikedSong[]
+  listeningHistory ListeningHistory[]
+  playlists        PlaylistSong[]
+  queueItems       QueueItem[]
+  roomQueueItems   RoomQueueItem[]
+
+  @@index([title])
+  @@index([albumId])
+  @@index([plays])
+  @@index([isPublic, createdAt])
+}
+
+// ─── JUNCTION TABLES ─────────────────────────────────────────────────────────
+
+model SongArtist {
+  songId   String
+  artistId String
+  song     Song   @relation(fields: [songId], references: [id], onDelete: Cascade)
+  artist   Artist @relation(fields: [artistId], references: [id], onDelete: Cascade)
+
+  @@id([songId, artistId])
+}
+
+model SongGenre {
+  songId  String
+  genreId String
+  song    Song   @relation(fields: [songId], references: [id], onDelete: Cascade)
+  genre   Genre  @relation(fields: [genreId], references: [id], onDelete: Cascade)
+
+  @@id([songId, genreId])
+}
+
+model ArtistGenre {
+  artistId String
+  genreId  String
+  artist   Artist @relation(fields: [artistId], references: [id], onDelete: Cascade)
+  genre    Genre  @relation(fields: [genreId], references: [id], onDelete: Cascade)
+
+  @@id([artistId, genreId])
+}
+
+// ─── USER INTERACTIONS ───────────────────────────────────────────────────────
+
+model LikedSong {
+  userId  String
+  songId  String
+  likedAt DateTime @default(now())
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  song    Song     @relation(fields: [songId], references: [id], onDelete: Cascade)
+
+  @@id([userId, songId])
+  @@index([userId])
+}
+
+model UserFollowArtist {
+  userId     String
+  artistId   String
+  followedAt DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  artist     Artist   @relation(fields: [artistId], references: [id], onDelete: Cascade)
+
+  @@id([userId, artistId])
+  @@index([userId])
+}
+
+model ListeningHistory {
+  id             String   @id @default(uuid())
+  userId         String
+  songId         String
+  playedAt       DateTime @default(now())
+  durationPlayed Int      @default(0)
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  song           Song     @relation(fields: [songId], references: [id], onDelete: Cascade)
+
+  @@index([userId, playedAt])
+  @@index([songId])
+}
+
+// ─── PLAYLISTS ───────────────────────────────────────────────────────────────
+
+model Playlist {
+  id          String   @id @default(uuid())
+  name        String
+  description String?
+  coverUrl    String?
+  isPublic    Boolean  @default(true)
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  songs PlaylistSong[]
+
+  @@index([userId])
+}
+
+model PlaylistSong {
+  playlistId String
+  songId     String
+  position   Int
+  addedAt    DateTime @default(now())
+  playlist   Playlist @relation(fields: [playlistId], references: [id], onDelete: Cascade)
+  song       Song     @relation(fields: [songId], references: [id], onDelete: Cascade)
+
+  @@id([playlistId, songId])
+  @@index([playlistId, position])
+}
+
+// ─── QUEUE ───────────────────────────────────────────────────────────────────
+
+model QueueItem {
+  id       String   @id @default(uuid())
+  userId   String
+  songId   String
+  position Int
+  addedAt  DateTime @default(now())
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  song     Song     @relation(fields: [songId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, position])
+  @@index([userId])
+}
+
+// ─── LIVE ROOMS ──────────────────────────────────────────────────────────────
+
+model Room {
+  id            String   @id @default(uuid())
+  name          String
+  isActive      Boolean  @default(true)
+  ownerId       String
+  owner         User     @relation("RoomOwner", fields: [ownerId], references: [id])
+  currentSongId String?
+  createdAt     DateTime @default(now())
+
+  participants RoomParticipant[]
+  queue        RoomQueueItem[]
+
+  @@index([ownerId])
+}
+
+model RoomParticipant {
+  roomId   String
+  userId   String
+  joinedAt DateTime @default(now())
+  room     Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([roomId, userId])
+}
+
+model RoomQueueItem {
+  id       String @id @default(uuid())
+  roomId   String
+  songId   String
+  position Int
+  addedBy  String
+  room     Room   @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  song     Song   @relation(fields: [songId], references: [id], onDelete: Cascade)
+
+  @@index([roomId, position])
+}
+
+// ─── NOTIFICATIONS ───────────────────────────────────────────────────────────
+
+model Notification {
+  id        String           @id @default(uuid())
+  userId    String
+  type      NotificationType
+  actorId   String?
+  payload   Json
+  read      Boolean          @default(false)
+  createdAt DateTime         @default(now())
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, read])
+  @@index([userId, createdAt])
+}

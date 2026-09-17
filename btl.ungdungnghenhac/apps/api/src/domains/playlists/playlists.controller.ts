@@ -1,0 +1,11 @@
+﻿import { Request, Response, NextFunction } from "express";
+import * as svc from "./playlists.service";
+const uid = (req: Request) => req.user!.userId;
+export const getMyPlaylists  = async (req: Request, res: Response, next: NextFunction) => { try { res.json({ success: true, data: await svc.getUserPlaylists(uid(req)) }); } catch(e){next(e);} };
+export const getById         = async (req: Request, res: Response, next: NextFunction) => { try { res.json({ success: true, data: await svc.getPlaylistById(req.params.id, req.user?.userId) }); } catch(e){next(e);} };
+export const create          = async (req: Request, res: Response, next: NextFunction) => { try { res.status(201).json({ success: true, data: await svc.createPlaylist(uid(req), req.body) }); } catch(e){next(e);} };
+export const update          = async (req: Request, res: Response, next: NextFunction) => { try { res.json({ success: true, data: await svc.updatePlaylist(req.params.id, uid(req), req.body) }); } catch(e){next(e);} };
+export const remove          = async (req: Request, res: Response, next: NextFunction) => { try { await svc.deletePlaylist(req.params.id, uid(req)); res.json({ success: true }); } catch(e){next(e);} };
+export const addSong         = async (req: Request, res: Response, next: NextFunction) => { try { await svc.addSong(req.params.id, uid(req), req.body.songId, req.body.position); res.status(201).json({ success: true }); } catch(e){next(e);} };
+export const removeSong      = async (req: Request, res: Response, next: NextFunction) => { try { await svc.removeSong(req.params.id, uid(req), req.params.songId); res.json({ success: true }); } catch(e){next(e);} };
+export const reorder         = async (req: Request, res: Response, next: NextFunction) => { try { await svc.reorderSongs(req.params.id, uid(req), req.body.orderedSongIds); res.json({ success: true }); } catch(e){next(e);} };
