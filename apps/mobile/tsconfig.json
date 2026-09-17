@@ -7,10 +7,22 @@
     "jsx": "react-jsx",
     "strict": true,
     "paths": {
-      "@/*": ["./src/*"],
-      "@waifu-player/types": ["../../packages/types/src"],
-      "@waifu-player/utils": ["../../packages/utils/src"]
+      "@/*": [
+        "./src/*"
+      ],
+      "@waifu-player/types": [
+        "../../packages/types/src"
+      ],
+      "@waifu-player/utils": [
+        "../../packages/utils/src"
+      ]
     }
   },
-  "include": ["src", "*.ts", "*.tsx"]
+  "include": [
+    "src",
+    "*.ts",
+    "*.tsx",
+    ".expo/types/**/*.ts",
+    "expo-env.d.ts"
+  ]
 }

@@ -1,6 +1,10 @@
 declare const process: { env: Record<string, string | undefined> };
 
-export const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? "http://localhost:3000";
+export const API_BASE_URL =
+  process.env.EXPO_PUBLIC_API_URL ??
+  (typeof window !== "undefined" && window.location?.hostname
+    ? `http://${window.location.hostname}:3000`
+    : "http://10.118.226.27:3000");
 export const API_V1 = `${API_BASE_URL}/api/v1`;
 
 export const SOCKET_URL = API_BASE_URL;
