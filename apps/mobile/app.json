@@ -4,11 +4,9 @@
     "slug": "waifu-player",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
     "scheme": "waifuplayer",
     "userInterfaceStyle": "dark",
     "splash": {
-      "image": "./assets/images/splash.png",
       "resizeMode": "contain",
       "backgroundColor": "#0f0f1a"
     },
@@ -17,10 +15,6 @@
       "bundleIdentifier": "dev.waifuplayer.app"
     },
     "android": {
-      "adaptiveIcon": {
-        "foregroundImage": "./assets/images/adaptive-icon.png",
-        "backgroundColor": "#0f0f1a"
-      },
       "package": "dev.waifuplayer.app"
     },
     "web": {
