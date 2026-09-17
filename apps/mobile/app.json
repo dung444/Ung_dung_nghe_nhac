@@ -22,7 +22,7 @@
       "output": "static"
     },
     "plugins": [
-      "expo-router"
+      ["expo-router", { "root": "./src/app" }]
     ],
     "experiments": {
       "typedRoutes": true
