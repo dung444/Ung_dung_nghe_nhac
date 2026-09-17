@@ -1,4 +1,4 @@
-﻿import { Request, Response, NextFunction } from "express";
+import { Request, Response, NextFunction } from "express";
 import * as svc from "./queue.service";
 const uid = (r: Request) => r.user!.userId;
 export const getQueue   = async (req: Request, res: Response, next: NextFunction) => { try { res.json({ success: true, data: await svc.getQueue(uid(req)) }); } catch(e){next(e);} };

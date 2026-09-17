@@ -1,4 +1,4 @@
-﻿import { prisma } from "../../config/database";
+import { prisma } from "../../config/database";
 import { AppError } from "../../middleware/error.middleware";
 
 export async function createRoom(ownerId: string, name: string) {

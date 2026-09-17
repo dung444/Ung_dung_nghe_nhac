@@ -1,4 +1,4 @@
-﻿import { Request, Response, NextFunction } from "express";
+import { Request, Response, NextFunction } from "express";
 import * as svc from "./rooms.service";
 const uid = (r: Request) => r.user!.userId;
 export const create  = async (req: Request, res: Response, next: NextFunction) => { try { res.status(201).json({ success: true, data: await svc.createRoom(uid(req), req.body.name) }); } catch(e){next(e);} };

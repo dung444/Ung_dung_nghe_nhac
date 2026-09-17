@@ -1,4 +1,4 @@
-﻿import axios from "axios";
+import axios from "axios";
 import { API_BASE_URL, ENDPOINTS } from "../constants/api";
 
 export const api = axios.create({

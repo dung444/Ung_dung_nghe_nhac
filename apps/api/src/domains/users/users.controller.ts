@@ -1,4 +1,4 @@
-﻿import { Request, Response, NextFunction } from "express";
+import { Request, Response, NextFunction } from "express";
 import * as svc from "./users.service";
 const uid = (r: Request) => r.user!.userId;
 export const getHistory   = async (req: Request, res: Response, next: NextFunction) => { try { res.json({ success: true, ...(await svc.getHistory(uid(req), Number(req.query.page), Number(req.query.limit))) }); } catch(e){next(e);} };

@@ -1,4 +1,4 @@
-﻿import { Namespace, Socket } from "socket.io";
+import { Namespace, Socket } from "socket.io";
 
 // Track online users: userId -> socketId
 const onlineUsers = new Map<string, string>();

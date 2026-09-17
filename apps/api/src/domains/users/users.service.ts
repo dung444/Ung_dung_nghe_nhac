@@ -1,4 +1,4 @@
-﻿import { prisma } from "../../config/database";
+import { prisma } from "../../config/database";
 import { AppError } from "../../middleware/error.middleware";
 
 const songSel = { id: true, title: true, duration: true, coverUrl: true, plays: true,

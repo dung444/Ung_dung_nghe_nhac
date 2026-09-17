@@ -1,4 +1,4 @@
-﻿{
+{
   "name": "@waifu-player/mobile",
   "version": "0.0.1",
   "private": true,
@@ -8,14 +8,15 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "web": "expo start --web",
-    "build": "expo export",
-    "test": "jest"
+    "build": "tsc --noEmit",
+    "export": "expo export",
+    "test": "tsc --noEmit"
   },
   "dependencies": {
-    "@waifu-player/types": "workspace:*",
-    "@waifu-player/utils": "workspace:*",
     "@expo/vector-icons": "^14.0.0",
     "@react-native-community/slider": "^4.5.0",
+    "@waifu-player/types": "workspace:*",
+    "@waifu-player/utils": "workspace:*",
     "axios": "^1.7.0",
     "expo": "~54.0.0",
     "expo-font": "~13.0.0",
@@ -25,6 +26,7 @@
     "expo-splash-screen": "~0.29.0",
     "expo-status-bar": "~2.0.0",
     "react": "18.3.1",
+    "react-dom": "18.3.1",
     "react-native": "0.76.5",
     "react-native-gesture-handler": "~2.20.0",
     "react-native-reanimated": "~3.16.0",
@@ -32,6 +34,7 @@
     "react-native-screens": "~4.4.0",
     "react-native-svg": "^15.0.0",
     "react-native-track-player": "^4.1.0",
+    "react-native-web": "~0.21.0",
     "socket.io-client": "^4.8.0",
     "zustand": "^5.0.0"
   },

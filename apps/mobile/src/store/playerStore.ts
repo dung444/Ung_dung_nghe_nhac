@@ -1,5 +1,6 @@
-﻿import { create } from "zustand";
+import { create } from "zustand";
 import type { Song } from "@waifu-player/types";
+import { playSongOnPlayer, pauseAudio, resumeAudio } from "../services/audioPlayer";
 
 type RepeatMode = "off" | "track" | "queue";
 
@@ -28,15 +29,30 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
   repeatMode: "off",
   shuffleEnabled: false,
 
-  setCurrentSong: (song) => set({ currentSong: song, isPlaying: true }),
+  setCurrentSong: (song) => {
+    set({ currentSong: song, isPlaying: true });
+    playSongOnPlayer(song).catch(() => {});
+  },
 
-  setQueue: (songs, startIndex = 0) =>
-    set({ queue: songs, currentSong: songs[startIndex] ?? null, isPlaying: songs.length > 0 }),
+  setQueue: (songs, startIndex = 0) => {
+    const startSong = songs[startIndex] ?? null;
+    set({ queue: songs, currentSong: startSong, isPlaying: songs.length > 0 });
+    if (startSong) {
+      playSongOnPlayer(startSong).catch(() => {});
+    }
+  },
 
   addToQueue: (song) =>
     set((state) => ({ queue: [...state.queue, song] })),
 
-  setPlaying: (playing) => set({ isPlaying: playing }),
+  setPlaying: (playing) => {
+    set({ isPlaying: playing });
+    if (playing) {
+      resumeAudio().catch(() => {});
+    } else {
+      pauseAudio().catch(() => {});
+    }
+  },
 
   setRepeatMode: (mode) => set({ repeatMode: mode }),
 
@@ -54,17 +70,29 @@ export const usePlayerStore = create<PlayerState>((set, get) => ({
     } else if (repeatMode === "queue") {
       nextIdx = 0;
     } else {
-      set({ isPlaying: false }); return;
+      set({ isPlaying: false });
+      pauseAudio().catch(() => {});
+      return;
     }
-    set({ currentSong: queue[nextIdx], isPlaying: true });
+    const nextSong = queue[nextIdx];
+    set({ currentSong: nextSong, isPlaying: true });
+    playSongOnPlayer(nextSong).catch(() => {});
   },
 
   playPrev: () => {
     const { queue, currentSong } = get();
     if (!currentSong || queue.length === 0) return;
     const idx = queue.findIndex((s) => s.id === currentSong.id);
-    if (idx > 0) set({ currentSong: queue[idx - 1], isPlaying: true });
+    if (idx > 0) {
+      const prevSong = queue[idx - 1];
+      set({ currentSong: prevSong, isPlaying: true });
+      playSongOnPlayer(prevSong).catch(() => {});
+    }
   },
 
-  clearQueue: () => set({ queue: [], currentSong: null, isPlaying: false }),
+  clearQueue: () => {
+    pauseAudio().catch(() => {});
+    set({ queue: [], currentSong: null, isPlaying: false });
+  },
 }));
+

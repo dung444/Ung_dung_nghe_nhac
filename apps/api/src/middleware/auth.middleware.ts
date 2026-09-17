@@ -1,4 +1,4 @@
-﻿import { Request, Response, NextFunction } from "express";
+import { Request, Response, NextFunction } from "express";
 import { verifyAccessToken } from "../lib/jwt";
 
 export function authenticate(req: Request, res: Response, next: NextFunction): void {

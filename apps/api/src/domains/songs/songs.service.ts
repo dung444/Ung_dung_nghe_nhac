@@ -1,4 +1,4 @@
-﻿import { prisma } from "../../config/database";
+import { prisma } from "../../config/database";
 import { AppError } from "../../middleware/error.middleware";
 import path from "path";
 import fs from "fs";

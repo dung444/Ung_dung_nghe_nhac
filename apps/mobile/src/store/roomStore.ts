@@ -1,4 +1,4 @@
-﻿import { create } from "zustand";
+import { create } from "zustand";
 import type { Room, RoomParticipant, Song } from "@waifu-player/types";
 
 interface RoomState {

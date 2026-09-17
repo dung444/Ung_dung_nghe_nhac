@@ -1,4 +1,4 @@
-﻿# 🎵 Waifu Player
+# 🎵 Waifu Player
 
 > Cross-platform music streaming app — phong cách anime/waifu
 
@@ -47,13 +47,17 @@ pnpm install
 cp apps/api/.env.example apps/api/.env
 # Edit apps/api/.env with your MySQL credentials
 
-# 3. Run database migrations
-pnpm --filter api prisma migrate dev
+# 3. Push database schema & generate client
+pnpm --filter @waifu-player/api prisma:generate
+pnpm --filter @waifu-player/api exec prisma db push
 
-# 4. Seed sample data
-pnpm --filter api prisma db seed
+# 4. Seed sample data (Vocaloid, Anime OST, Admin & Users)
+pnpm --filter @waifu-player/api prisma:seed
 
-# 5. Start all services
+# 5. Run tests
+pnpm test
+
+# 6. Start all services (Backend + Mobile)
 pnpm dev
 ```
 

@@ -1,4 +1,4 @@
-﻿import { prisma } from "../../config/database";
+import { prisma } from "../../config/database";
 import { AppError } from "../../middleware/error.middleware";
 
 const songInPlaylist = {
@@ -56,6 +56,8 @@ export async function addSong(playlistId: string, userId: string, songId: string
   const playlist = await prisma.playlist.findUnique({ where: { id: playlistId } });
   if (!playlist) throw new AppError("Playlist not found", 404);
   if (playlist.userId !== userId) throw new AppError("Forbidden", 403);
+  const song = await prisma.song.findUnique({ where: { id: songId } });
+  if (!song) throw new AppError("Song not found", 404);
   const existing = await prisma.playlistSong.findUnique({ where: { playlistId_songId: { playlistId, songId } } });
   if (existing) throw new AppError("Song already in playlist", 409);
   const count = await prisma.playlistSong.count({ where: { playlistId } });

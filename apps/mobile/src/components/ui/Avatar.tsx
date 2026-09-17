@@ -1,4 +1,4 @@
-﻿import React from "react";
+import React from "react";
 import { Image, View, Text, StyleSheet } from "react-native";
 import { Colors } from "../../constants/colors";
 import { getInitials } from "@waifu-player/utils";

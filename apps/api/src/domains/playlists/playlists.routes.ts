@@ -1,4 +1,4 @@
-﻿import { Router } from "express";
+import { Router } from "express";
 import { authenticate } from "../../middleware/auth.middleware";
 import * as ctrl from "./playlists.controller";
 export const playlistsRouter = Router();

@@ -1,4 +1,4 @@
-﻿import { Request, Response, NextFunction } from "express";
+import { Request, Response, NextFunction } from "express";
 import * as svc from "./artists.service";
 
 export const getArtists    = async (req: Request, res: Response, next: NextFunction) => { try { res.json({ success: true, ...(await svc.getArtists(req.query as any)) }); } catch(e){next(e);} };

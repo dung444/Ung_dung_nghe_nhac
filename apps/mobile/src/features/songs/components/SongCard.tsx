@@ -1,4 +1,4 @@
-﻿import React from "react";
+import React from "react";
 import { View, Text, Image, TouchableOpacity, StyleSheet } from "react-native";
 import type { Song } from "@waifu-player/types";
 import { Colors } from "../../../constants/colors";

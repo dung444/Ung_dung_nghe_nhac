@@ -1,4 +1,4 @@
-﻿import http from "http";
+import http from "http";
 import { createApp } from "./app";
 import { env } from "./config/env";
 import { prisma } from "./config/database";

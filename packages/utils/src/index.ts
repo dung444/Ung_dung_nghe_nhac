@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Format seconds to mm:ss string
  * Example: 183 → "3:03"
  */

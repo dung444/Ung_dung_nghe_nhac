@@ -1,4 +1,4 @@
-﻿import { Server as HttpServer } from "http";
+import { Server as HttpServer } from "http";
 import { Server } from "socket.io";
 import { verifyAccessToken } from "../lib/jwt";
 import { env } from "../config/env";

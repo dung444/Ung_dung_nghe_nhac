@@ -1,15 +1,15 @@
-﻿import React from "react";
+import React from "react";
 import { View, StyleSheet } from "react-native";
 import Slider from "@react-native-community/slider";
 import { Colors } from "../../../constants/colors";
 
 interface ProgressBarProps {
-  position: number;
-  duration: number;
-  onSeek: (value: number) => void;
+  position?: number;
+  duration?: number;
+  onSeek?: (value: number) => void;
 }
 
-export function ProgressBar({ position, duration, onSeek }: ProgressBarProps) {
+export function ProgressBar({ position = 0, duration = 180, onSeek }: ProgressBarProps) {
   return (
     <View style={styles.container}>
       <Slider

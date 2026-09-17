@@ -1,4 +1,4 @@
-﻿import { Request, Response, NextFunction } from "express";
+import { Request, Response, NextFunction } from "express";
 import * as authService from "./auth.service";
 
 export async function registerController(req: Request, res: Response, next: NextFunction) {

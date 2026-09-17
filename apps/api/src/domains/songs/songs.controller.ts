@@ -1,10 +1,10 @@
-﻿import { Request, Response, NextFunction } from "express";
+import { Request, Response, NextFunction } from "express";
 import * as songsService from "./songs.service";
 
 export async function getSongs(req: Request, res: Response, next: NextFunction) {
   try {
     const result = await songsService.getSongs(req.query as any);
-    res.json({ success: true, ...result });
+    res.json({ success: true, data: result.songs, pagination: result.pagination });
   } catch (err) { next(err); }
 }
 
@@ -38,7 +38,16 @@ export async function toggleLike(req: Request, res: Response, next: NextFunction
 export async function createSong(req: Request, res: Response, next: NextFunction) {
   try {
     const fileUrl = req.file ? `/uploads/audio/${req.file.filename}` : req.body.fileUrl;
-    const song = await songsService.createSong({ ...req.body, fileUrl });
+    if (!fileUrl) {
+      res.status(400).json({ success: false, error: "Audio file is required" });
+      return;
+    }
+    const duration = Number(req.body.duration) || 0;
+    let artistIds = req.body.artistIds;
+    if (typeof artistIds === "string") {
+      try { artistIds = JSON.parse(artistIds); } catch { artistIds = [artistIds]; }
+    }
+    const song = await songsService.createSong({ ...req.body, duration, artistIds, fileUrl });
     res.status(201).json({ success: true, data: song });
   } catch (err) { next(err); }
 }

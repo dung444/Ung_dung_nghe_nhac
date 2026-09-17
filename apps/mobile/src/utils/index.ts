@@ -1,1 +1,1 @@
-﻿export { formatDuration, formatPlays, formatDate } from "@waifu-player/utils";
+export { formatDuration, formatPlays, formatDate } from "@waifu-player/utils";

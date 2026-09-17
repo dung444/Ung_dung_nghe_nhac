@@ -1,4 +1,4 @@
-﻿import { prisma } from "../../config/database";
+import { prisma } from "../../config/database";
 
 const songSel = { id: true, title: true, duration: true, coverUrl: true, plays: true,
   artists: { select: { artist: { select: { id: true, name: true } } } } };

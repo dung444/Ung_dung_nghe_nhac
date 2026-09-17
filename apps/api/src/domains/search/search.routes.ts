@@ -1,4 +1,4 @@
-﻿import { Router } from "express";
+import { Router } from "express";
 import * as ctrl from "./search.controller";
 export const searchRouter = Router();
 searchRouter.get("/",         ctrl.search);

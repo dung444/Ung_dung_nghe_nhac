@@ -1,4 +1,4 @@
-﻿import { Namespace, Socket } from "socket.io";
+import { Namespace, Socket } from "socket.io";
 import { prisma } from "../config/database";
 
 interface RoomState {

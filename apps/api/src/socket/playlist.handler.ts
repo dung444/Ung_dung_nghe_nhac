@@ -1,4 +1,4 @@
-﻿import { Namespace, Socket } from "socket.io";
+import { Namespace, Socket } from "socket.io";
 import { prisma } from "../config/database";
 
 export function setupPlaylistHandlers(ns: Namespace, socket: Socket) {

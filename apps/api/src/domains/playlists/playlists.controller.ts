@@ -1,4 +1,4 @@
-﻿import { Request, Response, NextFunction } from "express";
+import { Request, Response, NextFunction } from "express";
 import * as svc from "./playlists.service";
 const uid = (req: Request) => req.user!.userId;
 export const getMyPlaylists  = async (req: Request, res: Response, next: NextFunction) => { try { res.json({ success: true, data: await svc.getUserPlaylists(uid(req)) }); } catch(e){next(e);} };

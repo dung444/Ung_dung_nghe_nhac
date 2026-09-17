@@ -1,4 +1,4 @@
-﻿{
+{
   "expo": {
     "name": "Waifu Player",
     "slug": "waifu-player",
@@ -28,8 +28,7 @@
       "output": "static"
     },
     "plugins": [
-      "expo-router",
-      "react-native-track-player"
+      "expo-router"
     ],
     "experiments": {
       "typedRoutes": true

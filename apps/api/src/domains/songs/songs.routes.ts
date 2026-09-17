@@ -1,4 +1,4 @@
-﻿import { Router } from "express";
+import { Router } from "express";
 import { authenticate, requireAdmin } from "../../middleware/auth.middleware";
 import { uploadAudio } from "../../middleware/upload.middleware";
 import * as ctrl from "./songs.controller";

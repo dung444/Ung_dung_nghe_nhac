@@ -1,4 +1,4 @@
-﻿import { prisma } from "../../config/database";
+import { prisma } from "../../config/database";
 import { hashPassword, comparePassword } from "../../lib/bcrypt";
 import { signAccessToken, signRefreshToken, verifyRefreshToken } from "../../lib/jwt";
 import { AppError } from "../../middleware/error.middleware";
@@ -12,7 +12,7 @@ export async function register(input: RegisterInput) {
   if (existing) {
     throw new AppError(
       existing.email === input.email ? "Email already in use" : "Username already taken",
-      409
+      400
     );
   }
 

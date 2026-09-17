@@ -1,4 +1,4 @@
-﻿import { Role } from "@waifu-player/types";
+import { Role } from "@waifu-player/types";
 
 declare global {
   namespace Express {
