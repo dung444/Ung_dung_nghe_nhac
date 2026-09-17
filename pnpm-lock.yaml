@@ -164,10 +164,13 @@ importers:
         version: 15.15.4(react-native@0.86.3(@babel/core@7.29.7)(@react-native/metro-config@0.87.1(@babel/core@7.29.7))(@types/react@19.2.18)(react@19.2.3))(react@19.2.3)
       react-native-track-player:
         specifier: ^4.1.0
-        version: 4.1.2(react-native@0.86.3(@babel/core@7.29.7)(@react-native/metro-config@0.87.1(@babel/core@7.29.7))(@types/react@19.2.18)(react@19.2.3))(react@19.2.3)
+        version: 4.1.2(react-native@0.86.3(@babel/core@7.29.7)(@react-native/metro-config@0.87.1(@babel/core@7.29.7))(@types/react@19.2.18)(react@19.2.3))(react@19.2.3)(shaka-player@4.7.11)
       react-native-web:
         specifier: ~0.21.0
         version: 0.21.2(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      shaka-player:
+        specifier: 4.7.11
+        version: 4.7.11
       socket.io-client:
         specifier: ^4.8.0
         version: 4.8.3
@@ -2343,6 +2346,10 @@ packages:
   electron-to-chromium@1.5.430:
     resolution: {integrity: sha512-e1QEj72Y4zd8RlNZVmoTg+iCOSVwpk05IOiiQwdrkwCSVlZfPthevErhE+nckGd2YbsXfp1SkisznhGVIXP2NQ==}
 
+  eme-encryption-scheme-polyfill@2.2.4:
+    resolution: {integrity: sha512-04RxnYXZhddE7VFZ8OPoCR5lX1agj9vp1WIr4YfZgx3rMuYLQl0V1ycb9cw9HvW9kIefXqeFDrCUsy2regUguw==}
+    deprecated: Deprecated as a package and folded into Shaka Player directly
+
   emoji-regex@8.0.0:
     resolution: {integrity: sha512-MSjYzcWNOA0ewAHpz0MxpYFvwg6yjy1NG3xteoqz644VCo/RPgnr1/GGt+ic3iJTzQ8Eu3TdM14SawnVUmGE6A==}
 
@@ -3877,6 +3884,10 @@ packages:
   sf-symbols-typescript@2.2.0:
     resolution: {integrity: sha512-TPbeg0b7ylrswdGCji8FRGFAKuqbpQlLbL8SOle3j1iHSs5Ob5mhvMAxWN2UItOjgALAB5Zp3fmMfj8mbWvXKw==}
     engines: {node: '>=10'}
+
+  shaka-player@4.7.11:
+    resolution: {integrity: sha512-zHyuL/cph3xKbci/Ovba/Swyni6g3cj79cN+84BCCrD3tWR9WEBwc8svcqPIXNQX/7VYb3uwaOa+85eBQKPkMg==}
+    engines: {node: '>=14'}
 
   shallowequal@1.1.0:
     resolution: {integrity: sha512-y0m1JoUZSlPAjXVtPPW70aZWfIL/dSP7AFkRnniLCrK/8MDKog3TySTBmckD+RObVxH0v4Tox67+F14PdED2oQ==}
@@ -6763,6 +6774,8 @@ snapshots:
 
   electron-to-chromium@1.5.430: {}
 
+  eme-encryption-scheme-polyfill@2.2.4: {}
+
   emoji-regex@8.0.0: {}
 
   empathic@2.0.0: {}
@@ -8509,10 +8522,12 @@ snapshots:
       react-native: 0.86.3(@babel/core@7.29.7)(@react-native/metro-config@0.87.1(@babel/core@7.29.7))(@types/react@19.2.18)(react@19.2.3)
       warn-once: 0.1.1
 
-  react-native-track-player@4.1.2(react-native@0.86.3(@babel/core@7.29.7)(@react-native/metro-config@0.87.1(@babel/core@7.29.7))(@types/react@19.2.18)(react@19.2.3))(react@19.2.3):
+  react-native-track-player@4.1.2(react-native@0.86.3(@babel/core@7.29.7)(@react-native/metro-config@0.87.1(@babel/core@7.29.7))(@types/react@19.2.18)(react@19.2.3))(react@19.2.3)(shaka-player@4.7.11):
     dependencies:
       react: 19.2.3
       react-native: 0.86.3(@babel/core@7.29.7)(@react-native/metro-config@0.87.1(@babel/core@7.29.7))(@types/react@19.2.18)(react@19.2.3)
+    optionalDependencies:
+      shaka-player: 4.7.11
 
   react-native-web@0.21.2(react-dom@19.2.3(react@19.2.3))(react@19.2.3):
     dependencies:
@@ -8775,6 +8790,10 @@ snapshots:
   setprototypeof@1.2.0: {}
 
   sf-symbols-typescript@2.2.0: {}
+
+  shaka-player@4.7.11:
+    dependencies:
+      eme-encryption-scheme-polyfill: 2.2.4
 
   shallowequal@1.1.0: {}
 
