@@ -64,7 +64,7 @@ export async function getDashboardStats(): Promise<AdminDashboardStats> {
     totalVipUsers,
     totalArtists,
     totalSongs,
-    totalPlays: playsAggregate._sum.plays || 0,
+    totalPlays: playsAggregate._sum?.plays ?? 0,
     totalAlbums,
     totalPlaylists,
     totalRooms,

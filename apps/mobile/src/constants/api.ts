@@ -45,4 +45,15 @@ export const ENDPOINTS = {
   // Rooms
   rooms:         `${API_V1}/rooms`,
   room:          (id: string) => `${API_V1}/rooms/${id}`,
+  // Copyright & Licensing
+  copyrightStats:     `${API_V1}/copyright/stats`,
+  copyrightLicenses:  `${API_V1}/copyright/licenses`,
+  songCopyright:      (id: string) => `${API_V1}/copyright/songs/${id}`,
+  claims:             `${API_V1}/copyright/claims`,
+  // Admin Portal
+  adminStats:    `${API_V1}/admin/stats`,
+  adminUsers:    `${API_V1}/admin/users`,
+  adminUser:     (id: string) => `${API_V1}/admin/users/${id}`,
+  adminArtists:  `${API_V1}/admin/artists`,
+  adminAlbums:   `${API_V1}/admin/albums`,
 } as const;
