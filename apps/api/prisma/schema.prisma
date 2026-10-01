@@ -23,6 +23,28 @@ enum NotificationType {
   NEW_RELEASE
 }
 
+enum LicenseType {
+  ALL_RIGHTS_RESERVED
+  CREATIVE_COMMONS
+  ROYALTY_FREE
+  PUBLIC_DOMAIN
+  CUSTOM_LICENSE
+}
+
+enum CopyrightStatus {
+  ACTIVE
+  PENDING_REVIEW
+  FLAGGED
+  TAKEDOWN
+}
+
+enum ClaimStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  RESOLVED
+}
+
 // ─── AUTH ────────────────────────────────────────────────────────────────────
 
 model User {
@@ -47,6 +69,9 @@ model User {
   roomsOwned       Room[]             @relation("RoomOwner")
   roomParticipants RoomParticipant[]
   notifications    Notification[]
+  registeredCopyrights SongCopyright[]  @relation("CopyrightRegistrar")
+  copyrightClaims      CopyrightClaim[] @relation("Claimant")
+  reviewedClaims       CopyrightClaim[] @relation("ClaimReviewer")
 
   @@index([email])
   @@index([username])
@@ -130,6 +155,8 @@ model Song {
   playlists        PlaylistSong[]
   queueItems       QueueItem[]
   roomQueueItems   RoomQueueItem[]
+  copyright        SongCopyright?
+  copyrightClaims  CopyrightClaim[]
 
   @@index([title])
   @@index([albumId])
@@ -301,4 +328,50 @@ model Notification {
 
   @@index([userId, read])
   @@index([userId, createdAt])
+}
+
+// ─── COPYRIGHT & LICENSING ───────────────────────────────────────────────────
+
+model SongCopyright {
+  id                 String          @id @default(uuid())
+  songId             String          @unique
+  song               Song            @relation(fields: [songId], references: [id], onDelete: Cascade)
+  ownerName          String
+  licenseType        LicenseType     @default(ALL_RIGHTS_RESERVED)
+  isrc               String?
+  copyrightYear      Int             @default(2026)
+  distributionRights String          @default("GLOBAL")
+  allowRemix         Boolean         @default(false)
+  commercialUse      Boolean         @default(false)
+  status             CopyrightStatus @default(ACTIVE)
+  registeredById     String?
+  registeredBy       User?           @relation("CopyrightRegistrar", fields: [registeredById], references: [id])
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @updatedAt
+
+  @@index([songId])
+  @@index([licenseType])
+  @@index([status])
+}
+
+model CopyrightClaim {
+  id           String      @id @default(uuid())
+  songId       String
+  song         Song        @relation(fields: [songId], references: [id], onDelete: Cascade)
+  claimantId   String
+  claimant     User        @relation("Claimant", fields: [claimantId], references: [id], onDelete: Cascade)
+  reason       String
+  description  String      @db.Text
+  proofUrl     String?
+  status       ClaimStatus @default(PENDING)
+  adminNotes   String?     @db.Text
+  reviewedById String?
+  reviewedBy   User?       @relation("ClaimReviewer", fields: [reviewedById], references: [id])
+  reviewedAt   DateTime?
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  @@index([songId])
+  @@index([claimantId])
+  @@index([status])
 }

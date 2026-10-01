@@ -80,6 +80,38 @@ export const CreateAlbumSchema = z.object({
   releaseDate: z.string().datetime().optional(),
 });
 
+// ─── Copyright & Licensing ───────────────────────────────────────────────────
+
+export const LicenseTypeEnum = z.enum([
+  "ALL_RIGHTS_RESERVED",
+  "CREATIVE_COMMONS",
+  "ROYALTY_FREE",
+  "PUBLIC_DOMAIN",
+  "CUSTOM_LICENSE",
+]);
+
+export const RegisterCopyrightSchema = z.object({
+  ownerName: z.string().min(1, "Tên chủ sở hữu không được rỗng").max(200),
+  licenseType: LicenseTypeEnum.default("ALL_RIGHTS_RESERVED"),
+  isrc: z.string().max(20).optional(),
+  copyrightYear: z.number().int().min(1900).max(2100).default(2026),
+  distributionRights: z.string().max(100).default("GLOBAL"),
+  allowRemix: z.boolean().default(false),
+  commercialUse: z.boolean().default(false),
+});
+
+export const CreateCopyrightClaimSchema = z.object({
+  songId: z.string().uuid("Song ID không hợp lệ"),
+  reason: z.string().min(3, "Lý do khiếu nại tối thiểu 3 ký tự").max(255),
+  description: z.string().min(10, "Mô tả chi tiết vi phạm tối thiểu 10 ký tự").max(5000),
+  proofUrl: z.string().url("Link tài liệu chứng minh không hợp lệ").optional().or(z.literal("")),
+});
+
+export const ReviewCopyrightClaimSchema = z.object({
+  status: z.enum(["APPROVED", "REJECTED", "RESOLVED"]),
+  adminNotes: z.string().max(1000).optional(),
+});
+
 // ─── Queue ────────────────────────────────────────────────────────────────────
 
 export const AddToQueueSchema = z.object({
@@ -104,3 +136,7 @@ export type UpdatePlaylistInput = z.infer<typeof UpdatePlaylistSchema>;
 export type SearchQueryInput = z.infer<typeof SearchQuerySchema>;
 export type CreateArtistInput = z.infer<typeof CreateArtistSchema>;
 export type CreateAlbumInput = z.infer<typeof CreateAlbumSchema>;
+export type RegisterCopyrightInput = z.infer<typeof RegisterCopyrightSchema>;
+export type CreateCopyrightClaimInput = z.infer<typeof CreateCopyrightClaimSchema>;
+export type ReviewCopyrightClaimInput = z.infer<typeof ReviewCopyrightClaimSchema>;
+

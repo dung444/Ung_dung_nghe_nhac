@@ -71,6 +71,7 @@ export interface Song {
   // Client-side helpers
   isLiked?: boolean;
   streamUrl?: string;
+  copyright?: SongCopyright;
 }
 
 // ─── User Interactions ────────────────────────────────────────────────────────
@@ -215,3 +216,57 @@ export interface RoomStatePayload {
   queue: Song[];
   participants: RoomParticipant[];
 }
+
+// ─── Music Copyright & Licensing ──────────────────────────────────────────────
+
+export type LicenseType =
+  | "ALL_RIGHTS_RESERVED"
+  | "CREATIVE_COMMONS"
+  | "ROYALTY_FREE"
+  | "PUBLIC_DOMAIN"
+  | "CUSTOM_LICENSE";
+
+export type CopyrightStatus = "ACTIVE" | "PENDING_REVIEW" | "FLAGGED" | "TAKEDOWN";
+
+export type ClaimStatus = "PENDING" | "APPROVED" | "REJECTED" | "RESOLVED";
+
+export interface SongCopyright {
+  id: string;
+  songId: string;
+  ownerName: string;
+  licenseType: LicenseType;
+  isrc?: string | null;
+  copyrightYear: number;
+  distributionRights: string;
+  allowRemix: boolean;
+  commercialUse: boolean;
+  status: CopyrightStatus;
+  registeredById?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CopyrightClaim {
+  id: string;
+  songId: string;
+  song?: Pick<Song, "id" | "title" | "coverUrl">;
+  claimantId: string;
+  claimant?: Pick<User, "id" | "username" | "avatarUrl">;
+  reason: string;
+  description: string;
+  proofUrl?: string | null;
+  status: ClaimStatus;
+  adminNotes?: string | null;
+  reviewedById?: string | null;
+  reviewedAt?: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CopyrightStats {
+  totalLicensedSongs: number;
+  totalClaims: number;
+  pendingClaims: number;
+  licenseTypeBreakdown: Record<LicenseType, number>;
+}
+

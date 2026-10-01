@@ -102,6 +102,7 @@ Dự án áp dụng mô hình kiến trúc **Full-stack TypeScript Monorepo**, p
   - `/rooms`: Quản lý phòng nghe nhạc trực tuyến (Live Listening Rooms).
   - `/users`: Quản lý hồ sơ cá nhân, đổi avatar, lịch sử nghe, bài hát yêu thích.
   - `/search`: Tìm kiếm tổng hợp theo tên bài hát, nghệ sĩ, thể loại (Genre) và album.
+  - `/copyright`: Quản lý chứng chỉ bản quyền âm nhạc quốc tế (ISRC), giấy phép khai thác và quy trình xử lý tranh chấp khiếu nại (DMCA Takedown).
 * **Prisma ORM (v6+)**: ORM thế hệ mới với khả năng sinh kiểu dữ liệu tự động (Type-safe), quản lý quan hệ phức tạp (Nghệ sĩ - Bài hát, Playlist - Bài hát) và tự động đồng bộ Schema với Database qua migration.
 * **Socket.io (v4+)**: Động cơ thời gian thực đa kênh (Multi-namespace Real-time Engine) với 3 Namespace chuyên biệt:
   - **`/presence`**: Giám sát người dùng online và phát sóng trạng thái đang nghe bài hát nào theo thời gian thực (Friend Activity).
