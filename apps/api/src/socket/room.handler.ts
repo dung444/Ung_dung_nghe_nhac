@@ -80,6 +80,17 @@ export function setupRoomHandlers(ns: Namespace, socket: Socket) {
     ns.to(roomId).emit("room:chat:message", { ...user, message: message.trim(), sentAt: new Date().toISOString() });
   });
 
+  socket.on("room:reaction", async ({ roomId, emoji }: { roomId: string; emoji: string }) => {
+    if (!emoji) return;
+    const user = await prisma.user.findUnique({ where: { id: userId }, select: { id: true, username: true } });
+    ns.to(roomId).emit("room:reaction", {
+      id: `${Date.now()}-${Math.random()}`,
+      emoji,
+      user: user?.username || "Thành viên",
+      userId,
+    });
+  });
+
   socket.on("disconnect", async () => {
     // Remove from all rooms
     const rooms = await prisma.roomParticipant.findMany({ where: { userId }, select: { roomId: true } });

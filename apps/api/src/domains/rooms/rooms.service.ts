@@ -15,17 +15,46 @@ export async function getRoomById(id: string) {
       owner: { select: { id: true, username: true, avatarUrl: true } },
       participants: { include: { user: { select: { id: true, username: true, avatarUrl: true } } } },
       queue: {
-        include: { song: { select: { id: true, title: true, duration: true, coverUrl: true,
-          artists: { select: { artist: { select: { id: true, name: true } } } } } } },
+        include: {
+          song: {
+            select: {
+              id: true,
+              title: true,
+              duration: true,
+              coverUrl: true,
+              fileUrl: true,
+              artists: { select: { artist: { select: { id: true, name: true } } } },
+            },
+          },
+        },
         orderBy: { position: "asc" },
       },
     },
   });
   if (!room) throw new AppError("Room not found", 404);
+
+  let currentSong = null;
+  if (room.currentSongId) {
+    const s = await prisma.song.findUnique({
+      where: { id: room.currentSongId },
+      include: {
+        artists: { select: { artist: { select: { id: true, name: true } } } },
+      },
+    });
+    if (s) {
+      currentSong = {
+        ...s,
+        artists: s.artists.map((a: any) => a.artist),
+      };
+    }
+  }
+
   return {
     ...room,
+    currentSong,
     queue: room.queue.map((qi: any) => ({
-      ...qi, song: { ...qi.song, artists: qi.song.artists.map((a: any) => a.artist) },
+      ...qi,
+      song: { ...qi.song, artists: qi.song.artists.map((a: any) => a.artist) },
     })),
   };
 }

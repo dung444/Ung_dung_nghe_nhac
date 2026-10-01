@@ -1,6 +1,12 @@
 import { create } from "zustand";
 import type { Song } from "@waifu-player/types";
-import { playSongOnPlayer, pauseAudio, resumeAudio, seekToPosition, setAudioEventListeners } from "../services/audioPlayer";
+import {
+  playSongOnPlayer,
+  pauseAudio,
+  resumeAudio,
+  seekToPosition,
+  setAudioEventListeners,
+} from "../services/audioPlayer";
 
 type RepeatMode = "off" | "track" | "queue";
 
@@ -25,6 +31,31 @@ interface PlayerState {
   clearQueue: () => void;
 }
 
+function notifyPresenceAndRecordPlay(song: Song) {
+  try {
+    const { api } = require("../services/api");
+    api.post(`/api/v1/songs/${song.id}/play`).catch(() => {});
+  } catch {}
+
+  try {
+    const { getPresenceSocket } = require("../services/socket");
+    const artistName = song.artists?.map((a: any) => a.name).join(", ") || "";
+    getPresenceSocket().emit("user:playing", {
+      songId: song.id,
+      songTitle: song.title,
+      artistName,
+      coverUrl: song.coverUrl,
+    });
+  } catch {}
+}
+
+function notifyPresencePaused() {
+  try {
+    const { getPresenceSocket } = require("../services/socket");
+    getPresenceSocket().emit("user:paused");
+  } catch {}
+}
+
 export const usePlayerStore = create<PlayerState>((set, get) => {
   // Setup listeners from audioPlayer service
   setAudioEventListeners({
@@ -39,6 +70,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
       if (repeatMode === "track" && currentSong) {
         set({ position: 0 });
         playSongOnPlayer(currentSong).catch(() => {});
+        notifyPresenceAndRecordPlay(currentSong);
       } else {
         playNext();
       }
@@ -57,6 +89,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
     setCurrentSong: (song) => {
       set({ currentSong: song, isPlaying: true, position: 0, duration: song.duration || 0 });
       playSongOnPlayer(song).catch(() => {});
+      notifyPresenceAndRecordPlay(song);
     },
 
     setQueue: (songs, startIndex = 0) => {
@@ -70,18 +103,34 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
       });
       if (startSong) {
         playSongOnPlayer(startSong).catch(() => {});
+        notifyPresenceAndRecordPlay(startSong);
       }
+      // Sync queue to backend if authenticated
+      try {
+        const { api } = require("../services/api");
+        api.post("/api/v1/queue", { songIds: songs.map((s) => s.id) }).catch(() => {});
+      } catch {}
     },
 
     addToQueue: (song) =>
-      set((state) => ({ queue: [...state.queue, song] })),
+      set((state) => {
+        const newQueue = [...state.queue, song];
+        try {
+          const { api } = require("../services/api");
+          api.post("/api/v1/queue/add", { songId: song.id }).catch(() => {});
+        } catch {}
+        return { queue: newQueue };
+      }),
 
     setPlaying: (playing) => {
       set({ isPlaying: playing });
       if (playing) {
         resumeAudio().catch(() => {});
+        const current = get().currentSong;
+        if (current) notifyPresenceAndRecordPlay(current);
       } else {
         pauseAudio().catch(() => {});
+        notifyPresencePaused();
       }
     },
 
@@ -108,11 +157,13 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
       } else {
         set({ isPlaying: false, position: 0 });
         pauseAudio().catch(() => {});
+        notifyPresencePaused();
         return;
       }
       const nextSong = queue[nextIdx];
       set({ currentSong: nextSong, isPlaying: true, position: 0, duration: nextSong.duration || 0 });
       playSongOnPlayer(nextSong).catch(() => {});
+      notifyPresenceAndRecordPlay(nextSong);
     },
 
     playPrev: () => {
@@ -131,6 +182,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
         const prevSong = queue[idx - 1];
         set({ currentSong: prevSong, isPlaying: true, position: 0, duration: prevSong.duration || 0 });
         playSongOnPlayer(prevSong).catch(() => {});
+        notifyPresenceAndRecordPlay(prevSong);
       } else {
         set({ position: 0 });
         seekToPosition(0).catch(() => {});
@@ -139,8 +191,12 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
 
     clearQueue: () => {
       pauseAudio().catch(() => {});
+      notifyPresencePaused();
       set({ queue: [], currentSong: null, isPlaying: false, position: 0, duration: 0 });
+      try {
+        const { api } = require("../services/api");
+        api.delete("/api/v1/queue/clear").catch(() => {});
+      } catch {}
     },
   };
 });
-
