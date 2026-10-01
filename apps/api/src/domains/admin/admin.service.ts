@@ -8,92 +8,88 @@ import type {
 } from "./admin.types";
 
 export async function getDashboardStats(): Promise<AdminDashboardStats> {
-  // Nhom 1: Cac phep dem don gian (8 phan tu - trong gioi han Promise.all)
-  const [
-    totalUsers,
-    totalVipUsers,
-    totalArtists,
-    totalSongs,
-    playsAggregate,
-    totalAlbums,
-    totalPlaylists,
-    totalRooms,
-  ] = await Promise.all([
-    prisma.user.count(),
-    prisma.user.count({ where: { isPremium: true } }),
-    prisma.artist.count(),
-    prisma.song.count(),
-    prisma.song.aggregate({ _sum: { plays: true } }),
-    prisma.album.count(),
-    prisma.playlist.count(),
-    prisma.room.count(),
-  ]);
+  const totalUsers = await prisma.user.count();
+  const totalVipUsers = await prisma.user.count({ where: { isPremium: true } });
+  const totalArtists = await prisma.artist.count();
+  const totalSongs = await prisma.song.count();
+  const totalAlbums = await prisma.album.count();
+  const totalPlaylists = await prisma.playlist.count();
+  const totalRooms = await prisma.room.count();
 
-  // Nhom 2: Copyright claims + recent data
-  const [pendingClaims, totalClaims, recentUsersRaw, recentSongsRaw] =
-    await Promise.all([
-      prisma.copyrightClaim.count({ where: { status: "PENDING" } }),
-      prisma.copyrightClaim.count(),
-      prisma.user.findMany({
-        take: 5,
-        orderBy: { createdAt: "desc" },
+  const playsAggregate = await prisma.song.aggregate({ _sum: { plays: true } });
+  const totalPlays: number = playsAggregate._sum?.plays ?? 0;
+
+  const pendingClaims = await prisma.copyrightClaim.count({
+    where: { status: "PENDING" },
+  });
+  const totalClaims = await prisma.copyrightClaim.count();
+
+  const recentUsersRaw = await prisma.user.findMany({
+    take: 5,
+    orderBy: { createdAt: "desc" },
+    select: {
+      id: true,
+      username: true,
+      email: true,
+      role: true,
+      isPremium: true,
+      createdAt: true,
+    },
+  });
+
+  const recentSongsRaw = await prisma.song.findMany({
+    take: 5,
+    orderBy: { createdAt: "desc" },
+    select: {
+      id: true,
+      title: true,
+      plays: true,
+      createdAt: true,
+      artists: {
         select: {
-          id: true,
-          username: true,
-          email: true,
-          role: true,
-          isPremium: true,
-          createdAt: true,
-        },
-      }),
-      prisma.song.findMany({
-        take: 5,
-        orderBy: { createdAt: "desc" },
-        select: {
-          id: true,
-          title: true,
-          plays: true,
-          createdAt: true,
-          artists: {
-            select: {
-              artist: {
-                select: { id: true, name: true },
-              },
-            },
+          artist: {
+            select: { id: true, name: true },
           },
         },
-      }),
-    ]);
+      },
+    },
+  });
 
-  const stats: AdminDashboardStats = {
-    totalUsers,
-    totalVipUsers,
-    totalArtists,
-    totalSongs,
-    totalPlays: playsAggregate._sum?.plays ?? 0,
-    totalAlbums,
-    totalPlaylists,
-    totalRooms,
-    pendingClaims,
-    totalClaims,
-    recentUsers: recentUsersRaw.map((u) => ({
+  const recentUsers: AdminDashboardStats["recentUsers"] = recentUsersRaw.map(
+    (u) => ({
       id: u.id,
       username: u.username,
       email: u.email,
       role: u.role as Role,
       isPremium: u.isPremium,
       createdAt: u.createdAt.toISOString(),
-    })),
-    recentSongs: recentSongsRaw.map((s) => ({
+    })
+  );
+
+  const recentSongs: AdminDashboardStats["recentSongs"] = recentSongsRaw.map(
+    (s) => ({
       id: s.id,
       title: s.title,
       playsCount: s.plays,
       createdAt: s.createdAt.toISOString(),
       artists: s.artists.map((a) => a.artist),
-    })),
-  };
+    })
+  );
 
-  return stats;
+  return {
+    totalUsers,
+    totalVipUsers,
+    totalArtists,
+    totalSongs,
+    totalPlays,
+    totalAlbums,
+    totalPlaylists,
+    totalRooms,
+    pendingClaims,
+    totalClaims,
+    recentUsers,
+    recentSongs,
+  };
 }
 
 export async function getUsersList(query: {
