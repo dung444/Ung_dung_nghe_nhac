@@ -237,6 +237,30 @@ export default function ProfileScreen() {
           </TouchableOpacity>
 
           <TouchableOpacity
+            style={[
+              styles.menuItem,
+              {
+                backgroundColor: "rgba(236, 72, 153, 0.08)",
+                borderRadius: 12,
+                paddingHorizontal: 10,
+                marginVertical: 4,
+              },
+            ]}
+            onPress={() => router.push("/admin" as any)}
+          >
+            <Ionicons name="settings-outline" size={22} color={Colors.dark.primary} />
+            <View style={styles.menuItemCenter}>
+              <Text style={[styles.menuText, { color: Colors.dark.primary }]}>
+                Bảng điều khiển Quản trị (Admin Portal)
+              </Text>
+              <Text style={styles.menuSubText}>
+                Quản lý bài hát, phân quyền người dùng, thẩm định bản quyền
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={Colors.dark.primary} />
+          </TouchableOpacity>
+
+          <TouchableOpacity
             style={styles.menuItem}
             onPress={() => Alert.alert("Thông tin ứng dụng", "Waifu Player v1.0.0\nAudio Engine: RNTP v4.1 & HTML5\nFullstack Turborepo Monorepo")}
           >

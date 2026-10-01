@@ -270,3 +270,50 @@ export interface CopyrightStats {
   licenseTypeBreakdown: Record<LicenseType, number>;
 }
 
+// ─── Admin Dashboard ──────────────────────────────────────────────────────────
+
+export interface AdminDashboardStats {
+  totalUsers: number;
+  totalVipUsers: number;
+  totalArtists: number;
+  totalSongs: number;
+  totalPlays: number;
+  totalAlbums: number;
+  totalPlaylists: number;
+  totalRooms: number;
+  pendingClaims: number;
+  totalClaims: number;
+  recentUsers: Array<{
+    id: string;
+    username: string;
+    email: string;
+    role: Role;
+    isPremium: boolean;
+    createdAt: string;
+  }>;
+  recentSongs: Array<{
+    id: string;
+    title: string;
+    playsCount: number;
+    createdAt: string;
+    artists?: Array<{ id: string; name: string }>;
+  }>;
+}
+
+export interface AdminUserItem {
+  id: string;
+  username: string;
+  email: string;
+  role: Role;
+  avatarUrl: string | null;
+  isPremium: boolean;
+  createdAt: string;
+  updatedAt: string;
+  _count?: {
+    playlists: number;
+    history: number;
+    likes: number;
+  };
+}
+
+

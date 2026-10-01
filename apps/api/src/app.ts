@@ -15,6 +15,7 @@ import { searchRouter } from "./domains/search/search.routes";
 import { usersRouter } from "./domains/users/users.routes";
 import { roomsRouter } from "./domains/rooms/rooms.routes";
 import { copyrightRouter } from "./domains/copyright/copyright.routes";
+import { adminRouter } from "./domains/admin/admin.routes";
 
 export function createApp() {
   const app = express();
@@ -44,6 +45,7 @@ export function createApp() {
   api.use("/users", usersRouter);
   api.use("/rooms", roomsRouter);
   api.use("/copyright", copyrightRouter);
+  api.use("/admin", adminRouter);
 
   app.use("/api/v1", api);
 

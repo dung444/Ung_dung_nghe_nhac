@@ -15,6 +15,7 @@ export default function RootLayout() {
         <Stack.Screen name="artist/[id]" />
         <Stack.Screen name="album/[id]" />
         <Stack.Screen name="room/[id]" />
+        <Stack.Screen name="admin/index" options={{ title: "Admin Portal" }} />
       </Stack>
     </SafeAreaProvider>
   );

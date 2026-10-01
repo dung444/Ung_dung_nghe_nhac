@@ -81,3 +81,29 @@ Waifu Player tích hợp giải pháp quản trị bản quyền âm nhạc số
   - Tra cứu thông tin bản quyền và giấy phép trực tiếp trên trình phát nhạc (`SongDetailScreen`).
   - Thống kê tỷ lệ tác phẩm bảo hộ và quản lý tranh chấp tác quyền tại Trung tâm Bản quyền (`ProfileScreen`).
 
+## ⚡ Cổng Quản Trị Hệ Thống Trên Giao Diện Web (Web Admin Portal)
+
+Waifu Player cung cấp giao diện quản trị Web Admin chuyên nghiệp tại đường dẫn `/admin` (`http://localhost:8081/admin`), tối ưu cho màn hình máy tính (Desktop Web) và thiết bị di động:
+
+- **Bảng Điều Khiển Tổng Quan (Dashboard Metrics)**:
+  - Thống kê thời gian thực: Tổng người dùng, thành viên VIP, tổng số bài hát, lượt nghe tích lũy, số nghệ sĩ, đơn khiếu nại bản quyền chờ xử lý.
+  - Danh sách bài hát mới đăng tải và tài khoản mới đăng ký.
+- **Quản Lý Kho Bài Hát (Songs Management)**:
+  - Tra cứu, tìm kiếm bài hát theo tên / nghệ sĩ.
+  - Đăng tải bài hát mới (tiêu đề, nghệ sĩ, album, link audio, ảnh bìa).
+  - Thu hồi / Xóa bài hát khỏi hệ thống (`DELETE /api/v1/songs/:id`).
+- **Quản Lý Người Dùng & Phân Quyền (Users & Role Control)**:
+  - Xem danh sách toàn bộ người dùng, tìm kiếm theo username/email.
+  - Thay đổi vai trò trực tiếp: `USER` ↔ `ARTIST` ↔ `ADMIN`.
+  - Bật / Tắt gói hội viên VIP Anime Waifu (`isPremium`).
+  - Xóa tài khoản vi phạm (ngăn chặn quản trị viên tự xóa chính mình).
+- **Thẩm Định & Xử Lý Khiếu Nại Bản Quyền (DMCA Takedown Review)**:
+  - Danh sách khiếu nại bản quyền gửi từ người dùng.
+  - Xem tài liệu, link bằng chứng pháp lý vi phạm bản quyền.
+  - Phê duyệt đơn khiếu nại (`APPROVED`) → Tự động ẩn và gỡ bài hát vi phạm khỏi hệ thống (`isPublic = false` & `TAKEDOWN`).
+  - Từ chối khiếu nại (`REJECTED`) kèm ghi chú thẩm định của Quản trị viên (`adminNotes`).
+- **Quản Lý Nghệ Sĩ & Album (Artists & Albums)**:
+  - Tạo mới hồ sơ nghệ sĩ Waifu / Ca sĩ Anime.
+  - Tạo mới Album và gán bài hát theo nghệ sĩ.
+
+

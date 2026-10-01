@@ -126,6 +126,13 @@ export const PaginationSchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).optional().default(20),
 });
 
+// ─── Admin Management ─────────────────────────────────────────────────────────
+
+export const UpdateUserAdminSchema = z.object({
+  role: z.enum(["USER", "ARTIST", "ADMIN"]).optional(),
+  isPremium: z.boolean().optional(),
+});
+
 // ─── Inferred Types ───────────────────────────────────────────────────────────
 
 export type RegisterInput = z.infer<typeof RegisterSchema>;
@@ -139,4 +146,6 @@ export type CreateAlbumInput = z.infer<typeof CreateAlbumSchema>;
 export type RegisterCopyrightInput = z.infer<typeof RegisterCopyrightSchema>;
 export type CreateCopyrightClaimInput = z.infer<typeof CreateCopyrightClaimSchema>;
 export type ReviewCopyrightClaimInput = z.infer<typeof ReviewCopyrightClaimSchema>;
+export type UpdateUserAdminInput = z.infer<typeof UpdateUserAdminSchema>;
+
 
