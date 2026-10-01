@@ -8,6 +8,7 @@ import type {
 } from "./admin.types";
 
 export async function getDashboardStats(): Promise<AdminDashboardStats> {
+  // Nhom 1: Cac phep dem don gian (8 phan tu - trong gioi han Promise.all)
   const [
     totalUsers,
     totalVipUsers,
@@ -17,10 +18,6 @@ export async function getDashboardStats(): Promise<AdminDashboardStats> {
     totalAlbums,
     totalPlaylists,
     totalRooms,
-    pendingClaims,
-    totalClaims,
-    recentUsersRaw,
-    recentSongsRaw,
   ] = await Promise.all([
     prisma.user.count(),
     prisma.user.count({ where: { isPremium: true } }),
@@ -30,38 +27,43 @@ export async function getDashboardStats(): Promise<AdminDashboardStats> {
     prisma.album.count(),
     prisma.playlist.count(),
     prisma.room.count(),
-    prisma.copyrightClaim.count({ where: { status: "PENDING" } }),
-    prisma.copyrightClaim.count(),
-    prisma.user.findMany({
-      take: 5,
-      orderBy: { createdAt: "desc" },
-      select: {
-        id: true,
-        username: true,
-        email: true,
-        role: true,
-        isPremium: true,
-        createdAt: true,
-      },
-    }),
-    prisma.song.findMany({
-      take: 5,
-      orderBy: { createdAt: "desc" },
-      select: {
-        id: true,
-        title: true,
-        plays: true,
-        createdAt: true,
-        artists: {
-          select: {
-            artist: {
-              select: { id: true, name: true },
+  ]);
+
+  // Nhom 2: Copyright claims + recent data
+  const [pendingClaims, totalClaims, recentUsersRaw, recentSongsRaw] =
+    await Promise.all([
+      prisma.copyrightClaim.count({ where: { status: "PENDING" } }),
+      prisma.copyrightClaim.count(),
+      prisma.user.findMany({
+        take: 5,
+        orderBy: { createdAt: "desc" },
+        select: {
+          id: true,
+          username: true,
+          email: true,
+          role: true,
+          isPremium: true,
+          createdAt: true,
+        },
+      }),
+      prisma.song.findMany({
+        take: 5,
+        orderBy: { createdAt: "desc" },
+        select: {
+          id: true,
+          title: true,
+          plays: true,
+          createdAt: true,
+          artists: {
+            select: {
+              artist: {
+                select: { id: true, name: true },
+              },
             },
           },
         },
-      },
-    }),
-  ]);
+      }),
+    ]);
 
   const stats: AdminDashboardStats = {
     totalUsers,
