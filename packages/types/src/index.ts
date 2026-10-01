@@ -15,6 +15,7 @@ export interface User {
   id: string;
   email: string;
   username: string;
+  displayName?: string | null;
   avatarUrl: string | null;
   isPremium: boolean;
   role: Role;
@@ -315,5 +316,16 @@ export interface AdminUserItem {
     likes: number;
   };
 }
+
+export interface CreatorStudioStats {
+  artist: Artist;
+  totalSongs: number;
+  totalAlbums: number;
+  totalFollowers: number;
+  totalPlays: number;
+  estimatedEarnings: number;
+  recentSongs: Song[];
+}
+
 
 

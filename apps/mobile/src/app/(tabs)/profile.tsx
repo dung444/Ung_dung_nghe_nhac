@@ -240,6 +240,32 @@ export default function ProfileScreen() {
             style={[
               styles.menuItem,
               {
+                backgroundColor: "rgba(6, 182, 212, 0.1)",
+                borderRadius: 12,
+                paddingHorizontal: 10,
+                marginVertical: 4,
+                borderColor: "rgba(6, 182, 212, 0.3)",
+                borderWidth: 1,
+              },
+            ]}
+            onPress={() => router.push("/creator" as any)}
+          >
+            <Ionicons name="mic-outline" size={22} color={Colors.dark.accent} />
+            <View style={styles.menuItemCenter}>
+              <Text style={[styles.menuText, { color: Colors.dark.accent }]}>
+                Phòng Sáng Tạo (Creator Studio 🎙️)
+              </Text>
+              <Text style={styles.menuSubText}>
+                Đăng tải bài hát mới, tạo album, quản lý tác quyền & doanh thu
+              </Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={Colors.dark.accent} />
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[
+              styles.menuItem,
+              {
                 backgroundColor: "rgba(236, 72, 153, 0.08)",
                 borderRadius: 12,
                 paddingHorizontal: 10,

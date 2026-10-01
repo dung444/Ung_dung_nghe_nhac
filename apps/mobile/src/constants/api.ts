@@ -56,4 +56,11 @@ export const ENDPOINTS = {
   adminUser:     (id: string) => `${API_V1}/admin/users/${id}`,
   adminArtists:  `${API_V1}/admin/artists`,
   adminAlbums:   `${API_V1}/admin/albums`,
+  // Creator Studio
+  creatorStudio: `${API_V1}/creator/studio`,
+  creatorRegister: `${API_V1}/creator/register`,
+  creatorSongs:  `${API_V1}/creator/songs`,
+  creatorSong:   (id: string) => `${API_V1}/creator/songs/${id}`,
+  creatorAlbums: `${API_V1}/creator/albums`,
 } as const;
+
