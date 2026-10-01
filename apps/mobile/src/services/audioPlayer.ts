@@ -25,6 +25,17 @@ if (isTrackPlayerAvailable) {
 let webAudio: HTMLAudioElement | null = null;
 let isPlayerSetup = false;
 
+type AudioEventCallbacks = {
+  onProgress?: (position: number, duration: number) => void;
+  onEnded?: () => void;
+};
+
+let eventCallbacks: AudioEventCallbacks = {};
+
+export function setAudioEventListeners(callbacks: AudioEventCallbacks) {
+  eventCallbacks = { ...eventCallbacks, ...callbacks };
+}
+
 export async function setupAudioPlayer(): Promise<boolean> {
   if (isPlayerSetup) return true;
 
@@ -50,6 +61,16 @@ export async function setupAudioPlayer(): Promise<boolean> {
           Capability?.SkipToPrevious,
         ],
       });
+
+      if (Event) {
+        TrackPlayer.addEventListener(Event.PlaybackProgressUpdated, (data: any) => {
+          eventCallbacks.onProgress?.(data.position, data.duration);
+        });
+        TrackPlayer.addEventListener(Event.PlaybackQueueEnded, () => {
+          eventCallbacks.onEnded?.();
+        });
+      }
+
       isPlayerSetup = true;
       return true;
     } catch (error) {
@@ -84,8 +105,18 @@ export async function playSongOnPlayer(song: Song): Promise<void> {
     } else if (typeof window !== "undefined" && typeof Audio !== "undefined") {
       if (webAudio) {
         webAudio.pause();
+        webAudio.ontimeupdate = null;
+        webAudio.onended = null;
       }
       webAudio = new Audio(streamUrl);
+      webAudio.ontimeupdate = () => {
+        if (webAudio) {
+          eventCallbacks.onProgress?.(webAudio.currentTime, webAudio.duration || song.duration);
+        }
+      };
+      webAudio.onended = () => {
+        eventCallbacks.onEnded?.();
+      };
       webAudio.play().catch((e) => console.warn("[WebAudio] Playback error:", e));
     }
   } catch (error) {
@@ -124,6 +155,7 @@ export async function seekToPosition(seconds: number): Promise<void> {
     } else if (webAudio) {
       webAudio.currentTime = seconds;
     }
+    eventCallbacks.onProgress?.(seconds, webAudio?.duration || 0);
   } catch (error) {
     console.warn("[audioPlayer] seek error:", error);
   }
