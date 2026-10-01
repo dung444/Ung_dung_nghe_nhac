@@ -4,7 +4,7 @@ import {
   UpdateUserAdminSchema,
   CreateArtistSchema,
   CreateAlbumSchema,
-} from "@waifu-player/validation";
+} from "./admin.types";
 
 export async function getDashboardStats(
   req: Request,

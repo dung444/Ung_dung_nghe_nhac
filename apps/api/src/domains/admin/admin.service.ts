@@ -1,7 +1,11 @@
 import { prisma } from "../../config/database";
 import { AppError } from "../../middleware/error.middleware";
-import type { UpdateUserAdminInput } from "@waifu-player/validation";
-import type { AdminDashboardStats, Role } from "@waifu-player/types";
+import type {
+  AdminDashboardStats,
+  AdminUserItem,
+  Role,
+  UpdateUserAdminInput,
+} from "./admin.types";
 
 export async function getDashboardStats(): Promise<AdminDashboardStats> {
   const [
@@ -59,7 +63,7 @@ export async function getDashboardStats(): Promise<AdminDashboardStats> {
     }),
   ]);
 
-  return {
+  const stats: AdminDashboardStats = {
     totalUsers,
     totalVipUsers,
     totalArtists,
@@ -71,8 +75,11 @@ export async function getDashboardStats(): Promise<AdminDashboardStats> {
     pendingClaims,
     totalClaims,
     recentUsers: recentUsersRaw.map((u) => ({
-      ...u,
+      id: u.id,
+      username: u.username,
+      email: u.email,
       role: u.role as Role,
+      isPremium: u.isPremium,
       createdAt: u.createdAt.toISOString(),
     })),
     recentSongs: recentSongsRaw.map((s) => ({
@@ -83,6 +90,8 @@ export async function getDashboardStats(): Promise<AdminDashboardStats> {
       artists: s.artists.map((a) => a.artist),
     })),
   };
+
+  return stats;
 }
 
 export async function getUsersList(query: {

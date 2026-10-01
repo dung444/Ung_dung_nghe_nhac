@@ -1,5 +1,7 @@
 {
   "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022"],
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
@@ -7,5 +9,6 @@
     "resolveJsonModule": true,
     "moduleDetection": "force",
     "isolatedModules": true
-  }
+  },
+  "exclude": ["node_modules", "dist", ".expo"]
 }
