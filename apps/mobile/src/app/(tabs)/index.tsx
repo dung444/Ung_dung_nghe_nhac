@@ -102,13 +102,16 @@ const FEATURED_ARTISTS = [
   { id: "art5", name: "Aimer", role: "Mystic Vocals", avatar: "https://images.unsplash.com/photo-1563089145-599997674d42?w=200&q=80" },
 ];
 
-const CATEGORIES = ["Tất cả", "Vocaloid", "Anisong", "J-Pop", "Lo-fi Anime"];
+import { useAuthStore } from "../../store/authStore";
+
+const CATEGORIES = ["Tất cả", "Dành Cho Bạn ✨", "Vocaloid", "Anisong", "J-Pop", "Lo-fi Anime"];
 
 export default function HomeScreen() {
   const router = useRouter();
   const [activeCategory, setActiveCategory] = useState("Tất cả");
   const [songs, setSongs] = useState<Song[]>(SAMPLE_ANIME_SONGS);
   const { currentSong, isPlaying, setCurrentSong, setQueue, setPlaying } = usePlayerStore();
+  const { user, preferredGenres, preferredArtists } = useAuthStore();
 
   useEffect(() => {
     api
@@ -135,7 +138,28 @@ export default function HomeScreen() {
   const filteredSongs =
     activeCategory === "Tất cả"
       ? songs
+      : activeCategory === "Dành Cho Bạn ✨"
+      ? songs.filter((s) => {
+          const matchGenre = s.genres.some((g) =>
+            preferredGenres.some((pg) => pg.toLowerCase().includes(g.name.toLowerCase()) || g.name.toLowerCase().includes(pg.toLowerCase()))
+          );
+          const matchArtist = s.artists.some((a) =>
+            preferredArtists.includes(a.id) || preferredArtists.some((pa) => a.name.toLowerCase().includes(pa.toLowerCase()))
+          );
+          return matchGenre || matchArtist;
+        }).length > 0
+        ? songs.filter((s) => {
+            const matchGenre = s.genres.some((g) =>
+              preferredGenres.some((pg) => pg.toLowerCase().includes(g.name.toLowerCase()) || g.name.toLowerCase().includes(pg.toLowerCase()))
+            );
+            const matchArtist = s.artists.some((a) =>
+              preferredArtists.includes(a.id) || preferredArtists.some((pa) => a.name.toLowerCase().includes(pa.toLowerCase()))
+            );
+            return matchGenre || matchArtist;
+          })
+        : songs
       : songs.filter((s) => s.genres.some((g) => g.name.toLowerCase().includes(activeCategory.toLowerCase())));
+
 
   const getRankBadge = (index: number) => {
     if (index === 0) return { bg: "rgba(251, 191, 36, 0.2)", color: "#fbbf24", label: "🥇" };
