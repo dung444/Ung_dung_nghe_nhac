@@ -48,6 +48,73 @@ export default function ProfileScreen() {
   const [showPremiumModal, setShowPremiumModal] = useState(false);
   const [selectedQuality, setSelectedQuality] = useState("high");
 
+  // VIP & Payment States
+  const [vipTab, setVipTab] = useState<"PACKAGES" | "TOPUP" | "HISTORY">("PACKAGES");
+  const [selectedPackageId, setSelectedPackageId] = useState("VIP_1_MONTH");
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState("VIETQR_BANKING");
+  const [customTopupAmount, setCustomTopupAmount] = useState("100000");
+  const [paymentLoading, setPaymentLoading] = useState(false);
+  const [paymentHistory, setPaymentHistory] = useState<any[]>([]);
+
+  const handleBuyVip = async () => {
+    setPaymentLoading(true);
+    try {
+      const res = await api.post("/api/v1/payments/buy-vip", {
+        packageId: selectedPackageId,
+        method: selectedPaymentMethod,
+      });
+
+      if (res.data?.success) {
+        if (user) setUser({ ...user, isPremium: true });
+        Alert.alert("Chúc mừng! 💎", res.data.message || "Bạn đã nâng cấp thành công gói Waifu VIP Pass!");
+        setShowPremiumModal(false);
+      }
+    } catch (err: any) {
+      Alert.alert("Lỗi", err.response?.data?.error || "Không thể xử lý giao dịch");
+    } finally {
+      setPaymentLoading(false);
+    }
+  };
+
+  const handleTopup = async () => {
+    const amount = Number(customTopupAmount);
+    if (!amount || amount < 10000) {
+      Alert.alert("Lỗi", "Số tiền nạp tối thiểu là 10.000 VNĐ");
+      return;
+    }
+
+    setPaymentLoading(true);
+    try {
+      const res = await api.post("/api/v1/payments/topup", {
+        amount,
+        method: selectedPaymentMethod,
+      });
+
+      if (res.data?.success) {
+        Alert.alert("Nạp tiền thành công! 🎉", `Đã nạp ${amount.toLocaleString()} VNĐ vào tài khoản Waifu Coins!`);
+        setVipTab("PACKAGES");
+      }
+    } catch (err: any) {
+      Alert.alert("Lỗi", err.response?.data?.error || "Không thể nạp tiền");
+    } finally {
+      setPaymentLoading(false);
+    }
+  };
+
+  const fetchPaymentHistory = async () => {
+    try {
+      const res = await api.get("/api/v1/payments/history");
+      if (res.data?.success) {
+        setPaymentHistory(res.data.data.transactions || []);
+      }
+    } catch {}
+  };
+
+  const handleOpenVipModal = () => {
+    setVipTab("PACKAGES");
+    setShowPremiumModal(true);
+  };
+
   // Copyright Center states
   const [showCopyrightCenter, setShowCopyrightCenter] = useState(false);
   const [copyrightStats, setCopyrightStats] = useState<CopyrightStats | null>(null);
@@ -374,45 +441,296 @@ export default function ProfileScreen() {
         </View>
       </Modal>
 
-      {/* Premium Upgrade Modal */}
+      {/* Premium Upgrade & Top-up Center Modal */}
       <Modal
         visible={showPremiumModal}
+        animationType="slide"
         transparent={true}
-        animationType="fade"
         onRequestClose={() => setShowPremiumModal(false)}
       >
-        <View style={styles.modalBgCenter}>
-          <View style={styles.premiumCardModal}>
-            <Ionicons name="diamond" size={48} color={Colors.dark.primary} style={{ alignSelf: "center", marginBottom: 12 }} />
-            <Text style={styles.premiumModalTitle}>Waifu Player VIP Pass 💎</Text>
-            <Text style={styles.premiumModalSub}>
-              Mở khóa toàn bộ trải nghiệm nghe nhạc anime đỉnh cao:
-            </Text>
-            <View style={styles.perkRow}>
-              <Ionicons name="checkmark-circle" size={20} color={Colors.dark.primary} />
-              <Text style={styles.perkText}>Âm thanh FLAC Lossless 24-bit 192kHz</Text>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalCard, { maxHeight: "90%", paddingBottom: 16 }]}>
+            <View style={styles.modalHeader}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <Ionicons name="diamond" size={24} color={Colors.dark.primaryLight} />
+                <Text style={styles.modalTitle}>Nạp Tiền & Waifu VIP Pass 💎</Text>
+              </View>
+              <TouchableOpacity onPress={() => setShowPremiumModal(false)}>
+                <Ionicons name="close" size={24} color={Colors.dark.textMuted} />
+              </TouchableOpacity>
             </View>
-            <View style={styles.perkRow}>
-              <Ionicons name="checkmark-circle" size={20} color={Colors.dark.primary} />
-              <Text style={styles.perkText}>Tạo không giới hạn phòng nghe trực tuyến</Text>
+
+            {/* VIP Tabs */}
+            <View style={styles.vipTabNav}>
+              <TouchableOpacity
+                style={[styles.vipTabItem, vipTab === "PACKAGES" && styles.vipTabItemActive]}
+                onPress={() => setVipTab("PACKAGES")}
+              >
+                <Text style={[styles.vipTabText, vipTab === "PACKAGES" && styles.vipTabTextActive]}>
+                  Gói VIP Pass
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.vipTabItem, vipTab === "TOPUP" && styles.vipTabItemActive]}
+                onPress={() => setVipTab("TOPUP")}
+              >
+                <Text style={[styles.vipTabText, vipTab === "TOPUP" && styles.vipTabTextActive]}>
+                  Nạp Tiền (Top-up)
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.vipTabItem, vipTab === "HISTORY" && styles.vipTabItemActive]}
+                onPress={() => {
+                  setVipTab("HISTORY");
+                  fetchPaymentHistory();
+                }}
+              >
+                <Text style={[styles.vipTabText, vipTab === "HISTORY" && styles.vipTabTextActive]}>
+                  Lịch Sử Giao Dịch
+                </Text>
+              </TouchableOpacity>
             </View>
-            <View style={styles.perkRow}>
-              <Ionicons name="checkmark-circle" size={20} color={Colors.dark.primary} />
-              <Text style={styles.perkText}>Huy hiệu Waifu VIP độc quyền</Text>
-            </View>
-            <TouchableOpacity
-              style={styles.activateVipBtn}
-              onPress={() => {
-                if (user) setUser({ ...user, isPremium: true });
-                setShowPremiumModal(false);
-                Alert.alert("Chúc mừng!", "Bạn đã kích hoạt gói Waifu VIP thành công!");
-              }}
-            >
-              <Text style={styles.activateVipText}>Kích Hoạt Miễn Phí (Beta)</Text>
-            </TouchableOpacity>
-            <TouchableOpacity onPress={() => setShowPremiumModal(false)} style={{ marginTop: 12, alignSelf: "center" }}>
-              <Text style={{ color: Colors.dark.textMuted }}>Để sau</Text>
-            </TouchableOpacity>
+
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 20 }}>
+              {vipTab === "PACKAGES" && (
+                <View>
+                  {/* VIP Holographic Banner */}
+                  <View style={styles.vipHoloBanner}>
+                    <View style={styles.vipHoloBadge}>
+                      <Ionicons name="sparkles" size={14} color="#fff" />
+                      <Text style={styles.vipHoloBadgeText}>BẢN QUYỀN & HI-RES FLAC</Text>
+                    </View>
+                    <Text style={styles.vipHoloTitle}>Mở Khóa Toàn Bộ Kho Nhạc Bản Quyền 🎧</Text>
+                    <Text style={styles.vipHoloDesc}>
+                      Thưởng thức các bài hát Anime & Vocaloid có chứng nhận ISRC quốc tế, chất lượng âm thanh 24-bit Lossless, không quảng cáo và tạo phòng nghe Live không giới hạn!
+                    </Text>
+                  </View>
+
+                  {/* VIP Packages List */}
+                  <Text style={styles.formSectionLabel}>Chọn gói hội viên VIP phù hợp:</Text>
+                  {[
+                    {
+                      id: "VIP_1_MONTH",
+                      name: "VIP Anime Waifu Pass (1 Tháng)",
+                      price: "49.000 ₫",
+                      badge: "PHỔ BIẾN",
+                      badgeColor: Colors.dark.accent,
+                      desc: "Mở khóa 100% kho nhạc bản quyền ISRC & Lossless 24-bit FLAC",
+                    },
+                    {
+                      id: "VIP_3_MONTHS",
+                      name: "VIP Sakura Season Pass (3 Tháng)",
+                      price: "129.000 ₫",
+                      badge: "TIẾT KIỆM 15%",
+                      badgeColor: Colors.dark.primaryLight,
+                      desc: "Huy hiệu VIP Sakura, tạo phòng nghe Live không giới hạn thành viên",
+                    },
+                    {
+                      id: "VIP_1_YEAR",
+                      name: "VIP Lifetime Anime Master (1 Năm)",
+                      price: "449.000 ₫",
+                      badge: "SIÊU TIẾT KIỆM 30%",
+                      badgeColor: "#fbbf24",
+                      desc: "Vương Miện Vàng Hoàng Gia, tặng 100 Điểm Sáng Tạo",
+                    },
+                  ].map((pkg) => {
+                    const isSelected = selectedPackageId === pkg.id;
+                    return (
+                      <TouchableOpacity
+                        key={pkg.id}
+                        style={[styles.vipPackageCard, isSelected && styles.vipPackageCardActive]}
+                        onPress={() => setSelectedPackageId(pkg.id)}
+                        activeOpacity={0.85}
+                      >
+                        <View style={styles.pkgHeaderRow}>
+                          <View style={{ flex: 1 }}>
+                            <Text style={[styles.pkgName, isSelected && { color: Colors.dark.primaryLight }]}>
+                              {pkg.name}
+                            </Text>
+                            <Text style={styles.pkgDesc}>{pkg.desc}</Text>
+                          </View>
+                          <View style={[styles.pkgBadge, { backgroundColor: `${pkg.badgeColor}25`, borderColor: pkg.badgeColor }]}>
+                            <Text style={[styles.pkgBadgeText, { color: pkg.badgeColor }]}>{pkg.badge}</Text>
+                          </View>
+                        </View>
+                        <View style={styles.pkgFooterRow}>
+                          <Text style={styles.pkgPrice}>{pkg.price}</Text>
+                          <Ionicons
+                            name={isSelected ? "radio-button-on" : "radio-button-off"}
+                            size={20}
+                            color={isSelected ? Colors.dark.primaryLight : Colors.dark.textMuted}
+                          />
+                        </View>
+                      </TouchableOpacity>
+                    );
+                  })}
+
+                  {/* Payment Method Selector */}
+                  <Text style={[styles.formSectionLabel, { marginTop: 14 }]}>Phương thức thanh toán:</Text>
+                  <View style={styles.paymentMethodsGrid}>
+                    {[
+                      { id: "VIETQR_BANKING", name: "VietQR / Banking", icon: "qr-code" },
+                      { id: "MOMO", name: "Ví MoMo", icon: "wallet" },
+                      { id: "VNPAY", name: "VNPay / Thẻ", icon: "card" },
+                    ].map((m) => {
+                      const isSelected = selectedPaymentMethod === m.id;
+                      return (
+                        <TouchableOpacity
+                          key={m.id}
+                          style={[styles.paymentMethodCard, isSelected && styles.paymentMethodCardActive]}
+                          onPress={() => setSelectedPaymentMethod(m.id)}
+                        >
+                          <Ionicons
+                            name={m.icon as any}
+                            size={20}
+                            color={isSelected ? Colors.dark.primaryLight : Colors.dark.textMuted}
+                          />
+                          <Text style={[styles.paymentMethodText, isSelected && { color: "#fff", fontWeight: "700" }]}>
+                            {m.name}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+
+                  {/* Submit Purchase Button */}
+                  <TouchableOpacity
+                    style={styles.paySubmitBtn}
+                    onPress={handleBuyVip}
+                    disabled={paymentLoading}
+                    activeOpacity={0.85}
+                  >
+                    {paymentLoading ? (
+                      <ActivityIndicator color="#fff" />
+                    ) : (
+                      <>
+                        <Ionicons name="diamond" size={18} color="#fff" />
+                        <Text style={styles.paySubmitText}>Thanh Toán & Nâng Cấp VIP Ngay</Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              {vipTab === "TOPUP" && (
+                <View>
+                  <Text style={styles.formSectionLabel}>Chọn mệnh giá nạp vào Ví Waifu Coins:</Text>
+                  <View style={styles.topupAmountsGrid}>
+                    {["50000", "100000", "200000", "500000"].map((amt) => {
+                      const isSelected = customTopupAmount === amt;
+                      return (
+                        <TouchableOpacity
+                          key={amt}
+                          style={[styles.topupAmountCard, isSelected && styles.topupAmountCardActive]}
+                          onPress={() => setCustomTopupAmount(amt)}
+                        >
+                          <Text style={[styles.topupAmountText, isSelected && { color: Colors.dark.primaryLight }]}>
+                            {Number(amt).toLocaleString()} ₫
+                          </Text>
+                          <Text style={styles.topupCoinsSub}>+ {Number(amt) / 1000} Waifu Coins</Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+
+                  <Text style={[styles.formSectionLabel, { marginTop: 14 }]}>Hoặc nhập số tiền tùy chọn (VNĐ):</Text>
+                  <TextInput
+                    style={styles.topupInput}
+                    placeholder="Ví dụ: 150000"
+                    placeholderTextColor={Colors.dark.textMuted}
+                    value={customTopupAmount}
+                    onChangeText={setCustomTopupAmount}
+                    keyboardType="numeric"
+                  />
+
+                  {/* Payment Method Selector */}
+                  <Text style={[styles.formSectionLabel, { marginTop: 14 }]}>Cổng thanh toán nạp tiền:</Text>
+                  <View style={styles.paymentMethodsGrid}>
+                    {[
+                      { id: "VIETQR_BANKING", name: "VietQR 24/7", icon: "qr-code" },
+                      { id: "MOMO", name: "Ví MoMo", icon: "wallet" },
+                      { id: "VNPAY", name: "VNPay QR", icon: "card" },
+                    ].map((m) => {
+                      const isSelected = selectedPaymentMethod === m.id;
+                      return (
+                        <TouchableOpacity
+                          key={m.id}
+                          style={[styles.paymentMethodCard, isSelected && styles.paymentMethodCardActive]}
+                          onPress={() => setSelectedPaymentMethod(m.id)}
+                        >
+                          <Ionicons
+                            name={m.icon as any}
+                            size={20}
+                            color={isSelected ? Colors.dark.primaryLight : Colors.dark.textMuted}
+                          />
+                          <Text style={[styles.paymentMethodText, isSelected && { color: "#fff", fontWeight: "700" }]}>
+                            {m.name}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+
+                  <TouchableOpacity
+                    style={styles.paySubmitBtn}
+                    onPress={handleTopup}
+                    disabled={paymentLoading}
+                    activeOpacity={0.85}
+                  >
+                    {paymentLoading ? (
+                      <ActivityIndicator color="#fff" />
+                    ) : (
+                      <>
+                        <Ionicons name="card" size={18} color="#fff" />
+                        <Text style={styles.paySubmitText}>
+                          Xác Nhận Nạp {Number(customTopupAmount || 0).toLocaleString()} ₫
+                        </Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              {vipTab === "HISTORY" && (
+                <View>
+                  {paymentHistory.length === 0 ? (
+                    <View style={styles.emptyHistoryBox}>
+                      <Ionicons name="receipt-outline" size={42} color={Colors.dark.textMuted} />
+                      <Text style={styles.emptyHistoryTitle}>Chưa có lịch sử giao dịch</Text>
+                      <Text style={styles.emptyHistorySub}>Các lần nạp tiền và mua gói VIP của bạn sẽ xuất hiện tại đây.</Text>
+                    </View>
+                  ) : (
+                    paymentHistory.map((tx) => (
+                      <View key={tx.id} style={styles.historyCard}>
+                        <View style={styles.historyIconBox}>
+                          <Ionicons
+                            name={tx.type === "BUY_VIP" ? "diamond" : "arrow-down-circle"}
+                            size={20}
+                            color={tx.type === "BUY_VIP" ? Colors.dark.primaryLight : Colors.dark.success}
+                          />
+                        </View>
+                        <View style={{ flex: 1 }}>
+                          <Text style={styles.historyTitle}>
+                            {tx.type === "BUY_VIP" ? "Mua Gói Waifu VIP" : "Nạp Tiền Vào Ví"}
+                          </Text>
+                          <Text style={styles.historyMeta}>
+                            {tx.transactionCode} • {tx.method}
+                          </Text>
+                        </View>
+                        <View style={{ alignItems: "flex-end" }}>
+                          <Text style={[styles.historyAmount, tx.type === "BUY_VIP" ? { color: Colors.dark.primaryLight } : { color: Colors.dark.success }]}>
+                            {tx.type === "BUY_VIP" ? "-" : "+"} {Number(tx.amount).toLocaleString()} ₫
+                          </Text>
+                          <Text style={styles.historyStatus}>{tx.status}</Text>
+                        </View>
+                      </View>
+                    ))
+                  )}
+                </View>
+              )}
+            </ScrollView>
           </View>
         </View>
       </Modal>
@@ -956,5 +1274,263 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: Colors.dark.textMuted,
     lineHeight: 16,
+  },
+  // VIP & Payment styles
+  vipTabNav: {
+    flexDirection: "row",
+    backgroundColor: Colors.dark.card,
+    borderRadius: 12,
+    padding: 4,
+    marginBottom: 16,
+  },
+  vipTabItem: {
+    flex: 1,
+    paddingVertical: 8,
+    alignItems: "center",
+    borderRadius: 8,
+  },
+  vipTabItemActive: {
+    backgroundColor: Colors.dark.primary,
+  },
+  vipTabText: {
+    color: Colors.dark.textMuted,
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  vipTabTextActive: {
+    color: "#fff",
+  },
+  vipHoloBanner: {
+    backgroundColor: "rgba(233, 30, 140, 0.12)",
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: "rgba(233, 30, 140, 0.35)",
+    marginBottom: 16,
+  },
+  vipHoloBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    backgroundColor: Colors.dark.primary,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    gap: 4,
+    marginBottom: 8,
+  },
+  vipHoloBadgeText: {
+    color: "#fff",
+    fontSize: 9,
+    fontWeight: "800",
+    letterSpacing: 0.5,
+  },
+  vipHoloTitle: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: Colors.dark.text,
+    marginBottom: 4,
+  },
+  vipHoloDesc: {
+    fontSize: 12,
+    color: Colors.dark.textMuted,
+    lineHeight: 17,
+  },
+  formSectionLabel: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: Colors.dark.text,
+    marginBottom: 10,
+  },
+  vipPackageCard: {
+    backgroundColor: Colors.dark.card,
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 1.5,
+    borderColor: Colors.dark.border,
+    marginBottom: 10,
+  },
+  vipPackageCardActive: {
+    borderColor: Colors.dark.primary,
+    backgroundColor: "rgba(233, 30, 140, 0.1)",
+  },
+  pkgHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: 8,
+  },
+  pkgName: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: Colors.dark.text,
+    marginBottom: 2,
+  },
+  pkgDesc: {
+    fontSize: 11,
+    color: Colors.dark.textMuted,
+    lineHeight: 15,
+  },
+  pkgBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+    borderWidth: 0.5,
+    marginLeft: 8,
+  },
+  pkgBadgeText: {
+    fontSize: 9,
+    fontWeight: "800",
+  },
+  pkgFooterRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    borderTopWidth: 1,
+    borderTopColor: "rgba(255, 255, 255, 0.06)",
+    paddingTop: 8,
+  },
+  pkgPrice: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: Colors.dark.accent,
+  },
+  paymentMethodsGrid: {
+    flexDirection: "row",
+    gap: 8,
+    marginBottom: 16,
+  },
+  paymentMethodCard: {
+    flex: 1,
+    backgroundColor: Colors.dark.card,
+    borderRadius: 10,
+    padding: 10,
+    alignItems: "center",
+    borderWidth: 1.5,
+    borderColor: Colors.dark.border,
+    gap: 4,
+  },
+  paymentMethodCardActive: {
+    borderColor: Colors.dark.primaryLight,
+    backgroundColor: "rgba(233, 30, 140, 0.15)",
+  },
+  paymentMethodText: {
+    fontSize: 11,
+    color: Colors.dark.textMuted,
+  },
+  paySubmitBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: Colors.dark.primary,
+    paddingVertical: 14,
+    borderRadius: 12,
+    gap: 8,
+    marginTop: 10,
+    shadowColor: Colors.dark.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  paySubmitText: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  topupAmountsGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+    marginBottom: 12,
+  },
+  topupAmountCard: {
+    width: "48%",
+    backgroundColor: Colors.dark.card,
+    borderRadius: 12,
+    padding: 12,
+    alignItems: "center",
+    borderWidth: 1.5,
+    borderColor: Colors.dark.border,
+  },
+  topupAmountCardActive: {
+    borderColor: Colors.dark.primary,
+    backgroundColor: "rgba(233, 30, 140, 0.12)",
+  },
+  topupAmountText: {
+    fontSize: 15,
+    fontWeight: "800",
+    color: Colors.dark.text,
+  },
+  topupCoinsSub: {
+    fontSize: 10,
+    color: Colors.dark.textMuted,
+    marginTop: 2,
+  },
+  topupInput: {
+    backgroundColor: Colors.dark.card,
+    borderRadius: 10,
+    padding: 12,
+    color: Colors.dark.text,
+    fontSize: 15,
+    borderWidth: 1,
+    borderColor: Colors.dark.border,
+    marginBottom: 12,
+  },
+  emptyHistoryBox: {
+    paddingVertical: 40,
+    alignItems: "center",
+  },
+  emptyHistoryTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: Colors.dark.text,
+    marginTop: 10,
+  },
+  emptyHistorySub: {
+    fontSize: 12,
+    color: Colors.dark.textMuted,
+    textAlign: "center",
+    marginTop: 4,
+    paddingHorizontal: 20,
+  },
+  historyCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: Colors.dark.card,
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: Colors.dark.border,
+  },
+  historyIconBox: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: "rgba(255, 255, 255, 0.05)",
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 10,
+  },
+  historyTitle: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: Colors.dark.text,
+  },
+  historyMeta: {
+    fontSize: 11,
+    color: Colors.dark.textMuted,
+    marginTop: 2,
+  },
+  historyAmount: {
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  historyStatus: {
+    fontSize: 10,
+    color: Colors.dark.success,
+    fontWeight: "700",
+    marginTop: 2,
   },
 });

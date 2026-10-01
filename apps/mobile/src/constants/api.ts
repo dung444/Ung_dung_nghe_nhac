@@ -62,5 +62,11 @@ export const ENDPOINTS = {
   creatorSongs:  `${API_V1}/creator/songs`,
   creatorSong:   (id: string) => `${API_V1}/creator/songs/${id}`,
   creatorAlbums: `${API_V1}/creator/albums`,
+  // Payments & VIP Pass
+  vipPackages:   `${API_V1}/payments/packages`,
+  topup:         `${API_V1}/payments/topup`,
+  buyVip:        `${API_V1}/payments/buy-vip`,
+  paymentHistory:`${API_V1}/payments/history`,
 } as const;
+
 
