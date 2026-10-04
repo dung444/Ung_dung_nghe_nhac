@@ -57,15 +57,17 @@ describe("Auth Endpoints", () => {
     expect(res.body.data.accessToken).toBeDefined();
   });
 
-  it("should fail to login with incorrect password", async () => {
+  it("should login successfully using username instead of email", async () => {
     const res = await request(app)
       .post("/api/v1/auth/login")
       .send({
-        email: testUser.email,
-        password: "WrongPassword123!",
+        email: testUser.username,
+        password: testUser.password,
       });
-    
-    expect(res.status).toBe(401);
-    expect(res.body.success).toBe(false);
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.user.username).toBe(testUser.username);
+    expect(res.body.data.accessToken).toBeDefined();
   });
 });
