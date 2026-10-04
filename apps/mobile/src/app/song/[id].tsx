@@ -20,6 +20,7 @@ import { usePlayerStore } from "../../store/playerStore";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ProgressBar } from "../../features/player/components/ProgressBar";
 import { api } from "../../services/api";
+import Slider from "@react-native-community/slider";
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -461,24 +462,23 @@ export default function SongDetailScreen() {
 
       {/* Song Info & Controls */}
       <View style={styles.infoContainer}>
-        {/* Compact Volume Slider Bar Popover */}
+        {/* Draggable Compact Volume Slider Bar */}
         {showVolumeBar && (
           <View style={styles.compactVolumeBar}>
-            <TouchableOpacity onPress={toggleMute} style={{ padding: 2 }}>
-              <Ionicons name={getVolumeIcon()} size={18} color={Colors.dark.primaryLight} />
+            <TouchableOpacity onPress={toggleMute} style={{ padding: 4 }}>
+              <Ionicons name={getVolumeIcon()} size={20} color={Colors.dark.primaryLight} />
             </TouchableOpacity>
-            <View style={styles.miniVolTrack}>
-              {[0.2, 0.4, 0.6, 0.8, 1.0].map((step) => {
-                const active = !isMuted && volume >= step;
-                return (
-                  <TouchableOpacity
-                    key={step}
-                    style={[styles.miniVolSegment, active && styles.miniVolSegmentActive]}
-                    onPress={() => setVolume(step)}
-                  />
-                );
-              })}
-            </View>
+            <Slider
+              style={styles.volumeSlider}
+              value={isMuted ? 0 : volume}
+              minimumValue={0}
+              maximumValue={1}
+              step={0.01}
+              onValueChange={(val) => setVolume(val)}
+              minimumTrackTintColor={Colors.dark.primary}
+              maximumTrackTintColor={Colors.dark.border}
+              thumbTintColor={Colors.dark.primaryLight}
+            />
             <Text style={styles.miniVolText}>
               {isMuted ? "0%" : `${Math.round(volume * 100)}%`}
             </Text>
@@ -1217,38 +1217,25 @@ const styles = StyleSheet.create({
   compactVolumeBar: {
     flexDirection: "row",
     alignItems: "center",
-    alignSelf: "flex-end",
     backgroundColor: "rgba(30, 30, 46, 0.95)",
     borderRadius: 18,
     paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingVertical: 4,
     marginBottom: 8,
     gap: 8,
     borderWidth: 1,
     borderColor: Colors.dark.border,
-    width: 170,
+    width: "100%",
   },
-  miniVolTrack: {
+  volumeSlider: {
     flex: 1,
-    flexDirection: "row",
-    gap: 3,
-    height: 10,
-    alignItems: "center",
-  },
-  miniVolSegment: {
-    flex: 1,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: "rgba(255,255,255,0.12)",
-  },
-  miniVolSegmentActive: {
-    backgroundColor: Colors.dark.primary,
+    height: 32,
   },
   miniVolText: {
     fontSize: 11,
     color: Colors.dark.primaryLight,
     fontWeight: "700",
-    width: 30,
+    width: 34,
     textAlign: "right",
   },
   controlsRow: {
