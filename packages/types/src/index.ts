@@ -72,6 +72,7 @@ export interface Song {
   // Client-side helpers
   isLiked?: boolean;
   streamUrl?: string;
+  lyrics?: string | null;
   copyright?: SongCopyright;
 }
 

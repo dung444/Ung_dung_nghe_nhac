@@ -6,9 +6,13 @@ import {
   resumeAudio,
   seekToPosition,
   setAudioEventListeners,
+  setAudioVolume,
+  setPlaybackRate,
 } from "../services/audioPlayer";
 
 type RepeatMode = "off" | "track" | "queue";
+
+let sleepTimerId: any = null;
 
 interface PlayerState {
   currentSong: Song | null;
@@ -18,6 +22,11 @@ interface PlayerState {
   shuffleEnabled: boolean;
   position: number;
   duration: number;
+  volume: number; // 0.0 to 1.0
+  isMuted: boolean;
+  playbackRate: number; // 0.5, 0.75, 1.0, 1.25, 1.5, 2.0
+  sleepTimerMinutes: number | null;
+  sleepTimerEndTime: number | null; // Timestamp ms
   // Actions
   setCurrentSong: (song: Song) => void;
   setQueue: (songs: Song[], startIndex?: number) => void;
@@ -29,6 +38,10 @@ interface PlayerState {
   playPrev: () => void;
   seekTo: (seconds: number) => void;
   clearQueue: () => void;
+  setVolume: (volume: number) => void;
+  toggleMute: () => void;
+  setRate: (rate: number) => void;
+  setSleepTimer: (minutes: number | null) => void;
 }
 
 function notifyPresenceAndRecordPlay(song: Song) {
@@ -85,6 +98,11 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
     shuffleEnabled: false,
     position: 0,
     duration: 0,
+    volume: 1.0,
+    isMuted: false,
+    playbackRate: 1.0,
+    sleepTimerMinutes: null,
+    sleepTimerEndTime: null,
 
     setCurrentSong: (song) => {
       set({ currentSong: song, isPlaying: true, position: 0, duration: song.duration || 0 });
@@ -198,5 +216,49 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
         api.delete("/api/v1/queue/clear").catch(() => {});
       } catch {}
     },
+
+    setVolume: (vol) => {
+      const clamped = Math.max(0, Math.min(1, vol));
+      set({ volume: clamped, isMuted: clamped === 0 });
+      setAudioVolume(clamped).catch(() => {});
+    },
+
+    toggleMute: () => {
+      const { isMuted, volume } = get();
+      if (isMuted) {
+        const newVol = volume === 0 ? 0.8 : volume;
+        set({ isMuted: false, volume: newVol });
+        setAudioVolume(newVol).catch(() => {});
+      } else {
+        set({ isMuted: true });
+        setAudioVolume(0).catch(() => {});
+      }
+    },
+
+    setRate: (rate) => {
+      set({ playbackRate: rate });
+      setPlaybackRate(rate).catch(() => {});
+    },
+
+    setSleepTimer: (minutes) => {
+      if (sleepTimerId) {
+        clearTimeout(sleepTimerId);
+        sleepTimerId = null;
+      }
+      if (minutes === null || minutes <= 0) {
+        set({ sleepTimerMinutes: null, sleepTimerEndTime: null });
+        return;
+      }
+
+      const endTime = Date.now() + minutes * 60 * 1000;
+      set({ sleepTimerMinutes: minutes, sleepTimerEndTime: endTime });
+
+      sleepTimerId = setTimeout(() => {
+        get().setPlaying(false);
+        set({ sleepTimerMinutes: null, sleepTimerEndTime: null });
+        sleepTimerId = null;
+      }, minutes * 60 * 1000);
+    },
   };
 });
+

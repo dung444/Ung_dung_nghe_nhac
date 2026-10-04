@@ -144,16 +144,16 @@ async function main() {
   // ─── Songs ───────────────────────────────────────────────────────────────────
   // Note: fileUrl points to placeholder paths; replace with real audio files
   const songsData = [
-    { title: "World is Mine", duration: 225, albumId: album1.id, artistId: artist1.id, genreIds: [genres[4].id, genres[0].id] },
-    { title: "Freely Tomorrow", duration: 197, albumId: album1.id, artistId: artist1.id, genreIds: [genres[4].id] },
-    { title: "Romeo and Cinderella", duration: 247, albumId: album1.id, artistId: artist1.id, genreIds: [genres[4].id, genres[0].id] },
-    { title: "Gurenge", duration: 258, albumId: album2.id, artistId: artist2.id, genreIds: [genres[0].id, genres[1].id] },
-    { title: "Crossing Field", duration: 247, albumId: album2.id, artistId: artist2.id, genreIds: [genres[0].id, genres[1].id] },
-    { title: "Unlasting", duration: 270, albumId: album2.id, artistId: artist2.id, genreIds: [genres[0].id] },
-    { title: "Idol", duration: 212, albumId: album3.id, artistId: artist3.id, genreIds: [genres[0].id] },
-    { title: "夜に駆ける (Yoru ni Kakeru)", duration: 253, albumId: album3.id, artistId: artist3.id, genreIds: [genres[0].id] },
-    { title: "怪物 (Kaibutsu)", duration: 251, albumId: album3.id, artistId: artist3.id, genreIds: [genres[0].id, genres[1].id] },
-    { title: "セイカイ (Seikai)", duration: 238, albumId: album3.id, artistId: artist3.id, genreIds: [genres[0].id] },
+    { title: "World is Mine", duration: 225, fileUrl: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3", albumId: album1.id, artistId: artist1.id, genreIds: [genres[4].id, genres[0].id] },
+    { title: "Freely Tomorrow", duration: 197, fileUrl: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3", albumId: album1.id, artistId: artist1.id, genreIds: [genres[4].id] },
+    { title: "Romeo and Cinderella", duration: 247, fileUrl: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3", albumId: album1.id, artistId: artist1.id, genreIds: [genres[4].id, genres[0].id] },
+    { title: "Gurenge", duration: 258, fileUrl: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3", albumId: album2.id, artistId: artist2.id, genreIds: [genres[0].id, genres[1].id] },
+    { title: "Crossing Field", duration: 247, fileUrl: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-5.mp3", albumId: album2.id, artistId: artist2.id, genreIds: [genres[0].id, genres[1].id] },
+    { title: "Unlasting", duration: 270, fileUrl: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-6.mp3", albumId: album2.id, artistId: artist2.id, genreIds: [genres[0].id] },
+    { title: "Idol", duration: 212, fileUrl: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-7.mp3", albumId: album3.id, artistId: artist3.id, genreIds: [genres[0].id] },
+    { title: "夜に駆ける (Yoru ni Kakeru)", duration: 253, fileUrl: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-8.mp3", albumId: album3.id, artistId: artist3.id, genreIds: [genres[0].id] },
+    { title: "怪物 (Kaibutsu)", duration: 251, fileUrl: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-9.mp3", albumId: album3.id, artistId: artist3.id, genreIds: [genres[0].id, genres[1].id] },
+    { title: "セイカイ (Seikai)", duration: 238, fileUrl: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-10.mp3", albumId: album3.id, artistId: artist3.id, genreIds: [genres[0].id] },
   ];
 
   const createdSongs = [];
@@ -162,7 +162,7 @@ async function main() {
       data: {
         title: s.title,
         duration: s.duration,
-        fileUrl: `/uploads/audio/placeholder-${s.title.replace(/[^a-z0-9]/gi, "_").toLowerCase()}.mp3`,
+        fileUrl: s.fileUrl,
         albumId: s.albumId,
         plays: Math.floor(Math.random() * 500000),
         isPublic: true,

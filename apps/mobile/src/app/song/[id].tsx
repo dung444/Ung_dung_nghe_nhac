@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import {
   View,
   Text,
@@ -27,15 +27,71 @@ import Animated, {
   Easing,
   withRepeat,
   cancelAnimation,
+  withSequence,
 } from "react-native-reanimated";
 import type { Song, SongCopyright } from "@waifu-player/types";
 import { formatDuration } from "@waifu-player/utils";
+
+// Helper to parse or generate timed karaoke lyrics
+interface LyricLine {
+  time: number; // in seconds
+  text: string;
+}
+
+function parseLyrics(lyricsText: string | null | undefined, songDuration: number): LyricLine[] {
+  if (!lyricsText || lyricsText.trim().length === 0) {
+    // Default fallback anime lyrics with timing calculated across song duration
+    const defaultLines = [
+      "♪ Giai điệu anime du dương ngân vang ♪",
+      "Cùng đắm chìm vào thế giới âm nhạc Waifu",
+      "Từng nốt nhạc hòa quyện cùng nhịp đập trái tim ✨",
+      "Feel the energy and passion of anime music",
+      "Nguyện lưu giữ khoảnh khắc tuyệt vời này mãi mãi",
+      "♪ Waifu Player - Anime Soundtrack & Vocaloid Hits ♪",
+    ];
+    const step = Math.max(3, (songDuration || 180) / defaultLines.length);
+    return defaultLines.map((line, idx) => ({
+      time: Math.floor(idx * step),
+      text: line,
+    }));
+  }
+
+  const lines = lyricsText.split("\n").filter((l) => l.trim().length > 0);
+  const result: LyricLine[] = [];
+  const lrcRegex = /\[(\d{2}):(\d{2})\.(\d{2,3})\](.*)/;
+
+  let hasLrcTiming = false;
+  lines.forEach((line) => {
+    const match = line.match(lrcRegex);
+    if (match) {
+      hasLrcTiming = true;
+      const min = parseInt(match[1], 10);
+      const sec = parseInt(match[2], 10);
+      const timeInSec = min * 60 + sec;
+      result.push({ time: timeInSec, text: match[4].trim() });
+    }
+  });
+
+  if (hasLrcTiming && result.length > 0) {
+    return result.sort((a, b) => a.time - b.time);
+  }
+
+  // If plain text without timestamp format, space lines evenly
+  const step = Math.max(3, (songDuration || 180) / lines.length);
+  return lines.map((line, idx) => ({
+    time: Math.floor(idx * step),
+    text: line.trim(),
+  }));
+}
 
 export default function SongDetailScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const [showQueue, setShowQueue] = useState(false);
   const [showLyrics, setShowLyrics] = useState(false);
+  const [showSpeedModal, setShowSpeedModal] = useState(false);
+  const [showSleepTimerModal, setShowSleepTimerModal] = useState(false);
+  const [showVolumeBar, setShowVolumeBar] = useState(false);
   const [isLiked, setIsLiked] = useState(false);
 
   // Copyright and Claim States
@@ -64,20 +120,27 @@ export default function SongDetailScreen() {
     duration,
     seekTo,
     setCurrentSong,
-    setQueue,
+    volume,
+    isMuted,
+    setVolume,
+    toggleMute,
+    playbackRate,
+    setRate,
+    sleepTimerMinutes,
+    sleepTimerEndTime,
+    setSleepTimer,
   } = usePlayerStore();
 
   const rotation = useSharedValue(0);
+  const lyricsScrollViewRef = useRef<ScrollView>(null);
 
   // If navigated with a specific song id that is not 'current'
   useEffect(() => {
     if (id && id !== "current" && currentSong?.id !== id) {
-      // Find in existing queue first
       const found = queue.find((s) => s.id === id);
       if (found) {
         setCurrentSong(found);
       } else {
-        // Fetch from API
         api
           .get(`/api/v1/songs/${id}`)
           .then((res) => {
@@ -114,6 +177,18 @@ export default function SongDetailScreen() {
     };
   });
 
+  const parsedLyrics = parseLyrics(currentSong?.lyrics, duration || currentSong?.duration || 180);
+
+  // Find currently active lyric line based on playback position
+  let activeLyricIndex = 0;
+  for (let i = 0; i < parsedLyrics.length; i++) {
+    if (position >= parsedLyrics[i].time) {
+      activeLyricIndex = i;
+    } else {
+      break;
+    }
+  }
+
   const toggleLike = async () => {
     if (!currentSong) return;
     const newLiked = !isLiked;
@@ -121,7 +196,6 @@ export default function SongDetailScreen() {
     try {
       await api.post(`/api/v1/songs/${currentSong.id}/like`);
     } catch {
-      // Revert if request fails
       setIsLiked(!newLiked);
     }
   };
@@ -134,7 +208,6 @@ export default function SongDetailScreen() {
     try {
       const Sharing = await import("expo-sharing");
       if (await Sharing.isAvailableAsync()) {
-        // Share via web or device share
         if (Platform.OS === "web" && typeof navigator !== "undefined" && navigator.share) {
           await navigator.share({ title: currentSong.title, text: message });
         } else {
@@ -248,7 +321,23 @@ export default function SongDetailScreen() {
     return "repeat";
   };
 
+  const getVolumeIcon = () => {
+    if (isMuted || volume === 0) return "volume-mute";
+    if (volume < 0.4) return "volume-low";
+    if (volume < 0.8) return "volume-medium";
+    return "volume-high";
+  };
+
   const artistNames = currentSong.artists?.map((a) => a.name).join(", ") || "Unknown Artist";
+
+  // Calculate remaining sleep timer minutes
+  let sleepTimerRemainingText = "";
+  if (sleepTimerEndTime) {
+    const diffSec = Math.max(0, Math.floor((sleepTimerEndTime - Date.now()) / 1000));
+    const mins = Math.floor(diffSec / 60);
+    const secs = diffSec % 60;
+    sleepTimerRemainingText = `${mins}:${secs < 10 ? "0" : ""}${secs}`;
+  }
 
   return (
     <SafeAreaView style={styles.container}>
@@ -268,25 +357,48 @@ export default function SongDetailScreen() {
         </TouchableOpacity>
       </View>
 
-      {/* Main Content: Vinyl Artwork or Lyrics */}
+      {/* Main Content: Vinyl Artwork or Synced Karaoke Lyrics */}
       <View style={styles.centerContainer}>
         {showLyrics ? (
           <View style={styles.lyricsContainer}>
-            <Text style={styles.lyricsBadge}>LỜI BÀI HÁT (KARAOKE)</Text>
-            <Text style={styles.lyricsLineActive}>♪ {currentSong.title} ♪</Text>
-            <Text style={styles.lyricsLine}>Anime vibes and melodious beats...</Text>
-            <Text style={styles.lyricsLineActive}>Giai điệu waifu du dương ngân vang trong tâm trí</Text>
-            <Text style={styles.lyricsLine}>Từng nốt nhạc hòa cùng đam mê vô tận ✨</Text>
-            <Text style={styles.lyricsLine}>Feel the anime energy together!</Text>
+            <View style={styles.lyricsHeaderRow}>
+              <Ionicons name="sparkles" size={16} color={Colors.dark.primaryLight} />
+              <Text style={styles.lyricsBadge}>LỜI BÀI HÁT KARAOKE ĐỒNG BỘ</Text>
+              <Ionicons name="sparkles" size={16} color={Colors.dark.primaryLight} />
+            </View>
+
+            <ScrollView
+              ref={lyricsScrollViewRef}
+              style={{ width: "100%", maxHeight: 260 }}
+              contentContainerStyle={{ alignItems: "center", paddingVertical: 12 }}
+              showsVerticalScrollIndicator={false}
+            >
+              {parsedLyrics.map((line, idx) => {
+                const isActive = idx === activeLyricIndex;
+                return (
+                  <TouchableOpacity
+                    key={idx}
+                    onPress={() => seekTo(line.time)}
+                    activeOpacity={0.8}
+                    style={[styles.lyricLineBox, isActive && styles.lyricLineBoxActive]}
+                  >
+                    <Text style={[styles.lyricsLine, isActive && styles.lyricsLineActive]}>
+                      {line.text}
+                    </Text>
+                    {isActive && (
+                      <View style={styles.lyricActiveDot} />
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
           </View>
         ) : (
           <View style={styles.vinylWrapper}>
             {/* Spinning Vinyl Record Disc */}
             <Animated.View style={[styles.vinylDisc, animatedVinylStyle]}>
-              {/* Disc Grooves */}
               <View style={styles.vinylRing1} />
               <View style={styles.vinylRing2} />
-              {/* Center Artwork */}
               {currentSong.coverUrl ? (
                 <Image source={{ uri: currentSong.coverUrl }} style={styles.vinylCenterImg} />
               ) : (
@@ -294,15 +406,33 @@ export default function SongDetailScreen() {
                   <Ionicons name="musical-note" size={50} color={Colors.dark.primary} />
                 </View>
               )}
-              {/* Center Spindle Hole */}
               <View style={styles.spindleHole} />
             </Animated.View>
+
+            {/* Audio Waveform Visualizer Indicator */}
+            {isPlaying && (
+              <View style={styles.waveBarContainer}>
+                {[14, 22, 10, 28, 16, 24, 12, 20].map((h, i) => (
+                  <View
+                    key={i}
+                    style={[
+                      styles.waveBar,
+                      {
+                        height: h,
+                        backgroundColor: i % 2 === 0 ? Colors.dark.primary : Colors.dark.secondary,
+                      },
+                    ]}
+                  />
+                ))}
+              </View>
+            )}
           </View>
         )}
       </View>
 
       {/* Song Info & Controls */}
       <View style={styles.infoContainer}>
+        {/* Title, Artist, Mute & Heart Button */}
         <View style={styles.titleRow}>
           <View style={{ flex: 1, marginRight: 12 }}>
             <Text style={styles.title} numberOfLines={1}>
@@ -312,6 +442,14 @@ export default function SongDetailScreen() {
               {artistNames}
             </Text>
           </View>
+
+          <TouchableOpacity
+            onPress={() => setShowVolumeBar(!showVolumeBar)}
+            style={{ padding: 8, marginRight: 4 }}
+          >
+            <Ionicons name={getVolumeIcon()} size={24} color={Colors.dark.primaryLight} />
+          </TouchableOpacity>
+
           <TouchableOpacity onPress={toggleLike} style={styles.heartBtn} activeOpacity={0.7}>
             <Ionicons
               name={isLiked ? "heart" : "heart-outline"}
@@ -321,14 +459,40 @@ export default function SongDetailScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Progress Bar with times */}
+        {/* Quick Volume Control Bar */}
+        {showVolumeBar && (
+          <View style={styles.volumeBarCard}>
+            <TouchableOpacity onPress={toggleMute} style={{ padding: 4 }}>
+              <Ionicons name={getVolumeIcon()} size={22} color={Colors.dark.primary} />
+            </TouchableOpacity>
+
+            <View style={styles.volumeStepContainer}>
+              {[0.2, 0.4, 0.6, 0.8, 1.0].map((volStep) => {
+                const isActive = !isMuted && volume >= volStep;
+                return (
+                  <TouchableOpacity
+                    key={volStep}
+                    style={[styles.volSegment, isActive && styles.volSegmentActive]}
+                    onPress={() => setVolume(volStep)}
+                  />
+                );
+              })}
+            </View>
+
+            <Text style={styles.volumePercentText}>
+              {isMuted ? "0%" : `${Math.round(volume * 100)}%`}
+            </Text>
+          </View>
+        )}
+
+        {/* Progress Bar with timestamps */}
         <ProgressBar
           position={position}
           duration={duration || currentSong.duration}
           onSeek={(val) => seekTo(val)}
         />
 
-        {/* Playback Controls */}
+        {/* Main Playback Controls */}
         <View style={styles.controlsRow}>
           <TouchableOpacity onPress={toggleShuffle} style={styles.ctrlSubBtn}>
             <Ionicons
@@ -373,8 +537,12 @@ export default function SongDetailScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Bottom Utility Row: Lyrics toggle, Queue button, and Copyright button */}
-        <View style={styles.bottomUtilsRow}>
+        {/* Bottom Utility Pills: Lyrics, Speed, Sleep Timer, Queue & Copyright */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.bottomUtilsRow}
+        >
           <TouchableOpacity
             style={[styles.utilPill, showLyrics && styles.utilPillActive]}
             onPress={() => setShowLyrics(!showLyrics)}
@@ -389,27 +557,173 @@ export default function SongDetailScreen() {
             </Text>
           </TouchableOpacity>
 
+          {/* Speed / Nightcore Pill */}
           <TouchableOpacity
-            style={styles.utilPill}
-            onPress={() => setShowQueue(true)}
+            style={[styles.utilPill, playbackRate !== 1.0 && styles.utilPillActive]}
+            onPress={() => setShowSpeedModal(true)}
           >
-            <Ionicons name="list" size={18} color={Colors.dark.textMuted} />
-            <Text style={styles.utilPillText}>
-              Danh sách chờ ({queue.length})
+            <Ionicons
+              name="flash-outline"
+              size={18}
+              color={playbackRate !== 1.0 ? "#fff" : Colors.dark.textMuted}
+            />
+            <Text style={[styles.utilPillText, playbackRate !== 1.0 && styles.utilPillTextActive]}>
+              {playbackRate === 1.25 ? "⚡ Nightcore 1.25x" : `${playbackRate}x`}
             </Text>
           </TouchableOpacity>
 
+          {/* Sleep Timer Pill */}
           <TouchableOpacity
-            style={styles.utilPill}
-            onPress={handleOpenCopyrightModal}
+            style={[styles.utilPill, sleepTimerMinutes !== null && styles.utilPillActive]}
+            onPress={() => setShowSleepTimerModal(true)}
           >
-            <Ionicons name="shield-checkmark" size={18} color={Colors.dark.primaryLight} />
-            <Text style={styles.utilPillText}>
-              Bản quyền
+            <Ionicons
+              name="moon-outline"
+              size={18}
+              color={sleepTimerMinutes !== null ? "#fff" : Colors.dark.textMuted}
+            />
+            <Text style={[styles.utilPillText, sleepTimerMinutes !== null && styles.utilPillTextActive]}>
+              {sleepTimerMinutes !== null ? `🌙 ${sleepTimerRemainingText || `${sleepTimerMinutes}m`}` : "Hẹn giờ"}
             </Text>
           </TouchableOpacity>
-        </View>
+
+          <TouchableOpacity style={styles.utilPill} onPress={() => setShowQueue(true)}>
+            <Ionicons name="list" size={18} color={Colors.dark.textMuted} />
+            <Text style={styles.utilPillText}>Danh sách ({queue.length})</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.utilPill} onPress={handleOpenCopyrightModal}>
+            <Ionicons name="shield-checkmark" size={18} color={Colors.dark.primaryLight} />
+            <Text style={styles.utilPillText}>Bản quyền</Text>
+          </TouchableOpacity>
+        </ScrollView>
       </View>
+
+      {/* Playback Speed Modal */}
+      <Modal
+        visible={showSpeedModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowSpeedModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <Ionicons name="flash" size={22} color={Colors.dark.primary} />
+                <Text style={styles.modalTitle}>Tốc Độ Phát Nhạc ⚡</Text>
+              </View>
+              <TouchableOpacity onPress={() => setShowSpeedModal(false)}>
+                <Ionicons name="close-circle" size={26} color={Colors.dark.textMuted} />
+              </TouchableOpacity>
+            </View>
+
+            <View style={{ gap: 10, paddingVertical: 10 }}>
+              {[
+                { rate: 0.75, label: "Slowed & Reverb (0.75x)", icon: "turtle" },
+                { rate: 1.0, label: "Bình thường (1.0x)", icon: "play" },
+                { rate: 1.25, label: "Nightcore Anime (1.25x)", icon: "flash" },
+                { rate: 1.5, label: "Nhanh (1.5x)", icon: "rocket" },
+                { rate: 2.0, label: "Siêu nhanh (2.0x)", icon: "sparkles" },
+              ].map((item) => (
+                <TouchableOpacity
+                  key={item.rate}
+                  style={[
+                    styles.speedOptionRow,
+                    playbackRate === item.rate && styles.speedOptionRowActive,
+                  ]}
+                  onPress={() => {
+                    setRate(item.rate);
+                    setShowSpeedModal(false);
+                  }}
+                >
+                  <Ionicons
+                    name={item.icon as any}
+                    size={20}
+                    color={playbackRate === item.rate ? Colors.dark.primary : Colors.dark.textMuted}
+                  />
+                  <Text
+                    style={[
+                      styles.speedOptionText,
+                      playbackRate === item.rate && styles.speedOptionTextActive,
+                    ]}
+                  >
+                    {item.label}
+                  </Text>
+                  {playbackRate === item.rate && (
+                    <Ionicons name="checkmark-circle" size={20} color={Colors.dark.primary} />
+                  )}
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Sleep Timer Modal */}
+      <Modal
+        visible={showSleepTimerModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowSleepTimerModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <Ionicons name="moon" size={22} color={Colors.dark.secondary} />
+                <Text style={styles.modalTitle}>Hẹn Giờ Tắt Nhạc 🌙</Text>
+              </View>
+              <TouchableOpacity onPress={() => setShowSleepTimerModal(false)}>
+                <Ionicons name="close-circle" size={26} color={Colors.dark.textMuted} />
+              </TouchableOpacity>
+            </View>
+
+            <View style={{ gap: 10, paddingVertical: 10 }}>
+              {[
+                { minutes: null, label: "Tắt hẹn giờ" },
+                { minutes: 15, label: "Sau 15 phút" },
+                { minutes: 30, label: "Sau 30 phút" },
+                { minutes: 45, label: "Sau 45 phút" },
+                { minutes: 60, label: "Sau 1 giờ (60 phút)" },
+              ].map((item, idx) => (
+                <TouchableOpacity
+                  key={idx}
+                  style={[
+                    styles.speedOptionRow,
+                    sleepTimerMinutes === item.minutes && styles.speedOptionRowActive,
+                  ]}
+                  onPress={() => {
+                    setSleepTimer(item.minutes);
+                    setShowSleepTimerModal(false);
+                  }}
+                >
+                  <Ionicons
+                    name="timer-outline"
+                    size={20}
+                    color={
+                      sleepTimerMinutes === item.minutes
+                        ? Colors.dark.secondary
+                        : Colors.dark.textMuted
+                    }
+                  />
+                  <Text
+                    style={[
+                      styles.speedOptionText,
+                      sleepTimerMinutes === item.minutes && styles.speedOptionTextActive,
+                    ]}
+                  >
+                    {item.label}
+                  </Text>
+                  {sleepTimerMinutes === item.minutes && (
+                    <Ionicons name="checkmark-circle" size={20} color={Colors.dark.secondary} />
+                  )}
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* Queue Modal Sheet */}
       <Modal
@@ -493,11 +807,12 @@ export default function SongDetailScreen() {
             {loadingCopyright ? (
               <View style={{ paddingVertical: 40, alignItems: "center" }}>
                 <ActivityIndicator size="large" color={Colors.dark.primary} />
-                <Text style={{ color: Colors.dark.textMuted, marginTop: 12 }}>Đang tra cứu dữ liệu bản quyền...</Text>
+                <Text style={{ color: Colors.dark.textMuted, marginTop: 12 }}>
+                  Đang tra cứu dữ liệu bản quyền...
+                </Text>
               </View>
             ) : (
               <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 20 }}>
-                {/* Status Badge */}
                 <View style={styles.copyrightBadgeWrap}>
                   <Ionicons name="ribbon-outline" size={18} color="#fff" />
                   <Text style={styles.copyrightBadgeText}>
@@ -507,7 +822,6 @@ export default function SongDetailScreen() {
                   </Text>
                 </View>
 
-                {/* Song info summary */}
                 <View style={styles.copyrightCard}>
                   <Text style={styles.copyrightSongTitle}>{currentSong.title}</Text>
                   <Text style={styles.copyrightOwnerText}>
@@ -524,7 +838,6 @@ export default function SongDetailScreen() {
                   </Text>
                 </View>
 
-                {/* Rights details grid */}
                 <View style={styles.rightsGrid}>
                   <View style={styles.rightItem}>
                     <Ionicons
@@ -557,7 +870,6 @@ export default function SongDetailScreen() {
                   </View>
                 </View>
 
-                {/* Protection note */}
                 <View style={styles.protectionNotice}>
                   <Ionicons name="information-circle" size={18} color={Colors.dark.textMuted} style={{ marginTop: 2 }} />
                   <Text style={styles.protectionNoticeText}>
@@ -565,7 +877,6 @@ export default function SongDetailScreen() {
                   </Text>
                 </View>
 
-                {/* Claim dispute action button */}
                 <TouchableOpacity
                   style={styles.claimButton}
                   onPress={() => {
@@ -607,7 +918,6 @@ export default function SongDetailScreen() {
                 Nếu bạn là chủ sở hữu tác phẩm hoặc đại diện pháp lý nhận thấy bài hát <Text style={{ color: Colors.dark.primary, fontWeight: "700" }}>"{currentSong.title}"</Text> vi phạm bản quyền, hãy cung cấp thông tin bên dưới:
               </Text>
 
-              {/* Claim Type Selector */}
               <Text style={styles.inputLabel}>Loại vi phạm</Text>
               <View style={styles.claimTypeRow}>
                 {[
@@ -636,7 +946,6 @@ export default function SongDetailScreen() {
                 ))}
               </View>
 
-              {/* Claim Reason */}
               <Text style={styles.inputLabel}>Lý do khiếu nại (tóm tắt) *</Text>
               <TextInput
                 style={styles.textInput}
@@ -646,7 +955,6 @@ export default function SongDetailScreen() {
                 onChangeText={setClaimReason}
               />
 
-              {/* Claim Description */}
               <Text style={styles.inputLabel}>Mô tả chi tiết vi phạm (tối thiểu 10 ký tự) *</Text>
               <TextInput
                 style={styles.textAreaInput}
@@ -658,7 +966,6 @@ export default function SongDetailScreen() {
                 onChangeText={setClaimDescription}
               />
 
-              {/* Evidence URL */}
               <Text style={styles.inputLabel}>Đường dẫn bằng chứng (URL chứng thực quyền sở hữu)</Text>
               <TextInput
                 style={styles.textInput}
@@ -669,7 +976,6 @@ export default function SongDetailScreen() {
                 autoCapitalize="none"
               />
 
-              {/* Submit Button */}
               <TouchableOpacity
                 style={[styles.submitClaimBtn, submittingClaim && { opacity: 0.7 }]}
                 onPress={handleSubmitClaim}
@@ -738,9 +1044,9 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   vinylDisc: {
-    width: 280,
-    height: 280,
-    borderRadius: 140,
+    width: 270,
+    height: 270,
+    borderRadius: 135,
     backgroundColor: "#111116",
     alignItems: "center",
     justifyContent: "center",
@@ -754,24 +1060,24 @@ const styles = StyleSheet.create({
   },
   vinylRing1: {
     position: "absolute",
-    width: 240,
-    height: 240,
-    borderRadius: 120,
+    width: 230,
+    height: 230,
+    borderRadius: 115,
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.06)",
   },
   vinylRing2: {
     position: "absolute",
-    width: 200,
-    height: 200,
-    borderRadius: 100,
+    width: 190,
+    height: 190,
+    borderRadius: 95,
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.06)",
   },
   vinylCenterImg: {
-    width: 140,
-    height: 140,
-    borderRadius: 70,
+    width: 135,
+    height: 135,
+    borderRadius: 67.5,
     borderWidth: 4,
     borderColor: "#181820",
   },
@@ -789,44 +1095,78 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: "#333",
   },
+  waveBarContainer: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    gap: 4,
+    marginTop: 18,
+    height: 30,
+  },
+  waveBar: {
+    width: 4,
+    borderRadius: 2,
+  },
   lyricsContainer: {
-    backgroundColor: "rgba(22, 22, 34, 0.75)",
-    padding: 24,
+    backgroundColor: "rgba(22, 22, 34, 0.85)",
+    padding: 20,
     borderRadius: 20,
     width: "100%",
     alignItems: "center",
     borderWidth: 1,
     borderColor: Colors.dark.border,
   },
+  lyricsHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 12,
+  },
   lyricsBadge: {
     fontSize: 10,
     fontWeight: "bold",
     color: Colors.dark.primaryLight,
     letterSpacing: 1.5,
-    marginBottom: 16,
+  },
+  lyricLineBox: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    marginVertical: 4,
+    alignItems: "center",
+  },
+  lyricLineBoxActive: {
+    backgroundColor: "rgba(139, 92, 246, 0.15)",
+    borderColor: "rgba(139, 92, 246, 0.3)",
+    borderWidth: 1,
   },
   lyricsLineActive: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: Colors.dark.primary,
+    fontSize: 17,
+    fontWeight: "800",
+    color: Colors.dark.secondary,
     textAlign: "center",
-    marginVertical: 8,
   },
   lyricsLine: {
     fontSize: 14,
     color: Colors.dark.textMuted,
     textAlign: "center",
-    marginVertical: 6,
+    lineHeight: 20,
+  },
+  lyricActiveDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: Colors.dark.secondary,
+    marginTop: 4,
   },
   infoContainer: {
     paddingHorizontal: 20,
-    paddingBottom: 20,
+    paddingBottom: 16,
   },
   titleRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 14,
+    marginBottom: 10,
   },
   title: {
     fontSize: 22,
@@ -835,18 +1175,53 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   artist: {
-    fontSize: 15,
+    fontSize: 14,
     color: Colors.dark.textMuted,
   },
   heartBtn: {
     padding: 8,
   },
+  volumeBarCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: Colors.dark.card,
+    borderRadius: 14,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    marginBottom: 12,
+    gap: 12,
+    borderWidth: 1,
+    borderColor: Colors.dark.border,
+  },
+  volumeStepContainer: {
+    flex: 1,
+    flexDirection: "row",
+    gap: 6,
+    height: 12,
+    alignItems: "center",
+  },
+  volSegment: {
+    flex: 1,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "rgba(255,255,255,0.12)",
+  },
+  volSegmentActive: {
+    backgroundColor: Colors.dark.primary,
+  },
+  volumePercentText: {
+    fontSize: 12,
+    color: Colors.dark.primaryLight,
+    fontWeight: "700",
+    width: 38,
+    textAlign: "right",
+  },
   controlsRow: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginTop: 8,
-    marginBottom: 16,
+    marginTop: 6,
+    marginBottom: 14,
     paddingHorizontal: 6,
   },
   ctrlSubBtn: {
@@ -854,9 +1229,9 @@ const styles = StyleSheet.create({
     position: "relative",
   },
   playBtn: {
-    width: 68,
-    height: 68,
-    borderRadius: 34,
+    width: 66,
+    height: 66,
+    borderRadius: 33,
     backgroundColor: Colors.dark.primary,
     justifyContent: "center",
     alignItems: "center",
@@ -884,9 +1259,8 @@ const styles = StyleSheet.create({
   },
   bottomUtilsRow: {
     flexDirection: "row",
-    justifyContent: "center",
-    gap: 12,
-    marginTop: 4,
+    gap: 10,
+    paddingVertical: 4,
   },
   utilPill: {
     flexDirection: "row",
@@ -938,6 +1312,31 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "bold",
     color: Colors.dark.text,
+  },
+  speedOptionRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 14,
+    backgroundColor: Colors.dark.card,
+    borderWidth: 1,
+    borderColor: Colors.dark.border,
+  },
+  speedOptionRowActive: {
+    borderColor: Colors.dark.primary,
+    backgroundColor: "rgba(139, 92, 246, 0.1)",
+  },
+  speedOptionText: {
+    flex: 1,
+    fontSize: 14,
+    color: Colors.dark.textMuted,
+    fontWeight: "600",
+  },
+  speedOptionTextActive: {
+    color: Colors.dark.text,
+    fontWeight: "700",
   },
   queueItem: {
     flexDirection: "row",

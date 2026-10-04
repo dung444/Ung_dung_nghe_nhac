@@ -161,6 +161,31 @@ export async function seekToPosition(seconds: number): Promise<void> {
   }
 }
 
+export async function setAudioVolume(volume: number): Promise<void> {
+  try {
+    const clamped = Math.max(0, Math.min(1, volume));
+    if (isTrackPlayerAvailable && TrackPlayer) {
+      await TrackPlayer.setVolume(clamped);
+    } else if (webAudio) {
+      webAudio.volume = clamped;
+    }
+  } catch (error) {
+    console.warn("[audioPlayer] setVolume error:", error);
+  }
+}
+
+export async function setPlaybackRate(rate: number): Promise<void> {
+  try {
+    if (isTrackPlayerAvailable && TrackPlayer) {
+      await TrackPlayer.setRate(rate);
+    } else if (webAudio) {
+      webAudio.playbackRate = rate;
+    }
+  } catch (error) {
+    console.warn("[audioPlayer] setRate error:", error);
+  }
+}
+
 export async function playbackService() {
   if (isTrackPlayerAvailable && TrackPlayer && Event) {
     TrackPlayer.addEventListener(Event.RemotePlay, () => TrackPlayer.play());
@@ -170,3 +195,4 @@ export async function playbackService() {
     TrackPlayer.addEventListener(Event.RemoteSeek, (event: any) => TrackPlayer.seekTo(event.position));
   }
 }
+
