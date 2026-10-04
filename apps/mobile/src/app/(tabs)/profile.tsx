@@ -10,6 +10,7 @@ import {
   Alert,
   ActivityIndicator,
   TextInput,
+  Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Colors } from "../../constants/colors";
@@ -182,17 +183,25 @@ export default function ProfileScreen() {
   };
 
   const handleLogout = () => {
-    Alert.alert("Xác nhận đăng xuất", "Bạn có chắc muốn đăng xuất khỏi Waifu Player?", [
-      { text: "Hủy", style: "cancel" },
-      {
-        text: "Đăng xuất",
-        style: "destructive",
-        onPress: () => {
-          logout();
-          router.replace("/(auth)/login");
+    const doLogout = () => {
+      logout();
+      router.replace("/(auth)/login" as any);
+    };
+
+    if (Platform.OS === "web") {
+      if (typeof window !== "undefined" && window.confirm("Bạn có chắc chắn muốn đăng xuất khỏi Waifu Player?")) {
+        doLogout();
+      }
+    } else {
+      Alert.alert("Xác nhận đăng xuất", "Bạn có chắc muốn đăng xuất khỏi Waifu Player?", [
+        { text: "Hủy", style: "cancel" },
+        {
+          text: "Đăng xuất",
+          style: "destructive",
+          onPress: doLogout,
         },
-      },
-    ]);
+      ]);
+    }
   };
 
   return (
@@ -365,14 +374,28 @@ export default function ProfileScreen() {
             <Ionicons name="chevron-forward" size={18} color={Colors.dark.textMuted} />
           </TouchableOpacity>
 
-          <TouchableOpacity style={[styles.menuItem, { borderBottomWidth: 0 }]} onPress={handleLogout}>
-            <Ionicons name="log-out-outline" size={22} color={Colors.dark.secondary} />
-            <View style={styles.menuItemCenter}>
-              <Text style={[styles.menuText, { color: Colors.dark.secondary }]}>Đăng xuất</Text>
-              <Text style={styles.menuSubText}>Thoát tài khoản hiện tại</Text>
-            </View>
-            <Ionicons name="chevron-forward" size={18} color={Colors.dark.secondary} />
-          </TouchableOpacity>
+          {isAuthenticated ? (
+            <TouchableOpacity style={[styles.menuItem, { borderBottomWidth: 0 }]} onPress={handleLogout}>
+              <Ionicons name="log-out-outline" size={22} color={Colors.dark.secondary} />
+              <View style={styles.menuItemCenter}>
+                <Text style={[styles.menuText, { color: Colors.dark.secondary }]}>Đăng xuất</Text>
+                <Text style={styles.menuSubText}>Thoát tài khoản hiện tại</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={Colors.dark.secondary} />
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity
+              style={[styles.menuItem, { borderBottomWidth: 0 }]}
+              onPress={() => router.push("/(auth)/login" as any)}
+            >
+              <Ionicons name="log-in-outline" size={22} color={Colors.dark.primary} />
+              <View style={styles.menuItemCenter}>
+                <Text style={[styles.menuText, { color: Colors.dark.primary }]}>Đăng nhập tài khoản</Text>
+                <Text style={styles.menuSubText}>Đăng nhập để đồng bộ nhạc yêu thích</Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={Colors.dark.primary} />
+            </TouchableOpacity>
+          )}
         </View>
       </ScrollView>
 

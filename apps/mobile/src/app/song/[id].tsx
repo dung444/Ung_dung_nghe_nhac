@@ -181,8 +181,24 @@ export default function SongDetailScreen() {
   }, [id]);
 
   useEffect(() => {
-    if (currentSong) {
-      setIsLiked(!!currentSong.isLiked);
+    if (!currentSong) return;
+    setIsLiked(!!currentSong.isLiked);
+
+    const { useAuthStore } = require("../../store/authStore");
+    const { isAuthenticated } = useAuthStore.getState();
+    if (isAuthenticated) {
+      api
+        .get("/api/v1/users/me/liked")
+        .then((res) => {
+          if (res.data?.success && Array.isArray(res.data.data)) {
+            const isSongLiked = res.data.data.some(
+              (item: any) => item.songId === currentSong.id || item.song?.id === currentSong.id
+            );
+            setIsLiked(isSongLiked);
+            setCurrentSong({ ...currentSong, isLiked: isSongLiked });
+          }
+        })
+        .catch(() => {});
     }
   }, [currentSong?.id]);
 
@@ -217,12 +233,40 @@ export default function SongDetailScreen() {
 
   const toggleLike = async () => {
     if (!currentSong) return;
+
+    const { useAuthStore } = require("../../store/authStore");
+    const { isAuthenticated } = useAuthStore.getState();
+    if (!isAuthenticated) {
+      const msg = "Vui lòng đăng nhập để lưu bài hát vào danh sách Yêu thích!";
+      if (Platform.OS === "web") {
+        alert(msg);
+      } else {
+        Alert.alert("Yêu cầu đăng nhập", msg);
+      }
+      router.push("/(auth)/login" as any);
+      return;
+    }
+
     const newLiked = !isLiked;
     setIsLiked(newLiked);
+    setCurrentSong({ ...currentSong, isLiked: newLiked });
+
     try {
-      await api.post(`/api/v1/songs/${currentSong.id}/like`);
-    } catch {
+      const res = await api.post(`/api/v1/songs/${currentSong.id}/like`);
+      if (res.data?.success && typeof res.data?.data?.liked === "boolean") {
+        const actualLiked = res.data.data.liked;
+        setIsLiked(actualLiked);
+        setCurrentSong({ ...currentSong, isLiked: actualLiked });
+      }
+    } catch (err: any) {
       setIsLiked(!newLiked);
+      setCurrentSong({ ...currentSong, isLiked: !newLiked });
+      const msg = err.response?.data?.error || err.response?.data?.message || "Không thể cập nhật bài hát yêu thích";
+      if (Platform.OS === "web") {
+        alert(msg);
+      } else {
+        Alert.alert("Thông báo", msg);
+      }
     }
   };
 
