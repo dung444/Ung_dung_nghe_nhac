@@ -11,34 +11,33 @@ export default function LoginScreen() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
-  const { setTokens, setUser } = useAuthStore();
+  const { setAuth } = useAuthStore();
 
   const handleLogin = async () => {
+    if (!email.trim() || !password.trim()) {
+      setErrorMessage("Vui lòng nhập Email/Tên đăng nhập và Mật khẩu.");
+      return;
+    }
+
     setLoading(true);
     setErrorMessage("");
     try {
       const { api } = await import("../../services/api");
-      const res = await api.post("/api/v1/auth/login", { email, password });
-      if (res.data.success) {
-        setUser(res.data.data.user);
-        setTokens(res.data.data.accessToken, res.data.data.refreshToken);
+      const res = await api.post("/api/v1/auth/login", { email: email.trim(), password });
+      if (res.data?.success && res.data?.data) {
+        const { user, accessToken, refreshToken } = res.data.data;
+        setAuth(user, accessToken, refreshToken);
         router.replace("/(tabs)");
         return;
+      } else {
+        setErrorMessage(res.data?.message || "Đăng nhập thất bại.");
       }
     } catch (err: any) {
-      // If offline or local dev, gracefully fallback with valid session
-      setUser({
-        id: "1",
-        email: email || "user@waifu.test",
-        username: email ? email.split("@")[0] : "user",
-        isPremium: false,
-        role: "USER",
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        avatarUrl: null,
-      });
-      setTokens("dummy-access-token", "dummy-refresh-token");
-      router.replace("/(tabs)");
+      const msg =
+        err.response?.data?.message ||
+        err.response?.data?.error ||
+        "Email/Tên đăng nhập hoặc mật khẩu không chính xác.";
+      setErrorMessage(msg);
     } finally {
       setLoading(false);
     }
@@ -49,16 +48,17 @@ export default function LoginScreen() {
       <View style={styles.content}>
         <Text style={styles.title}>Waifu Player</Text>
         <Text style={styles.subtitle}>Đăng nhập để nghe nhạc anime không giới hạn</Text>
-        
+
+        {!!errorMessage && <Text style={styles.errorText}>{errorMessage}</Text>}
+
         <View style={styles.inputContainer}>
-          <Text style={styles.label}>Email</Text>
+          <Text style={styles.label}>Email hoặc Tên đăng nhập</Text>
           <TextInput
             style={styles.input}
-            placeholder="waifu@example.com"
+            placeholder="admin@waifu-player.dev hoặc admin"
             placeholderTextColor={Colors.dark.textMuted}
             value={email}
             onChangeText={setEmail}
-            keyboardType="email-address"
             autoCapitalize="none"
           />
         </View>
@@ -82,7 +82,7 @@ export default function LoginScreen() {
             <Text style={styles.loginBtnText}>Đăng nhập</Text>
           )}
         </TouchableOpacity>
-        
+
         <TouchableOpacity style={styles.registerBtn} onPress={() => router.push("/(auth)/register")}>
           <Text style={styles.registerBtnText}>Chưa có tài khoản? Đăng ký ngay</Text>
         </TouchableOpacity>
@@ -95,12 +95,13 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.dark.background },
   content: { flex: 1, padding: 24, justifyContent: "center" },
   title: { fontSize: 32, fontWeight: "bold", color: Colors.dark.primary, textAlign: "center", marginBottom: 8 },
-  subtitle: { fontSize: 16, color: Colors.dark.textMuted, textAlign: "center", marginBottom: 40 },
+  subtitle: { fontSize: 16, color: Colors.dark.textMuted, textAlign: "center", marginBottom: 30 },
+  errorText: { color: "#ef4444", fontSize: 14, fontWeight: "600", textAlign: "center", marginBottom: 16, backgroundColor: "rgba(239, 68, 68, 0.1)", padding: 10, borderRadius: 8, borderWidth: 1, borderColor: "rgba(239, 68, 68, 0.3)" },
   inputContainer: { marginBottom: 20 },
   label: { color: Colors.dark.text, marginBottom: 8, fontSize: 14, fontWeight: "500" },
   input: { backgroundColor: Colors.dark.surface, borderWidth: 1, borderColor: Colors.dark.border, borderRadius: 8, padding: 14, color: Colors.dark.text, fontSize: 16 },
   loginBtn: { backgroundColor: Colors.dark.primary, padding: 16, borderRadius: 8, alignItems: "center", marginTop: 12 },
   loginBtnText: { color: "#fff", fontSize: 16, fontWeight: "bold" },
   registerBtn: { padding: 16, alignItems: "center", marginTop: 8 },
-  registerBtnText: { color: Colors.dark.secondary, fontSize: 14, fontWeight: "600" }
+  registerBtnText: { color: Colors.dark.secondary, fontSize: 14, fontWeight: "600" },
 });

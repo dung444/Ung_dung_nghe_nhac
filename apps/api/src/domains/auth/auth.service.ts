@@ -32,7 +32,9 @@ export async function register(input: RegisterInput) {
 }
 
 export async function login(input: LoginInput) {
-  const user = await prisma.user.findUnique({ where: { email: input.email } });
+  const user = await prisma.user.findFirst({
+    where: { OR: [{ email: input.email }, { username: input.email }] },
+  });
   if (!user) throw new AppError("Invalid email or password", 401);
 
   const valid = await comparePassword(input.password, user.passwordHash);
