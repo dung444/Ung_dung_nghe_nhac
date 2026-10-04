@@ -27,27 +27,24 @@ import Animated, {
   Easing,
   withRepeat,
   cancelAnimation,
-  withSequence,
 } from "react-native-reanimated";
 import type { Song, SongCopyright } from "@waifu-player/types";
 import { formatDuration } from "@waifu-player/utils";
 
-// Helper to parse or generate timed karaoke lyrics
 interface LyricLine {
-  time: number; // in seconds
+  time: number; // seconds
   text: string;
 }
 
 function parseLyrics(lyricsText: string | null | undefined, songDuration: number): LyricLine[] {
   if (!lyricsText || lyricsText.trim().length === 0) {
-    // Default fallback anime lyrics with timing calculated across song duration
     const defaultLines = [
       "♪ Giai điệu anime du dương ngân vang ♪",
-      "Cùng đắm chìm vào thế giới âm nhạc Waifu",
+      "Cùng đắm chìm vào thế giới âm nhạc Waifu Player",
       "Từng nốt nhạc hòa quyện cùng nhịp đập trái tim ✨",
       "Feel the energy and passion of anime music",
       "Nguyện lưu giữ khoảnh khắc tuyệt vời này mãi mãi",
-      "♪ Waifu Player - Anime Soundtrack & Vocaloid Hits ♪",
+      "♪ Waifu Player - Anime Soundtracks & Vocaloid Hits ♪",
     ];
     const step = Math.max(3, (songDuration || 180) / defaultLines.length);
     return defaultLines.map((line, idx) => ({
@@ -76,7 +73,6 @@ function parseLyrics(lyricsText: string | null | undefined, songDuration: number
     return result.sort((a, b) => a.time - b.time);
   }
 
-  // If plain text without timestamp format, space lines evenly
   const step = Math.max(3, (songDuration || 180) / lines.length);
   return lines.map((line, idx) => ({
     time: Math.floor(idx * step),
@@ -93,6 +89,10 @@ export default function SongDetailScreen() {
   const [showSleepTimerModal, setShowSleepTimerModal] = useState(false);
   const [showVolumeBar, setShowVolumeBar] = useState(false);
   const [isLiked, setIsLiked] = useState(false);
+
+  // Synced Lyrics from Online API / Database
+  const [lrcText, setLrcText] = useState<string | null>(null);
+  const [loadingLrc, setLoadingLrc] = useState<boolean>(false);
 
   // Copyright and Claim States
   const [showCopyrightModal, setShowCopyrightModal] = useState(false);
@@ -134,7 +134,33 @@ export default function SongDetailScreen() {
   const rotation = useSharedValue(0);
   const lyricsScrollViewRef = useRef<ScrollView>(null);
 
-  // If navigated with a specific song id that is not 'current'
+  // Fetch online LRC Synced Lyrics automatically if not present in DB
+  useEffect(() => {
+    if (!currentSong) return;
+    if (currentSong.lyrics) {
+      setLrcText(currentSong.lyrics);
+      return;
+    }
+
+    const artistName = currentSong.artists?.map((a) => a.name).join(" ") || "";
+    setLoadingLrc(true);
+    fetch(
+      `https://lrclib.net/api/get?track_name=${encodeURIComponent(
+        currentSong.title
+      )}&artist_name=${encodeURIComponent(artistName)}`
+    )
+      .then((res) => res.json())
+      .then((data) => {
+        if (data?.syncedLyrics || data?.plainLyrics) {
+          setLrcText(data.syncedLyrics || data.plainLyrics);
+        } else {
+          setLrcText(null);
+        }
+      })
+      .catch(() => setLrcText(null))
+      .finally(() => setLoadingLrc(false));
+  }, [currentSong?.id]);
+
   useEffect(() => {
     if (id && id !== "current" && currentSong?.id !== id) {
       const found = queue.find((s) => s.id === id);
@@ -177,9 +203,8 @@ export default function SongDetailScreen() {
     };
   });
 
-  const parsedLyrics = parseLyrics(currentSong?.lyrics, duration || currentSong?.duration || 180);
+  const parsedLyrics = parseLyrics(lrcText, duration || currentSong?.duration || 180);
 
-  // Find currently active lyric line based on playback position
   let activeLyricIndex = 0;
   for (let i = 0; i < parsedLyrics.length; i++) {
     if (position >= parsedLyrics[i].time) {
@@ -330,7 +355,6 @@ export default function SongDetailScreen() {
 
   const artistNames = currentSong.artists?.map((a) => a.name).join(", ") || "Unknown Artist";
 
-  // Calculate remaining sleep timer minutes
   let sleepTimerRemainingText = "";
   if (sleepTimerEndTime) {
     const diffSec = Math.max(0, Math.floor((sleepTimerEndTime - Date.now()) / 1000));
@@ -367,35 +391,41 @@ export default function SongDetailScreen() {
               <Ionicons name="sparkles" size={16} color={Colors.dark.primaryLight} />
             </View>
 
-            <ScrollView
-              ref={lyricsScrollViewRef}
-              style={{ width: "100%", maxHeight: 260 }}
-              contentContainerStyle={{ alignItems: "center", paddingVertical: 12 }}
-              showsVerticalScrollIndicator={false}
-            >
-              {parsedLyrics.map((line, idx) => {
-                const isActive = idx === activeLyricIndex;
-                return (
-                  <TouchableOpacity
-                    key={idx}
-                    onPress={() => seekTo(line.time)}
-                    activeOpacity={0.8}
-                    style={[styles.lyricLineBox, isActive && styles.lyricLineBoxActive]}
-                  >
-                    <Text style={[styles.lyricsLine, isActive && styles.lyricsLineActive]}>
-                      {line.text}
-                    </Text>
-                    {isActive && (
-                      <View style={styles.lyricActiveDot} />
-                    )}
-                  </TouchableOpacity>
-                );
-              })}
-            </ScrollView>
+            {loadingLrc ? (
+              <View style={{ paddingVertical: 30, alignItems: "center" }}>
+                <ActivityIndicator color={Colors.dark.primary} size="small" />
+                <Text style={{ color: Colors.dark.textMuted, fontSize: 12, marginTop: 8 }}>
+                  Tự động tra cứu lời bài hát chuẩn...
+                </Text>
+              </View>
+            ) : (
+              <ScrollView
+                ref={lyricsScrollViewRef}
+                style={{ width: "100%", maxHeight: 260 }}
+                contentContainerStyle={{ alignItems: "center", paddingVertical: 12 }}
+                showsVerticalScrollIndicator={false}
+              >
+                {parsedLyrics.map((line, idx) => {
+                  const isActive = idx === activeLyricIndex;
+                  return (
+                    <TouchableOpacity
+                      key={idx}
+                      onPress={() => seekTo(line.time)}
+                      activeOpacity={0.8}
+                      style={[styles.lyricLineBox, isActive && styles.lyricLineBoxActive]}
+                    >
+                      <Text style={[styles.lyricsLine, isActive && styles.lyricsLineActive]}>
+                        {line.text}
+                      </Text>
+                      {isActive && <View style={styles.lyricActiveDot} />}
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+            )}
           </View>
         ) : (
           <View style={styles.vinylWrapper}>
-            {/* Spinning Vinyl Record Disc */}
             <Animated.View style={[styles.vinylDisc, animatedVinylStyle]}>
               <View style={styles.vinylRing1} />
               <View style={styles.vinylRing2} />
@@ -409,7 +439,6 @@ export default function SongDetailScreen() {
               <View style={styles.spindleHole} />
             </Animated.View>
 
-            {/* Audio Waveform Visualizer Indicator */}
             {isPlaying && (
               <View style={styles.waveBarContainer}>
                 {[14, 22, 10, 28, 16, 24, 12, 20].map((h, i) => (
@@ -432,7 +461,31 @@ export default function SongDetailScreen() {
 
       {/* Song Info & Controls */}
       <View style={styles.infoContainer}>
-        {/* Title, Artist, Mute & Heart Button */}
+        {/* Compact Volume Slider Bar Popover */}
+        {showVolumeBar && (
+          <View style={styles.compactVolumeBar}>
+            <TouchableOpacity onPress={toggleMute} style={{ padding: 2 }}>
+              <Ionicons name={getVolumeIcon()} size={18} color={Colors.dark.primaryLight} />
+            </TouchableOpacity>
+            <View style={styles.miniVolTrack}>
+              {[0.2, 0.4, 0.6, 0.8, 1.0].map((step) => {
+                const active = !isMuted && volume >= step;
+                return (
+                  <TouchableOpacity
+                    key={step}
+                    style={[styles.miniVolSegment, active && styles.miniVolSegmentActive]}
+                    onPress={() => setVolume(step)}
+                  />
+                );
+              })}
+            </View>
+            <Text style={styles.miniVolText}>
+              {isMuted ? "0%" : `${Math.round(volume * 100)}%`}
+            </Text>
+          </View>
+        )}
+
+        {/* Title, Artist & Controls */}
         <View style={styles.titleRow}>
           <View style={{ flex: 1, marginRight: 12 }}>
             <Text style={styles.title} numberOfLines={1}>
@@ -443,11 +496,16 @@ export default function SongDetailScreen() {
             </Text>
           </View>
 
+          {/* Compact Speaker Icon Toggle */}
           <TouchableOpacity
             onPress={() => setShowVolumeBar(!showVolumeBar)}
-            style={{ padding: 8, marginRight: 4 }}
+            style={styles.speakerIconBtn}
           >
-            <Ionicons name={getVolumeIcon()} size={24} color={Colors.dark.primaryLight} />
+            <Ionicons
+              name={getVolumeIcon()}
+              size={22}
+              color={showVolumeBar ? Colors.dark.primary : Colors.dark.primaryLight}
+            />
           </TouchableOpacity>
 
           <TouchableOpacity onPress={toggleLike} style={styles.heartBtn} activeOpacity={0.7}>
@@ -459,33 +517,6 @@ export default function SongDetailScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Quick Volume Control Bar */}
-        {showVolumeBar && (
-          <View style={styles.volumeBarCard}>
-            <TouchableOpacity onPress={toggleMute} style={{ padding: 4 }}>
-              <Ionicons name={getVolumeIcon()} size={22} color={Colors.dark.primary} />
-            </TouchableOpacity>
-
-            <View style={styles.volumeStepContainer}>
-              {[0.2, 0.4, 0.6, 0.8, 1.0].map((volStep) => {
-                const isActive = !isMuted && volume >= volStep;
-                return (
-                  <TouchableOpacity
-                    key={volStep}
-                    style={[styles.volSegment, isActive && styles.volSegmentActive]}
-                    onPress={() => setVolume(volStep)}
-                  />
-                );
-              })}
-            </View>
-
-            <Text style={styles.volumePercentText}>
-              {isMuted ? "0%" : `${Math.round(volume * 100)}%`}
-            </Text>
-          </View>
-        )}
-
-        {/* Progress Bar with timestamps */}
         <ProgressBar
           position={position}
           duration={duration || currentSong.duration}
@@ -537,7 +568,7 @@ export default function SongDetailScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Bottom Utility Pills: Lyrics, Speed, Sleep Timer, Queue & Copyright */}
+        {/* Bottom Utility Pills */}
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
@@ -557,7 +588,6 @@ export default function SongDetailScreen() {
             </Text>
           </TouchableOpacity>
 
-          {/* Speed / Nightcore Pill */}
           <TouchableOpacity
             style={[styles.utilPill, playbackRate !== 1.0 && styles.utilPillActive]}
             onPress={() => setShowSpeedModal(true)}
@@ -572,7 +602,6 @@ export default function SongDetailScreen() {
             </Text>
           </TouchableOpacity>
 
-          {/* Sleep Timer Pill */}
           <TouchableOpacity
             style={[styles.utilPill, sleepTimerMinutes !== null && styles.utilPillActive]}
             onPress={() => setShowSleepTimerModal(true)}
@@ -785,7 +814,7 @@ export default function SongDetailScreen() {
         </View>
       </Modal>
 
-      {/* Copyright Certificate & Licensing Modal */}
+      {/* Copyright Certificate Modal */}
       <Modal
         visible={showCopyrightModal}
         animationType="slide"
@@ -1178,42 +1207,48 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: Colors.dark.textMuted,
   },
+  speakerIconBtn: {
+    padding: 8,
+    marginRight: 4,
+  },
   heartBtn: {
     padding: 8,
   },
-  volumeBarCard: {
+  compactVolumeBar: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: Colors.dark.card,
-    borderRadius: 14,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-    marginBottom: 12,
-    gap: 12,
+    alignSelf: "flex-end",
+    backgroundColor: "rgba(30, 30, 46, 0.95)",
+    borderRadius: 18,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    marginBottom: 8,
+    gap: 8,
     borderWidth: 1,
     borderColor: Colors.dark.border,
+    width: 170,
   },
-  volumeStepContainer: {
+  miniVolTrack: {
     flex: 1,
     flexDirection: "row",
-    gap: 6,
-    height: 12,
+    gap: 3,
+    height: 10,
     alignItems: "center",
   },
-  volSegment: {
+  miniVolSegment: {
     flex: 1,
-    height: 8,
-    borderRadius: 4,
+    height: 6,
+    borderRadius: 3,
     backgroundColor: "rgba(255,255,255,0.12)",
   },
-  volSegmentActive: {
+  miniVolSegmentActive: {
     backgroundColor: Colors.dark.primary,
   },
-  volumePercentText: {
-    fontSize: 12,
+  miniVolText: {
+    fontSize: 11,
     color: Colors.dark.primaryLight,
     fontWeight: "700",
-    width: 38,
+    width: 30,
     textAlign: "right",
   },
   controlsRow: {
