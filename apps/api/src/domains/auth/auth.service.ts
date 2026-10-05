@@ -24,7 +24,7 @@ export async function register(input: RegisterInput) {
       displayName: input.displayName ?? input.username,
       passwordHash,
     },
-    select: { id: true, email: true, username: true, displayName: true, role: true, createdAt: true },
+    select: { id: true, email: true, username: true, displayName: true, avatarUrl: true, isPremium: true, role: true, createdAt: true },
   });
 
   const tokens = await generateTokenPair(user.id, user.role);

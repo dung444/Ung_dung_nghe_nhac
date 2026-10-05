@@ -54,7 +54,7 @@ export default function RegisterScreen() {
 
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
-  const { setTokens, setUser, setPreferences } = useAuthStore();
+  const { setAuth, setPreferences } = useAuthStore();
 
   useEffect(() => {
     // Fetch live artists from API if available
@@ -116,8 +116,7 @@ export default function RegisterScreen() {
       });
 
       if (res.data.success) {
-        setUser(res.data.data.user);
-        setTokens(res.data.data.accessToken, res.data.data.refreshToken);
+        setAuth(res.data.data.user, res.data.data.accessToken, res.data.data.refreshToken);
 
         // Save music preferences
         const genreNames = GENRE_OPTIONS.filter((g) => selectedGenres.includes(g.id)).map((g) => g.name);

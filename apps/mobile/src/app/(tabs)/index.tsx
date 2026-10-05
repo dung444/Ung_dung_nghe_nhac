@@ -140,25 +140,25 @@ export default function HomeScreen() {
       ? songs
       : activeCategory === "Dành Cho Bạn ✨"
       ? songs.filter((s) => {
-          const matchGenre = s.genres.some((g) =>
+          const matchGenre = (s.genres || []).some((g) =>
             preferredGenres.some((pg) => pg.toLowerCase().includes(g.name.toLowerCase()) || g.name.toLowerCase().includes(pg.toLowerCase()))
           );
-          const matchArtist = s.artists.some((a) =>
+          const matchArtist = (s.artists || []).some((a) =>
             preferredArtists.includes(a.id) || preferredArtists.some((pa) => a.name.toLowerCase().includes(pa.toLowerCase()))
           );
           return matchGenre || matchArtist;
         }).length > 0
         ? songs.filter((s) => {
-            const matchGenre = s.genres.some((g) =>
+            const matchGenre = (s.genres || []).some((g) =>
               preferredGenres.some((pg) => pg.toLowerCase().includes(g.name.toLowerCase()) || g.name.toLowerCase().includes(pg.toLowerCase()))
             );
-            const matchArtist = s.artists.some((a) =>
+            const matchArtist = (s.artists || []).some((a) =>
               preferredArtists.includes(a.id) || preferredArtists.some((pa) => a.name.toLowerCase().includes(pa.toLowerCase()))
             );
             return matchGenre || matchArtist;
           })
         : songs
-      : songs.filter((s) => s.genres.some((g) => g.name.toLowerCase().includes(activeCategory.toLowerCase())));
+      : songs.filter((s) => (s.genres || []).some((g) => g.name.toLowerCase().includes(activeCategory.toLowerCase())));
 
 
   const getRankBadge = (index: number) => {
