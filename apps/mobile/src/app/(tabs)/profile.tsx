@@ -51,12 +51,47 @@ export default function ProfileScreen() {
   const [showPremiumModal, setShowPremiumModal] = useState(false);
   const [selectedQuality, setSelectedQuality] = useState("high");
 
-  // Personal Photos & Custom Avatar States
-  const [personalPhotos, setPersonalPhotos] = useState<string[]>([
-    "https://images.unsplash.com/photo-1578632767115-351597cf2477?w=300&q=80",
-    "https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?w=300&q=80",
-    "https://images.unsplash.com/photo-1534447677768-be436bb09401?w=300&q=80",
-  ]);
+  // Helper lấy URL ảnh hoàn chỉnh (hỗ trợ relative uploads, base64, blob, http)
+  const getDisplayAvatarUrl = (url?: string | null) => {
+    if (!url) return null;
+    if (
+      url.startsWith("http://") ||
+      url.startsWith("https://") ||
+      url.startsWith("data:") ||
+      url.startsWith("blob:")
+    ) {
+      return url;
+    }
+    return `${API_BASE_URL}${url.startsWith("/") ? "" : "/"}${url}`;
+  };
+
+  // Personal Photos & Custom Avatar States (tự động load và lưu localStorage)
+  const [personalPhotos, setPersonalPhotos] = useState<string[]>(() => {
+    try {
+      if (typeof window !== "undefined" && window.localStorage) {
+        const saved = window.localStorage.getItem("waifu_personal_photos");
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        }
+      }
+    } catch {}
+    return [
+      "https://images.unsplash.com/photo-1578632767115-351597cf2477?w=300&q=80",
+      "https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?w=300&q=80",
+      "https://images.unsplash.com/photo-1534447677768-be436bb09401?w=300&q=80",
+    ];
+  });
+
+  const savePersonalPhotos = (photos: string[]) => {
+    setPersonalPhotos(photos);
+    try {
+      if (typeof window !== "undefined" && window.localStorage) {
+        window.localStorage.setItem("waifu_personal_photos", JSON.stringify(photos));
+      }
+    } catch {}
+  };
+
   const [customAvatarUrl, setCustomAvatarUrl] = useState("");
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [viewingPhotoUrl, setViewingPhotoUrl] = useState<string | null>(null);
@@ -267,20 +302,40 @@ export default function ProfileScreen() {
   }, [isAuthenticated]);
 
   const handleSelectAvatar = (url: string) => {
-    if (user) {
-      setUser({ ...user, avatarUrl: url });
-      api.patch("/api/v1/users/me", { avatarUrl: url }).catch(() => {});
-      try {
-        const { useToastStore } = require("../../store/toastStore");
-        useToastStore.getState().showSuccess("Cập nhật Avatar thành công! 🌸", "Hình đại diện của bạn đã được thay đổi.");
-      } catch {}
+    const fullUrl = getDisplayAvatarUrl(url) || url;
+    const nextUser = user
+      ? { ...user, avatarUrl: fullUrl }
+      : {
+          id: "local-user",
+          username: "Anime Lover",
+          email: "user@waifu.moe",
+          displayName: "Anime Lover",
+          role: "USER" as const,
+          avatarUrl: fullUrl,
+          isPremium: true,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+    setUser(nextUser);
+    savePersonalPhotos([fullUrl, ...personalPhotos.filter((p) => p !== fullUrl)]);
+
+    if (isAuthenticated) {
+      api.patch("/api/v1/users/me", { avatarUrl: fullUrl }).catch(() => {});
     }
+
+    try {
+      const { useToastStore } = require("../../store/toastStore");
+      useToastStore.getState().showSuccess("Cập nhật Avatar thành công! 🌸", "Hình đại diện của bạn đã được thay đổi.");
+    } catch {}
     setShowAvatarModal(false);
   };
 
   // Tự chọn tệp ảnh cá nhân từ máy tính / điện thoại
   const handlePickMyAvatar = () => {
-    if (typeof document === "undefined") return;
+    if (typeof document === "undefined") {
+      Alert.alert("Thông báo", "Vui lòng chọn ảnh trên trình duyệt hoặc dán liên kết URL ảnh.");
+      return;
+    }
     const input = document.createElement("input");
     input.type = "file";
     input.accept = "image/png,image/jpeg,image/jpg,image/webp,image/*";
@@ -288,35 +343,70 @@ export default function ProfileScreen() {
       const file = e.target?.files?.[0];
       if (!file) return;
 
+      // 1. Đọc ngay thành Data URL (Base64) để cập nhật avatar và hiển thị tức thì 100%
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const base64Url = event.target?.result as string;
+        if (base64Url) {
+          const nextUser = user
+            ? { ...user, avatarUrl: base64Url }
+            : {
+                id: "local-user",
+                username: "Anime Lover",
+                email: "user@waifu.moe",
+                displayName: "Anime Lover",
+                role: "USER" as const,
+                avatarUrl: base64Url,
+                isPremium: true,
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+              };
+          setUser(nextUser);
+          savePersonalPhotos([base64Url, ...personalPhotos.filter((p) => p !== base64Url)]);
+        }
+      };
+      reader.readAsDataURL(file);
+
+      // 2. Gửi tệp lên máy chủ backend để lưu vĩnh viễn
       setUploadingAvatar(true);
       try {
         const formData = new FormData();
         formData.append("avatar", file);
 
         const res = await api.post("/api/v1/users/me/avatar", formData, {
-          headers: { "Content-Type": "multipart/form-data" },
+          headers: {
+            "Content-Type": undefined,
+          },
         });
 
         if (res.data?.success && res.data?.data?.avatarUrl) {
           const rawUrl = res.data.data.avatarUrl;
-          const fullUrl = rawUrl.startsWith("http")
-            ? rawUrl
-            : `${API_BASE_URL}${rawUrl.startsWith("/") ? "" : "/"}${rawUrl}`;
+          const fullUrl = getDisplayAvatarUrl(rawUrl) || rawUrl;
 
-          if (user) setUser({ ...user, avatarUrl: fullUrl });
-          setPersonalPhotos((prev) => [fullUrl, ...prev.filter((p) => p !== fullUrl)]);
-
-          try {
-            const { useToastStore } = require("../../store/toastStore");
-            useToastStore.getState().showSuccess("Tải ảnh cá nhân thành công! 📸", "Ảnh mới đã được đặt làm Avatar!");
-          } catch {}
-          Alert.alert("Thành công! 📸", "Ảnh cá nhân của bạn đã được tải lên và đặt làm ảnh đại diện!");
+          const nextUser = user
+            ? { ...user, avatarUrl: fullUrl }
+            : {
+                id: "local-user",
+                username: "Anime Lover",
+                email: "user@waifu.moe",
+                displayName: "Anime Lover",
+                role: "USER" as const,
+                avatarUrl: fullUrl,
+                isPremium: true,
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString(),
+              };
+          setUser(nextUser);
+          savePersonalPhotos([fullUrl, ...personalPhotos.filter((p) => p !== fullUrl)]);
         }
-      } catch {
-        // Fallback tạo ObjectURL cục bộ
-        const localBlobUrl = URL.createObjectURL(file);
-        if (user) setUser({ ...user, avatarUrl: localBlobUrl });
-        setPersonalPhotos((prev) => [localBlobUrl, ...prev]);
+
+        try {
+          const { useToastStore } = require("../../store/toastStore");
+          useToastStore.getState().showSuccess("Tải ảnh cá nhân thành công! 📸", "Ảnh mới đã được đặt làm Avatar!");
+        } catch {}
+        Alert.alert("Thành công! 📸", "Ảnh cá nhân của bạn đã được tải lên và đặt làm ảnh đại diện!");
+      } catch (err) {
+        console.warn("Upload ảnh lên server gặp lỗi, đã lưu ảnh cục bộ:", err);
         try {
           const { useToastStore } = require("../../store/toastStore");
           useToastStore.getState().showSuccess("Đã lưu ảnh cá nhân! 🌸", "Ảnh của bạn đã được hiển thị trên hồ sơ.");
@@ -337,13 +427,29 @@ export default function ProfileScreen() {
       return;
     }
     const url = customAvatarUrl.trim();
-    if (user) {
-      setUser({ ...user, avatarUrl: url });
-      api.patch("/api/v1/users/me", { avatarUrl: url }).catch(() => {});
-    }
-    setPersonalPhotos((prev) => [url, ...prev.filter((p) => p !== url)]);
+    const fullUrl = getDisplayAvatarUrl(url) || url;
+    const nextUser = user
+      ? { ...user, avatarUrl: fullUrl }
+      : {
+          id: "local-user",
+          username: "Anime Lover",
+          email: "user@waifu.moe",
+          displayName: "Anime Lover",
+          role: "USER" as const,
+          avatarUrl: fullUrl,
+          isPremium: true,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+    setUser(nextUser);
+    savePersonalPhotos([fullUrl, ...personalPhotos.filter((p) => p !== fullUrl)]);
     setCustomAvatarUrl("");
     setShowAvatarModal(false);
+
+    if (isAuthenticated) {
+      api.patch("/api/v1/users/me", { avatarUrl: fullUrl }).catch(() => {});
+    }
+
     try {
       const { useToastStore } = require("../../store/toastStore");
       useToastStore.getState().showSuccess("Cập nhật ảnh thành công! 🌸", "Đã lưu ảnh mới vào hồ sơ cá nhân của bạn.");
@@ -358,7 +464,7 @@ export default function ProfileScreen() {
         text: "Xóa ảnh",
         style: "destructive",
         onPress: () => {
-          setPersonalPhotos((prev) => prev.filter((p) => p !== photoUrl));
+          savePersonalPhotos(personalPhotos.filter((p) => p !== photoUrl));
           try {
             const { useToastStore } = require("../../store/toastStore");
             useToastStore.getState().showInfo("Đã xóa ảnh", "Ảnh đã được gỡ khỏi bộ sưu tập cá nhân.");
@@ -405,8 +511,12 @@ export default function ProfileScreen() {
         {/* User Profile Card */}
         <View style={styles.profileCard}>
           <TouchableOpacity onPress={() => setShowAvatarModal(true)} style={styles.avatarWrap}>
-            {user?.avatarUrl ? (
-              <Image source={{ uri: user.avatarUrl }} style={styles.avatarImg} />
+            {getDisplayAvatarUrl(user?.avatarUrl) ? (
+              <Image
+                key={getDisplayAvatarUrl(user?.avatarUrl) || "avatar"}
+                source={{ uri: getDisplayAvatarUrl(user?.avatarUrl)! }}
+                style={styles.avatarImg}
+              />
             ) : (
               <View style={styles.avatarPlaceholder}>
                 <Ionicons name="person" size={36} color="#fff" />
@@ -533,14 +643,15 @@ export default function ProfileScreen() {
 
             {/* Các ảnh trong bộ sưu tập cá nhân */}
             {personalPhotos.map((photoUrl, idx) => {
-              const isCurrentAvatar = user?.avatarUrl === photoUrl;
+              const fullPhotoUrl = getDisplayAvatarUrl(photoUrl) || photoUrl;
+              const isCurrentAvatar = getDisplayAvatarUrl(user?.avatarUrl) === fullPhotoUrl;
               return (
                 <View key={`photo-${idx}`} style={styles.photoItemWrap}>
                   <TouchableOpacity
-                    onPress={() => setViewingPhotoUrl(photoUrl)}
+                    onPress={() => setViewingPhotoUrl(fullPhotoUrl)}
                     activeOpacity={0.85}
                   >
-                    <Image source={{ uri: photoUrl }} style={styles.photoThumbImg} />
+                    <Image source={{ uri: fullPhotoUrl }} style={styles.photoThumbImg} />
                   </TouchableOpacity>
 
                   {isCurrentAvatar && (
@@ -1430,15 +1541,16 @@ export default function ProfileScreen() {
                   </Text>
                   <View style={styles.avatarGrid}>
                     {personalPhotos.map((url, idx) => {
-                      const isChosen = user?.avatarUrl === url;
+                      const fullItemUrl = getDisplayAvatarUrl(url) || url;
+                      const isChosen = getDisplayAvatarUrl(user?.avatarUrl) === fullItemUrl;
                       return (
                         <TouchableOpacity
                           key={`my-photo-${idx}`}
                           style={[styles.avatarPickItem, isChosen && styles.avatarPickItemActive]}
-                          onPress={() => handleSelectAvatar(url)}
+                          onPress={() => handleSelectAvatar(fullItemUrl)}
                           activeOpacity={0.8}
                         >
-                          <Image source={{ uri: url }} style={styles.avatarPickImg} />
+                          <Image source={{ uri: fullItemUrl }} style={styles.avatarPickImg} />
                           {isChosen && (
                             <View style={styles.avatarCheckBadge}>
                               <Ionicons name="checkmark" size={14} color="#fff" />
@@ -1456,15 +1568,16 @@ export default function ProfileScreen() {
                 <Text style={styles.avatarSectionLabel}>4. HOẶC CHỌN AVATAR ANIME CÓ SẴN 🌸</Text>
                 <View style={styles.avatarGrid}>
                   {WAIFU_AVATARS.map((url, idx) => {
-                    const isChosen = user?.avatarUrl === url;
+                    const fullItemUrl = getDisplayAvatarUrl(url) || url;
+                    const isChosen = getDisplayAvatarUrl(user?.avatarUrl) === fullItemUrl;
                     return (
                       <TouchableOpacity
                         key={`waifu-avatar-${idx}`}
                         style={[styles.avatarPickItem, isChosen && styles.avatarPickItemActive]}
-                        onPress={() => handleSelectAvatar(url)}
+                        onPress={() => handleSelectAvatar(fullItemUrl)}
                         activeOpacity={0.8}
                       >
-                        <Image source={{ uri: url }} style={styles.avatarPickImg} />
+                        <Image source={{ uri: fullItemUrl }} style={styles.avatarPickImg} />
                         {isChosen && (
                           <View style={styles.avatarCheckBadge}>
                             <Ionicons name="checkmark" size={14} color="#fff" />
@@ -1497,7 +1610,7 @@ export default function ProfileScreen() {
 
           {viewingPhotoUrl && (
             <View style={styles.zoomCard}>
-              <Image source={{ uri: viewingPhotoUrl }} style={styles.zoomPhotoImg} resizeMode="contain" />
+              <Image source={{ uri: getDisplayAvatarUrl(viewingPhotoUrl) || viewingPhotoUrl }} style={styles.zoomPhotoImg} resizeMode="contain" />
               <View style={styles.zoomActionsRow}>
                 <TouchableOpacity
                   style={styles.zoomSetAvatarBtn}
