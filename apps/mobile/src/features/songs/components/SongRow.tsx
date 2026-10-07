@@ -1,19 +1,34 @@
-import React from "react";
+import React, { useState } from "react";
 import { View, Text, Image, TouchableOpacity, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import type { Song } from "@waifu-player/types";
 import { formatDuration, formatPlays } from "@waifu-player/utils";
 import { Colors } from "../../../constants/colors";
+import { usePlayerStore } from "../../../store/playerStore";
 
 interface SongRowProps {
   song: Song;
   onPress: (song: Song) => void;
   isPlaying?: boolean;
   showPlays?: boolean;
+  onAddToQueue?: (song: Song) => void;
 }
 
-export function SongRow({ song, onPress, isPlaying = false, showPlays = false }: SongRowProps) {
+export function SongRow({ song, onPress, isPlaying = false, showPlays = false, onAddToQueue }: SongRowProps) {
   const artistNames = song.artists?.map((a) => a.name).join(", ") ?? "";
+  const { addToQueue } = usePlayerStore();
+  const [added, setAdded] = useState(false);
+
+  const handleAddLater = () => {
+    if (onAddToQueue) {
+      onAddToQueue(song);
+    } else {
+      addToQueue(song);
+    }
+    setAdded(true);
+    setTimeout(() => setAdded(false), 2000);
+  };
+
   return (
     <TouchableOpacity style={styles.row} onPress={() => onPress(song)} activeOpacity={0.7}>
       {song.coverUrl ? (
@@ -32,6 +47,20 @@ export function SongRow({ song, onPress, isPlaying = false, showPlays = false }:
         </Text>
       </View>
       <Text style={styles.duration}>{formatDuration(song.duration)}</Text>
+
+      {/* Nút Thêm vào danh sách phát sau */}
+      <TouchableOpacity
+        style={styles.addQueueBtn}
+        onPress={handleAddLater}
+        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        activeOpacity={0.7}
+      >
+        <Ionicons
+          name={added ? "checkmark-circle" : "time-outline"}
+          size={20}
+          color={added ? "#10b981" : Colors.dark.textMuted}
+        />
+      </TouchableOpacity>
     </TouchableOpacity>
   );
 }
@@ -43,5 +72,10 @@ const styles = StyleSheet.create({
   info: { flex: 1, marginRight: 8 },
   title: { color: Colors.dark.text, fontSize: 14, fontWeight: "600" },
   sub: { color: Colors.dark.textMuted, fontSize: 12, marginTop: 2 },
-  duration: { color: Colors.dark.textMuted, fontSize: 12 },
+  duration: { color: Colors.dark.textMuted, fontSize: 12, marginRight: 12 },
+  addQueueBtn: {
+    padding: 4,
+    justifyContent: "center",
+    alignItems: "center",
+  },
 });

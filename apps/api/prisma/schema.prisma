@@ -138,8 +138,8 @@ model Song {
   id          String    @id @default(uuid())
   title       String
   duration    Int
-  fileUrl     String
-  coverUrl    String?
+  fileUrl     String    @db.Text
+  coverUrl    String?   @db.Text
   lyrics      String?   @db.Text
   plays       Int       @default(0)
   isPublic    Boolean   @default(true)

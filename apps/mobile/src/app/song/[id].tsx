@@ -19,6 +19,7 @@ import { Colors } from "../../constants/colors";
 import { usePlayerStore } from "../../store/playerStore";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ProgressBar } from "../../features/player/components/ProgressBar";
+import { WaveformVisualizer } from "../../features/player/components/WaveformVisualizer";
 import { api } from "../../services/api";
 import Slider from "@react-native-community/slider";
 import Animated, {
@@ -86,10 +87,12 @@ export default function SongDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const [showQueue, setShowQueue] = useState(false);
   const [showLyrics, setShowLyrics] = useState(false);
+  const [showWaveform, setShowWaveform] = useState(true);
   const [showSpeedModal, setShowSpeedModal] = useState(false);
   const [showSleepTimerModal, setShowSleepTimerModal] = useState(false);
   const [showVolumeBar, setShowVolumeBar] = useState(false);
   const [isLiked, setIsLiked] = useState(false);
+  const [queueAdded, setQueueAdded] = useState(false);
 
   // Synced Lyrics from Online API / Database
   const [lrcText, setLrcText] = useState<string | null>(null);
@@ -138,6 +141,7 @@ export default function SongDetailScreen() {
     sleepTimerMinutes,
     sleepTimerEndTime,
     setSleepTimer,
+    addToQueue,
   } = usePlayerStore();
 
   const rotation = useSharedValue(0);
@@ -460,6 +464,13 @@ export default function SongDetailScreen() {
     );
   }
 
+  const handleAddToPlayLater = () => {
+    if (!currentSong) return;
+    addToQueue(currentSong);
+    setQueueAdded(true);
+    setTimeout(() => setQueueAdded(false), 2500);
+  };
+
   const handleRepeatToggle = () => {
     if (repeatMode === "off") setRepeatMode("queue");
     else if (repeatMode === "queue") setRepeatMode("track");
@@ -564,22 +575,12 @@ export default function SongDetailScreen() {
               <View style={styles.spindleHole} />
             </Animated.View>
 
-            {isPlaying && (
-              <View style={styles.waveBarContainer}>
-                {[14, 22, 10, 28, 16, 24, 12, 20].map((h, i) => (
-                  <View
-                    key={i}
-                    style={[
-                      styles.waveBar,
-                      {
-                        height: h,
-                        backgroundColor: i % 2 === 0 ? Colors.dark.primary : Colors.dark.secondary,
-                      },
-                    ]}
-                  />
-                ))}
-              </View>
-            )}
+            {/* WV Âm Nhạc – Dynamic Waveform Visualizer */}
+            <WaveformVisualizer
+              isPlaying={isPlaying}
+              progress={duration > 0 ? position / duration : 0}
+              style={{ marginTop: 16 }}
+            />
           </View>
         )}
       </View>
@@ -641,6 +642,16 @@ export default function SongDetailScreen() {
           </TouchableOpacity>
         </View>
 
+        {/* WV Mini – waveform nhỏ phía trên progress bar khi ở dưới */}
+        {showWaveform && !showLyrics && (
+          <View style={styles.waveformMiniContainer}>
+            <WaveformVisualizer
+              isPlaying={isPlaying}
+              progress={duration > 0 ? position / duration : 0}
+            />
+          </View>
+        )}
+
         <ProgressBar
           position={position}
           duration={duration || currentSong.duration}
@@ -698,6 +709,21 @@ export default function SongDetailScreen() {
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.bottomUtilsRow}
         >
+          {/* WV Âm nhạc toggle pill */}
+          <TouchableOpacity
+            style={[styles.utilPill, showWaveform && styles.utilPillWave]}
+            onPress={() => setShowWaveform(!showWaveform)}
+          >
+            <Ionicons
+              name="pulse-outline"
+              size={18}
+              color={showWaveform ? "#fff" : Colors.dark.textMuted}
+            />
+            <Text style={[styles.utilPillText, showWaveform && styles.utilPillTextActive]}>
+              WV Âm nhạc
+            </Text>
+          </TouchableOpacity>
+
           <TouchableOpacity
             style={[styles.utilPill, showLyrics && styles.utilPillActive]}
             onPress={() => setShowLyrics(!showLyrics)}
@@ -743,6 +769,21 @@ export default function SongDetailScreen() {
           <TouchableOpacity style={styles.utilPill} onPress={() => setShowQueue(true)}>
             <Ionicons name="list" size={18} color={Colors.dark.textMuted} />
             <Text style={styles.utilPillText}>Danh sách ({queue.length})</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={[styles.utilPill, queueAdded && styles.utilPillActive]}
+            onPress={handleAddToPlayLater}
+            activeOpacity={0.7}
+          >
+            <Ionicons
+              name={queueAdded ? "checkmark-circle" : "time-outline"}
+              size={18}
+              color={queueAdded ? "#10b981" : Colors.dark.textMuted}
+            />
+            <Text style={[styles.utilPillText, queueAdded && { color: "#10b981", fontWeight: "700" }]}>
+              {queueAdded ? "Đã thêm phát sau" : "Phát sau"}
+            </Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.utilPill} onPress={handleOpenCopyrightModal}>
@@ -1832,4 +1873,19 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: "700",
   },
+  waveformMiniContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 8,
+    marginBottom: 4,
+    backgroundColor: "rgba(168, 85, 247, 0.06)",
+    borderRadius: 16,
+    marginHorizontal: 0,
+    overflow: "hidden",
+  },
+  utilPillWave: {
+    backgroundColor: "rgba(168, 85, 247, 0.85)",
+    borderColor: "#a855f7",
+  },
 });
+

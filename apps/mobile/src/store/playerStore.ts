@@ -31,6 +31,7 @@ interface PlayerState {
   setCurrentSong: (song: Song) => void;
   setQueue: (songs: Song[], startIndex?: number) => void;
   addToQueue: (song: Song) => void;
+  addPlayNext: (song: Song) => void;
   setPlaying: (playing: boolean) => void;
   setRepeatMode: (mode: RepeatMode) => void;
   toggleShuffle: () => void;
@@ -137,6 +138,21 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
           const { api } = require("../services/api");
           api.post("/api/v1/queue/add", { songId: song.id }).catch(() => {});
         } catch {}
+        return { queue: newQueue };
+      }),
+
+    addPlayNext: (song) =>
+      set((state) => {
+        if (!state.currentSong) {
+          return { queue: [song], currentSong: song, isPlaying: true };
+        }
+        const idx = state.queue.findIndex((s) => s.id === state.currentSong?.id);
+        const newQueue = [...state.queue];
+        if (idx !== -1) {
+          newQueue.splice(idx + 1, 0, song);
+        } else {
+          newQueue.push(song);
+        }
         return { queue: newQueue };
       }),
 

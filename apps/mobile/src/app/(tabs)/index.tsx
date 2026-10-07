@@ -106,21 +106,22 @@ import { useAuthStore } from "../../store/authStore";
 
 const CATEGORIES = [
   "Tất cả",
-  "Nhạc Lời Việt 🇻🇳",
-  "Anime Lời Việt ✨",
+  "Tuyển Chọn 🇻🇳",
+  "Anime & EDM ✨",
   "Dành Cho Bạn 💖",
-  "Vocaloid",
-  "Anisong",
-  "J-Pop",
-  "V-Pop Waifu",
-  "Lo-fi Anime",
+  "Future Bass",
+  "Hip-Hop & Rock",
+  "Dân Ca Cổ Truyền",
+  "Melodic House",
+  "Lo-fi Chillhop",
 ];
 
 export default function HomeScreen() {
   const router = useRouter();
   const [activeCategory, setActiveCategory] = useState("Tất cả");
   const [songs, setSongs] = useState<Song[]>(SAMPLE_ANIME_SONGS);
-  const { currentSong, isPlaying, setCurrentSong, setQueue, setPlaying } = usePlayerStore();
+  const [queueToastSong, setQueueToastSong] = useState<string | null>(null);
+  const { currentSong, isPlaying, setCurrentSong, setQueue, setPlaying, addToQueue } = usePlayerStore();
   const { user, preferredGenres, preferredArtists } = useAuthStore();
 
   useEffect(() => {
@@ -145,38 +146,51 @@ export default function HomeScreen() {
     }
   };
 
+  const handleAddToPlayLater = (song: Song, e?: any) => {
+    e?.stopPropagation?.();
+    addToQueue(song);
+    setQueueToastSong(song.title);
+    setTimeout(() => setQueueToastSong(null), 2500);
+  };
+
   const vietSongs = songs.filter((s) => {
     const isVietGenre = (s.genres || []).some(
       (g) =>
+        g.slug.includes("dan-ca") ||
         g.slug.includes("viet") ||
-        g.slug.includes("v-pop") ||
-        g.name.toLowerCase().includes("việt") ||
-        g.name.toLowerCase().includes("v-pop")
+        g.name.toLowerCase().includes("dân ca") ||
+        g.name.toLowerCase().includes("việt")
     );
     const hasVietLyrics =
       !!s.lyrics &&
       (s.lyrics.includes("Tôi") ||
         s.lyrics.includes("anh") ||
         s.lyrics.includes("em") ||
-        s.lyrics.includes("Lời Việt") ||
-        s.lyrics.includes("Việt"));
+        s.lyrics.includes("Việt") ||
+        s.lyrics.includes("quê hương"));
     return isVietGenre || hasVietLyrics;
   });
 
   const filteredSongs =
     activeCategory === "Tất cả"
       ? songs
-      : activeCategory === "Nhạc Lời Việt 🇻🇳"
+      : activeCategory === "Tuyển Chọn 🇻🇳"
       ? vietSongs.length > 0
         ? vietSongs
         : songs
-      : activeCategory === "Anime Lời Việt ✨"
+      : activeCategory === "Anime & EDM ✨"
       ? songs.filter(
           (s) =>
-            (s.genres || []).some((g) => g.slug.includes("anime-loi-viet")) ||
-            s.title.toLowerCase().includes("lời việt") ||
-            s.title.toLowerCase().includes("vietsub")
+            (s.genres || []).some((g) => g.slug.includes("edm") || g.slug.includes("future-bass") || g.slug.includes("electronic"))
         )
+      : activeCategory === "Future Bass"
+      ? songs.filter((s) => (s.genres || []).some((g) => g.slug.includes("future-bass") || g.slug.includes("melodic-bass")))
+      : activeCategory === "Hip-Hop & Rock"
+      ? songs.filter((s) => (s.genres || []).some((g) => g.slug.includes("hip-hop") || g.slug.includes("rock") || g.slug.includes("rap")))
+      : activeCategory === "Dân Ca Cổ Truyền"
+      ? vietSongs
+      : activeCategory === "Melodic House"
+      ? songs.filter((s) => (s.genres || []).some((g) => g.slug.includes("house")))
       : activeCategory === "Dành Cho Bạn 💖"
       ? songs.filter((s) => {
           const matchGenre = (s.genres || []).some((g) =>
@@ -264,9 +278,9 @@ export default function HomeScreen() {
             </View>
           </View>
 
-          <Text style={styles.bannerTitle}>Tuyển Tập Nhạc Lời Việt & Anime Vietsub 2026</Text>
+          <Text style={styles.bannerTitle}>Tuyển Tập Âm Nhạc Tự Do & Anime 2026</Text>
           <Text style={styles.bannerSubtitle}>
-            Hòa mình vào thế giới âm nhạc lời Việt và Anime Soundtracks có lời Karaoke đồng bộ siêu chuẩn
+            Hòa mình vào thế giới âm nhạc không bản quyền có lời đầy đủ và đồng bộ siêu chuẩn
           </Text>
 
           <View style={styles.bannerFooter}>
@@ -276,7 +290,7 @@ export default function HomeScreen() {
               activeOpacity={0.85}
             >
               <Ionicons name="play" size={18} color="#fff" />
-              <Text style={styles.bannerPlayText}>Nghe Nhạc Lời Việt</Text>
+              <Text style={styles.bannerPlayText}>Khám Phá Ngay</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.bannerRoomBtn}
@@ -293,14 +307,14 @@ export default function HomeScreen() {
         <View style={styles.quickHubGrid}>
           <TouchableOpacity
             style={styles.quickHubCard}
-            onPress={() => setActiveCategory("Nhạc Lời Việt 🇻🇳")}
+            onPress={() => setActiveCategory("Tuyển Chọn 🇻🇳")}
             activeOpacity={0.8}
           >
             <View style={[styles.quickHubIconBg, { backgroundColor: "rgba(233, 30, 99, 0.18)" }]}>
               <Ionicons name="mic" size={20} color={Colors.dark.primary} />
             </View>
-            <Text style={styles.quickHubTitle}>Lời Việt</Text>
-            <Text style={styles.quickHubSub}>Có Lyrics Karaoke</Text>
+            <Text style={styles.quickHubTitle}>Tuyển Chọn</Text>
+            <Text style={styles.quickHubSub}>Âm nhạc có lời</Text>
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -346,9 +360,9 @@ export default function HomeScreen() {
             <View style={styles.sectionHeader}>
               <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
                 <Ionicons name="sparkles" size={18} color="#f59e0b" />
-                <Text style={styles.sectionTitle}>Nhạc Lời Việt Có Lyrics Chuẩn 🇻🇳</Text>
+                <Text style={styles.sectionTitle}>Giai Điệu Quê Hương & Dân Ca 🇻🇳</Text>
               </View>
-              <TouchableOpacity onPress={() => setActiveCategory("Nhạc Lời Việt 🇻🇳")}>
+              <TouchableOpacity onPress={() => setActiveCategory("Tuyển Chọn 🇻🇳")}>
                 <Text style={styles.seeAllText}>Xem tất cả</Text>
               </TouchableOpacity>
             </View>
@@ -367,8 +381,15 @@ export default function HomeScreen() {
                       <Image source={{ uri: vietSong.coverUrl ?? "" }} style={styles.vietSongCover} />
                       <View style={styles.vietBadge}>
                         <Ionicons name="musical-notes" size={10} color="#fff" />
-                        <Text style={styles.vietBadgeText}>LỜI VIỆT</Text>
+                        <Text style={styles.vietBadgeText}>CÓ LỜI</Text>
                       </View>
+                      <TouchableOpacity
+                        style={styles.vietAddLaterBtn}
+                        onPress={(e) => handleAddToPlayLater(vietSong, e)}
+                        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      >
+                        <Ionicons name="time-outline" size={14} color="#fff" />
+                      </TouchableOpacity>
                       <TouchableOpacity
                         style={[styles.vietPlayOverlay, isCurrent && isPlaying && styles.vietPlayOverlayActive]}
                         onPress={() => handlePlaySong(vietSong, songs.findIndex((s) => s.id === vietSong.id))}
@@ -496,7 +517,7 @@ export default function HomeScreen() {
                   {hasLyrics && (
                     <View style={styles.lyricsTagMini}>
                       <Ionicons name="document-text" size={9} color={Colors.dark.primaryLight} />
-                      <Text style={styles.lyricsTagMiniText}>Lời Việt</Text>
+                      <Text style={styles.lyricsTagMiniText}>Có Lời</Text>
                     </View>
                   )}
                   <Text style={styles.songArtist} numberOfLines={1}>
@@ -505,20 +526,41 @@ export default function HomeScreen() {
                 </View>
               </View>
 
-              <TouchableOpacity
-                style={styles.playIconBtn}
-                onPress={() => handlePlaySong(song, index)}
-              >
-                <Ionicons
-                  name={isCurrent && isPlaying ? "pause-circle" : "play-circle"}
-                  size={36}
-                  color={isCurrent ? Colors.dark.primaryLight : Colors.dark.accent}
-                />
-              </TouchableOpacity>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <TouchableOpacity
+                  style={styles.actionQueueBtn}
+                  onPress={(e) => handleAddToPlayLater(song, e)}
+                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  accessibilityLabel="Thêm vào danh sách phát sau"
+                >
+                  <Ionicons name="time-outline" size={22} color={Colors.dark.textMuted} />
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.playIconBtn}
+                  onPress={() => handlePlaySong(song, index)}
+                >
+                  <Ionicons
+                    name={isCurrent && isPlaying ? "pause-circle" : "play-circle"}
+                    size={36}
+                    color={isCurrent ? Colors.dark.primaryLight : Colors.dark.accent}
+                  />
+                </TouchableOpacity>
+              </View>
             </TouchableOpacity>
           );
         })}
       </ScrollView>
+
+      {/* Floating Toast Notification for Add to Queue */}
+      {queueToastSong && (
+        <View style={styles.floatingQueueToast}>
+          <Ionicons name="checkmark-circle" size={18} color="#10b981" />
+          <Text style={styles.floatingQueueToastText} numberOfLines={1}>
+            Đã thêm vào phát sau: {queueToastSong}
+          </Text>
+        </View>
+      )}
     </SafeAreaView>
   );
 }
@@ -942,5 +984,47 @@ const styles = StyleSheet.create({
     color: Colors.dark.primaryLight,
     fontSize: 9,
     fontWeight: "700",
+  },
+  vietAddLaterBtn: {
+    position: "absolute",
+    top: 6,
+    right: 6,
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    backgroundColor: "rgba(0, 0, 0, 0.65)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  actionQueueBtn: {
+    padding: 6,
+    borderRadius: 8,
+    backgroundColor: "rgba(255, 255, 255, 0.05)",
+  },
+  floatingQueueToast: {
+    position: "absolute",
+    bottom: 95,
+    left: 20,
+    right: 20,
+    backgroundColor: "rgba(18, 18, 28, 0.95)",
+    borderWidth: 1,
+    borderColor: "#10b981",
+    borderRadius: 25,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 6,
+    elevation: 8,
+  },
+  floatingQueueToastText: {
+    color: "#fff",
+    fontSize: 13,
+    fontWeight: "600",
+    flex: 1,
   },
 });

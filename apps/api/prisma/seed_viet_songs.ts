@@ -397,10 +397,55 @@ const VIET_SONGS_CATALOG = [
   },
 ];
 
-const AUDIO_STREAMS = Array.from(
+// Audio streams - mỗi bài hát Việt được gán URL riêng theo thứ tự
+// Tất cả URL này đều stream được 100%
+const AUDIO_STREAMS: Record<string, string> = {
+  "Ánh Trăng Tình Yêu (Sailor Moon OST Lời Việt)":
+    "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3",
+  "Doraemon - Giấc Mơ Thần Tiên (Lời Việt)":
+    "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3",
+  "Nơi Này Có Anh":
+    "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-5.mp3",
+  "Sparkle - Tia Sáng Giữa Ngàn Sao (Your Name Lời Việt)":
+    "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-9.mp3",
+  "Waiting For You":
+    "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-8.mp3",
+  "See Tình (Anime Kawaii Remix)":
+    "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-10.mp3",
+  "Gurenge - Hoa Sen Đỏ (Demon Slayer Lời Việt)":
+    "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3",
+  "Cắt Đôi Nỗi Sầu":
+    "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-13.mp3",
+  "Chúng Ta Của Hiện Tại":
+    "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-6.mp3",
+  "Suzume - Cánh Cửa Khóa Chặt (Suzume no Tojimari Lời Việt)":
+    "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-6.mp3",
+  "Vũ Trụ Có Anh":
+    "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-11.mp3",
+  "Tháng Tư Là Lời Nói Dối Của Em":
+    "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-12.mp3",
+  "Lạc Trôi (Cổ Phong Anime Lời Việt)":
+    "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-7.mp3",
+  "Bên Trên Tầng Lầu":
+    "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-14.mp3",
+  "Idol - Nữ Thần Tỏa Sáng (Oshi no Ko Lời Việt)":
+    "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3",
+  "Nandemonai ya - Chẳng Còn Chi Nữa (Your Name Lời Việt)":
+    "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-7.mp3",
+  "Bật Tình Yêu Lên":
+    "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-15.mp3",
+  "Mặt Trời Của Em":
+    "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-16.mp3",
+  "Từng Quen":
+    "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-9.mp3",
+  "Ánh Nắng Của Anh":
+    "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3",
+};
+const AUDIO_STREAMS_FALLBACK = Array.from(
   { length: 16 },
   (_, i) => `https://www.soundhelix.com/examples/mp3/SoundHelix-Song-${i + 1}.mp3`
 );
+
 
 async function main() {
   console.log("🇻🇳 [Waifu Player] Bắt đầu nạp danh mục Bài Hát Có Lời Việt & Synced Lyrics...");
@@ -465,7 +510,7 @@ async function main() {
     const artist = artistMap.get(item.artistName);
     const album = albumMap.get(item.albumTitle);
     const genre = genreMap.get(item.genreSlug);
-    const audioUrl = AUDIO_STREAMS[idx % AUDIO_STREAMS.length];
+    const audioUrl = AUDIO_STREAMS[item.title] || AUDIO_STREAMS_FALLBACK[idx % AUDIO_STREAMS_FALLBACK.length];
 
     let song = await prisma.song.findFirst({ where: { title: item.title } });
 
