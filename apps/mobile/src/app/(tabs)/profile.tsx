@@ -56,6 +56,40 @@ export default function ProfileScreen() {
   const [customTopupAmount, setCustomTopupAmount] = useState("100000");
   const [paymentLoading, setPaymentLoading] = useState(false);
   const [paymentHistory, setPaymentHistory] = useState<any[]>([]);
+  const [copiedField, setCopiedField] = useState<string | null>(null);
+  const [bankConfig, setBankConfig] = useState<{
+    bankId: string;
+    bankName: string;
+    accountNo: string;
+    accountName: string;
+    template: string;
+    memoPrefix: string;
+  }>({
+    bankId: "MB",
+    bankName: "MBBank (Ngân Hàng Quân Đội)",
+    accountNo: "0987654321",
+    accountName: "WAIFU PLAYER ADMIN",
+    template: "compact2",
+    memoPrefix: "WFP",
+  });
+
+  const fetchBankConfig = async () => {
+    try {
+      const res = await api.get("/api/v1/payments/bank-config");
+      if (res.data?.success && res.data?.data?.config) {
+        setBankConfig(res.data.data.config);
+      }
+    } catch {}
+  };
+
+  const handleCopyText = (text: string, label: string) => {
+    if (typeof navigator !== "undefined" && navigator.clipboard) {
+      navigator.clipboard.writeText(text);
+    }
+    setCopiedField(label);
+    setTimeout(() => setCopiedField(null), 2000);
+    Alert.alert("Đã sao chép! 📋", `Đã sao chép ${label}: "${text}" vào khay nhớ tạm.`);
+  };
 
   const handleBuyVip = async () => {
     setPaymentLoading(true);
@@ -113,8 +147,10 @@ export default function ProfileScreen() {
 
   const handleOpenVipModal = () => {
     setVipTab("PACKAGES");
+    fetchBankConfig();
     setShowPremiumModal(true);
   };
+
 
   // Copyright Center states
   const [showCopyrightCenter, setShowCopyrightCenter] = useState(false);
@@ -618,6 +654,107 @@ export default function ProfileScreen() {
                     })}
                   </View>
 
+                  {/* Dynamic VietQR Payment Box */}
+                  {selectedPaymentMethod === "VIETQR_BANKING" && (() => {
+                    const currentPkg = [
+                      { id: "VIP_1_MONTH", price: 49000, name: "VIP 1 Tháng" },
+                      { id: "VIP_3_MONTHS", price: 129000, name: "VIP 3 Tháng" },
+                      { id: "VIP_1_YEAR", price: 449000, name: "VIP 1 Năm" },
+                    ].find((p) => p.id === selectedPackageId) || { id: "VIP_1_MONTH", price: 49000, name: "VIP 1 Tháng" };
+
+                    const pkgMemo = `${bankConfig.memoPrefix} VIP ${user?.username || "USER"} ${currentPkg.id.replace("VIP_", "")}`.trim();
+                    const qrUrl = `https://img.vietqr.io/image/${bankConfig.bankId}-${bankConfig.accountNo}-${bankConfig.template || "compact2"}.png?amount=${currentPkg.price}&addInfo=${encodeURIComponent(pkgMemo)}&accountName=${encodeURIComponent(bankConfig.accountName)}`;
+
+                    return (
+                      <View style={styles.userVietQrContainer}>
+                        <View style={styles.userVietQrHeader}>
+                          <View style={styles.autoQrBadge}>
+                            <Ionicons name="sparkles" size={12} color="#fff" />
+                            <Text style={styles.autoQrBadgeText}>TỰ ĐỘNG ĐIỀN TIỀN & NỘI DUNG</Text>
+                          </View>
+                          <Text style={styles.userVietQrTitle}>Quét Mã VietQR Để Thanh Toán Nhanh</Text>
+                          <Text style={styles.userVietQrSub}>
+                            Mở ứng dụng ngân hàng bất kỳ (MB, VCB, Techcombank, MoMo...) để quét mã bên dưới
+                          </Text>
+                        </View>
+
+                        {/* QR Image Box */}
+                        <View style={styles.userQrImageBox}>
+                          <Image source={{ uri: qrUrl }} style={styles.userQrImage} resizeMode="contain" />
+                          <View style={styles.qrAmountOverlay}>
+                            <Ionicons name="shield-checkmark" size={14} color="#10b981" />
+                            <Text style={styles.qrAmountOverlayText}>
+                              Số tiền: {currentPkg.price.toLocaleString()} VNĐ
+                            </Text>
+                          </View>
+                        </View>
+
+                        {/* Account Details & Quick Copy */}
+                        <View style={styles.bankDetailCard}>
+                          <View style={styles.bankDetailRow}>
+                            <Text style={styles.bankDetailKey}>Ngân hàng:</Text>
+                            <Text style={styles.bankDetailVal}>{bankConfig.bankName}</Text>
+                          </View>
+
+                          <View style={styles.bankDetailRow}>
+                            <View>
+                              <Text style={styles.bankDetailKey}>Số tài khoản:</Text>
+                              <Text style={[styles.bankDetailVal, { color: Colors.dark.accent, fontWeight: "800", fontSize: 14 }]}>
+                                {bankConfig.accountNo}
+                              </Text>
+                            </View>
+                            <TouchableOpacity
+                              style={styles.copyBtn}
+                              onPress={() => handleCopyText(bankConfig.accountNo, "Số tài khoản")}
+                            >
+                              <Ionicons name="copy-outline" size={14} color="#fff" />
+                              <Text style={styles.copyBtnText}>Sao chép STK</Text>
+                            </TouchableOpacity>
+                          </View>
+
+                          <View style={styles.bankDetailRow}>
+                            <Text style={styles.bankDetailKey}>Chủ tài khoản:</Text>
+                            <Text style={[styles.bankDetailVal, { color: "#fff", fontWeight: "700" }]}>
+                              {bankConfig.accountName}
+                            </Text>
+                          </View>
+
+                          <View style={styles.bankDetailRow}>
+                            <View>
+                              <Text style={styles.bankDetailKey}>Số tiền chính xác:</Text>
+                              <Text style={[styles.bankDetailVal, { color: Colors.dark.primaryLight, fontWeight: "800", fontSize: 14 }]}>
+                                {currentPkg.price.toLocaleString()} VNĐ
+                              </Text>
+                            </View>
+                            <TouchableOpacity
+                              style={styles.copyBtn}
+                              onPress={() => handleCopyText(String(currentPkg.price), "Số tiền")}
+                            >
+                              <Ionicons name="copy-outline" size={14} color="#fff" />
+                              <Text style={styles.copyBtnText}>Sao chép tiền</Text>
+                            </TouchableOpacity>
+                          </View>
+
+                          <View style={[styles.bankDetailRow, { borderBottomWidth: 0 }]}>
+                            <View style={{ flex: 1, marginRight: 8 }}>
+                              <Text style={styles.bankDetailKey}>Nội dung chuyển khoản:</Text>
+                              <Text style={[styles.bankDetailVal, { color: Colors.dark.accent, fontWeight: "700" }]} numberOfLines={1}>
+                                {pkgMemo}
+                              </Text>
+                            </View>
+                            <TouchableOpacity
+                              style={styles.copyBtn}
+                              onPress={() => handleCopyText(pkgMemo, "Nội dung chuyển khoản")}
+                            >
+                              <Ionicons name="copy-outline" size={14} color="#fff" />
+                              <Text style={styles.copyBtnText}>Sao chép nội dung</Text>
+                            </TouchableOpacity>
+                          </View>
+                        </View>
+                      </View>
+                    );
+                  })()}
+
                   {/* Submit Purchase Button */}
                   <TouchableOpacity
                     style={styles.paySubmitBtn}
@@ -629,8 +766,8 @@ export default function ProfileScreen() {
                       <ActivityIndicator color="#fff" />
                     ) : (
                       <>
-                        <Ionicons name="diamond" size={18} color="#fff" />
-                        <Text style={styles.paySubmitText}>Thanh Toán & Nâng Cấp VIP Ngay</Text>
+                        <Ionicons name="checkmark-circle" size={18} color="#fff" />
+                        <Text style={styles.paySubmitText}>Tôi Đã Chuyển Khoản • Kích Hoạt VIP Ngay</Text>
                       </>
                     )}
                   </TouchableOpacity>
@@ -696,6 +833,84 @@ export default function ProfileScreen() {
                     })}
                   </View>
 
+                  {/* Dynamic VietQR Topup Box */}
+                  {selectedPaymentMethod === "VIETQR_BANKING" && (() => {
+                    const topupAmt = Number(customTopupAmount) || 50000;
+                    const topupMemo = `${bankConfig.memoPrefix} TOPUP ${user?.username || "USER"}`.trim();
+                    const qrUrl = `https://img.vietqr.io/image/${bankConfig.bankId}-${bankConfig.accountNo}-${bankConfig.template || "compact2"}.png?amount=${topupAmt}&addInfo=${encodeURIComponent(topupMemo)}&accountName=${encodeURIComponent(bankConfig.accountName)}`;
+
+                    return (
+                      <View style={styles.userVietQrContainer}>
+                        <View style={styles.userVietQrHeader}>
+                          <View style={styles.autoQrBadge}>
+                            <Ionicons name="sparkles" size={12} color="#fff" />
+                            <Text style={styles.autoQrBadgeText}>TỰ ĐỘNG ĐIỀN TIỀN & NỘI DUNG</Text>
+                          </View>
+                          <Text style={styles.userVietQrTitle}>Quét Mã VietQR Để Nạp Tiền</Text>
+                          <Text style={styles.userVietQrSub}>
+                            Mở app ngân hàng quét mã QR để nạp {topupAmt.toLocaleString()} VNĐ
+                          </Text>
+                        </View>
+
+                        <View style={styles.userQrImageBox}>
+                          <Image source={{ uri: qrUrl }} style={styles.userQrImage} resizeMode="contain" />
+                          <View style={styles.qrAmountOverlay}>
+                            <Ionicons name="shield-checkmark" size={14} color="#10b981" />
+                            <Text style={styles.qrAmountOverlayText}>
+                              Số tiền nạp: {topupAmt.toLocaleString()} VNĐ
+                            </Text>
+                          </View>
+                        </View>
+
+                        <View style={styles.bankDetailCard}>
+                          <View style={styles.bankDetailRow}>
+                            <Text style={styles.bankDetailKey}>Ngân hàng:</Text>
+                            <Text style={styles.bankDetailVal}>{bankConfig.bankName}</Text>
+                          </View>
+
+                          <View style={styles.bankDetailRow}>
+                            <View>
+                              <Text style={styles.bankDetailKey}>Số tài khoản:</Text>
+                              <Text style={[styles.bankDetailVal, { color: Colors.dark.accent, fontWeight: "800", fontSize: 14 }]}>
+                                {bankConfig.accountNo}
+                              </Text>
+                            </View>
+                            <TouchableOpacity
+                              style={styles.copyBtn}
+                              onPress={() => handleCopyText(bankConfig.accountNo, "Số tài khoản")}
+                            >
+                              <Ionicons name="copy-outline" size={14} color="#fff" />
+                              <Text style={styles.copyBtnText}>Sao chép STK</Text>
+                            </TouchableOpacity>
+                          </View>
+
+                          <View style={styles.bankDetailRow}>
+                            <Text style={styles.bankDetailKey}>Chủ tài khoản:</Text>
+                            <Text style={[styles.bankDetailVal, { color: "#fff", fontWeight: "700" }]}>
+                              {bankConfig.accountName}
+                            </Text>
+                          </View>
+
+                          <View style={[styles.bankDetailRow, { borderBottomWidth: 0 }]}>
+                            <View style={{ flex: 1, marginRight: 8 }}>
+                              <Text style={styles.bankDetailKey}>Nội dung nạp:</Text>
+                              <Text style={[styles.bankDetailVal, { color: Colors.dark.accent, fontWeight: "700" }]} numberOfLines={1}>
+                                {topupMemo}
+                              </Text>
+                            </View>
+                            <TouchableOpacity
+                              style={styles.copyBtn}
+                              onPress={() => handleCopyText(topupMemo, "Nội dung nạp tiền")}
+                            >
+                              <Ionicons name="copy-outline" size={14} color="#fff" />
+                              <Text style={styles.copyBtnText}>Sao chép nội dung</Text>
+                            </TouchableOpacity>
+                          </View>
+                        </View>
+                      </View>
+                    );
+                  })()}
+
                   <TouchableOpacity
                     style={styles.paySubmitBtn}
                     onPress={handleTopup}
@@ -708,13 +923,14 @@ export default function ProfileScreen() {
                       <>
                         <Ionicons name="card" size={18} color="#fff" />
                         <Text style={styles.paySubmitText}>
-                          Xác Nhận Nạp {Number(customTopupAmount || 0).toLocaleString()} ₫
+                          Xác Nhận Đã Chuyển Khoản Nạp {Number(customTopupAmount || 0).toLocaleString()} ₫
                         </Text>
                       </>
                     )}
                   </TouchableOpacity>
                 </View>
               )}
+
 
               {vipTab === "HISTORY" && (
                 <View>
@@ -1556,4 +1772,117 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     marginTop: 2,
   },
+  // User VietQR Styles
+  userVietQrContainer: {
+    backgroundColor: "rgba(236, 72, 153, 0.06)",
+    borderRadius: 16,
+    padding: 14,
+    borderWidth: 1.5,
+    borderColor: "rgba(236, 72, 153, 0.25)",
+    marginVertical: 12,
+  },
+  userVietQrHeader: {
+    alignItems: "center",
+    marginBottom: 10,
+  },
+  autoQrBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: Colors.dark.primary,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    gap: 4,
+    marginBottom: 6,
+  },
+  autoQrBadgeText: {
+    color: "#fff",
+    fontSize: 9,
+    fontWeight: "900",
+    letterSpacing: 0.5,
+  },
+  userVietQrTitle: {
+    fontSize: 15,
+    fontWeight: "800",
+    color: "#fff",
+    marginBottom: 2,
+    textAlign: "center",
+  },
+  userVietQrSub: {
+    fontSize: 11,
+    color: Colors.dark.textMuted,
+    textAlign: "center",
+  },
+  userQrImageBox: {
+    backgroundColor: "#fff",
+    borderRadius: 14,
+    padding: 10,
+    alignItems: "center",
+    justifyContent: "center",
+    marginVertical: 8,
+    borderWidth: 2,
+    borderColor: Colors.dark.accent,
+  },
+  userQrImage: {
+    width: "100%",
+    height: 240,
+    maxWidth: 240,
+  },
+  qrAmountOverlay: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "rgba(16, 185, 129, 0.12)",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 6,
+    marginTop: 6,
+  },
+  qrAmountOverlayText: {
+    color: "#059669",
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  bankDetailCard: {
+    backgroundColor: Colors.dark.card,
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: Colors.dark.border,
+    marginTop: 6,
+  },
+  bankDetailRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255, 255, 255, 0.05)",
+  },
+  bankDetailKey: {
+    fontSize: 11,
+    color: Colors.dark.textMuted,
+    marginBottom: 2,
+  },
+  bankDetailVal: {
+    fontSize: 12,
+    color: Colors.dark.text,
+  },
+  copyBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "rgba(236, 72, 153, 0.2)",
+    borderWidth: 1,
+    borderColor: Colors.dark.primary,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  copyBtnText: {
+    color: Colors.dark.primaryLight,
+    fontSize: 10,
+    fontWeight: "700",
+  },
 });
+

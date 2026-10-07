@@ -30,7 +30,7 @@ import type {
 } from "@waifu-player/types";
 import { formatDuration } from "@waifu-player/utils";
 
-type AdminTab = "dashboard" | "songs" | "users" | "copyright" | "artists_albums";
+type AdminTab = "dashboard" | "songs" | "users" | "copyright" | "artists_albums" | "banking";
 
 export default function AdminPortalScreen() {
   const router = useRouter();
@@ -46,6 +46,32 @@ export default function AdminPortalScreen() {
   const [claims, setClaims] = useState<CopyrightClaim[]>([]);
   const [artists, setArtists] = useState<Artist[]>([]);
   const [albums, setAlbums] = useState<Album[]>([]);
+
+  // Bank & VietQR Configuration states
+  const [adminBankId, setAdminBankId] = useState("MB");
+  const [adminBankName, setAdminBankName] = useState("MBBank (Ngân Hàng Quân Đội)");
+  const [adminAccountNo, setAdminAccountNo] = useState("0987654321");
+  const [adminAccountName, setAdminAccountName] = useState("WAIFU PLAYER ADMIN");
+  const [adminTemplate, setAdminTemplate] = useState<"compact2" | "compact" | "qr_only" | "print">("compact2");
+  const [adminMemoPrefix, setAdminMemoPrefix] = useState("WFP");
+  const [adminBankActive, setAdminBankActive] = useState(true);
+  const [supportedBanksList, setSupportedBanksList] = useState<any[]>([
+    { id: "MB", name: "MBBank (Ngân Hàng Quân Đội)", bin: "970422", shortName: "MBBank" },
+    { id: "VCB", name: "Vietcombank (Ngoại Thương)", bin: "970436", shortName: "Vietcombank" },
+    { id: "TCB", name: "Techcombank (Kỹ Thương)", bin: "970407", shortName: "Techcombank" },
+    { id: "ICB", name: "VietinBank (Công Thương)", bin: "970415", shortName: "VietinBank" },
+    { id: "BIDV", name: "BIDV (Đầu Tư & Phát Triển)", bin: "970418", shortName: "BIDV" },
+    { id: "ACB", name: "ACB (Á Châu)", bin: "970416", shortName: "ACB" },
+    { id: "VPB", name: "VPBank (Việt Nam Thịnh Vượng)", bin: "970432", shortName: "VPBank" },
+    { id: "TPB", name: "TPBank (Tiên Phong)", bin: "970423", shortName: "TPBank" },
+    { id: "STB", name: "Sacombank (Sài Gòn Thương Tín)", bin: "970403", shortName: "Sacombank" },
+    { id: "HDB", name: "HDBank (Phát Triển TP.HCM)", bin: "970437", shortName: "HDBank" },
+  ]);
+  const [adminTransactions, setAdminTransactions] = useState<any[]>([]);
+  const [adminTotalRevenue, setAdminTotalRevenue] = useState(0);
+  const [savingBankConfig, setSavingBankConfig] = useState(false);
+  const [customSimAmount, setCustomSimAmount] = useState("49000");
+
 
   // Search queries
   const [songSearch, setSongSearch] = useState("");
@@ -196,7 +222,30 @@ export default function AdminPortalScreen() {
         ]);
         if (artistsRes.data?.success) setArtists(artistsRes.data.data);
         if (albumsRes.data?.success) setAlbums(albumsRes.data.data);
+      } else if (activeTab === "banking") {
+        const [bankRes, txRes] = await Promise.all([
+          api.get("/api/v1/payments/bank-config").catch(() => ({ data: null })),
+          api.get("/api/v1/payments/admin/transactions").catch(() => ({ data: null })),
+        ]);
+        if (bankRes?.data?.data?.config) {
+          const cfg = bankRes.data.data.config;
+          setAdminBankId(cfg.bankId || "MB");
+          setAdminBankName(cfg.bankName || "MBBank");
+          setAdminAccountNo(cfg.accountNo || "0987654321");
+          setAdminAccountName(cfg.accountName || "WAIFU PLAYER ADMIN");
+          setAdminTemplate(cfg.template || "compact2");
+          setAdminMemoPrefix(cfg.memoPrefix || "WFP");
+          setAdminBankActive(cfg.isActive !== false);
+        }
+        if (Array.isArray(bankRes?.data?.data?.supportedBanks)) {
+          setSupportedBanksList(bankRes.data.data.supportedBanks);
+        }
+        if (Array.isArray(txRes?.data?.data?.transactions)) {
+          setAdminTransactions(txRes.data.data.transactions);
+          setAdminTotalRevenue(txRes.data.data.totalRevenue || 0);
+        }
       }
+
     } catch {
       // Fallback dummy data for visual preview
       if (activeTab === "dashboard" && !stats) {
@@ -393,7 +442,43 @@ export default function AdminPortalScreen() {
     }
   };
 
+  const handleSaveBankConfig = async () => {
+    if (!adminAccountNo.trim()) {
+      Alert.alert("Lỗi", "Vui lòng nhập số tài khoản ngân hàng");
+      return;
+    }
+    if (!adminAccountName.trim()) {
+      Alert.alert("Lỗi", "Vui lòng nhập tên chủ tài khoản");
+      return;
+    }
+
+    setSavingBankConfig(true);
+    try {
+      const res = await api.put("/api/v1/payments/bank-config", {
+        bankId: adminBankId,
+        bankName: adminBankName,
+        accountNo: adminAccountNo.trim(),
+        accountName: adminAccountName.trim().toUpperCase(),
+        template: adminTemplate,
+        memoPrefix: adminMemoPrefix.trim().toUpperCase(),
+        isActive: adminBankActive,
+      });
+
+      if (res.data?.success) {
+        Alert.alert(
+          "Cập nhật thành công! 💳",
+          "Thông tin tài khoản ngân hàng & mã VietQR động đã được cập nhật trên toàn hệ thống Waifu Player."
+        );
+      }
+    } catch (err: any) {
+      Alert.alert("Lỗi", err.response?.data?.error || "Không thể lưu cấu hình ngân hàng");
+    } finally {
+      setSavingBankConfig(false);
+    }
+  };
+
   // Auth Guard Screen
+
   if (!isAuthenticated || !isAdmin) {
     return (
       <SafeAreaView style={styles.guardContainer}>
@@ -458,11 +543,13 @@ export default function AdminPortalScreen() {
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 12, gap: 8 }}>
           {[
             { id: "dashboard", label: "Tổng quan", icon: "grid-outline" },
+            { id: "banking", label: "Cấu Hình VietQR & Ngân Hàng", icon: "qr-code-outline" },
             { id: "songs", label: "Bài hát", icon: "musical-notes-outline" },
             { id: "users", label: "Người dùng & Phân quyền", icon: "people-outline" },
             { id: "copyright", label: "Bản quyền & DMCA", icon: "shield-checkmark-outline" },
             { id: "artists_albums", label: "Nghệ sĩ & Album", icon: "disc-outline" },
           ].map((tab) => {
+
             const isActive = activeTab === tab.id;
             return (
               <TouchableOpacity
@@ -835,9 +922,257 @@ export default function AdminPortalScreen() {
                 </View>
               </View>
             )}
+
+            {/* ─── TAB 6: BANKING & VIETQR CONFIGURATION ───────────────────── */}
+            {activeTab === "banking" && (
+              <View>
+                {/* Header & Description */}
+                <View style={styles.bankingHeroBanner}>
+                  <View style={styles.bankingHeroBadge}>
+                    <Ionicons name="flash" size={14} color="#fff" />
+                    <Text style={styles.bankingHeroBadgeText}>VIETQR AUTO-PAYMENT</Text>
+                  </View>
+                  <Text style={styles.bankingHeroTitle}>
+                    Cấu Hình Ngân Hàng & Tự Động Tạo Mã VietQR 💳
+                  </Text>
+                  <Text style={styles.bankingHeroDesc}>
+                    Quản trị viên thiết lập số tài khoản nhận tiền. Hệ thống sẽ tự động sinh mã VietQR động chứa chính xác số tiền gói VIP/Nạp tiền và mã định danh giao dịch để người dùng quét thanh toán tiện lợi chỉ trong 3 giây.
+                  </Text>
+                </View>
+
+                {/* Main 2-column or stacked layout */}
+                <View style={styles.bankingTwoCols}>
+                  {/* Left Column: Bank Configuration Form */}
+                  <View style={styles.bankingFormCard}>
+                    <View style={styles.bankingCardHeader}>
+                      <Ionicons name="card" size={20} color={Colors.dark.primary} />
+                      <Text style={styles.bankingCardTitle}>Thông Tin Tài Khoản Nhận Tiền</Text>
+                    </View>
+
+                    {/* Choose Bank */}
+                    <Text style={styles.inputFieldLabel}>Chọn Ngân Hàng Hưởng Thụ *</Text>
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.bankChipsScroll}>
+                      {supportedBanksList.map((b) => {
+                        const isSelected = adminBankId === b.id;
+                        return (
+                          <TouchableOpacity
+                            key={b.id}
+                            style={[styles.bankChip, isSelected && styles.bankChipActive]}
+                            onPress={() => {
+                              setAdminBankId(b.id);
+                              setAdminBankName(b.name);
+                            }}
+                          >
+                            <Text style={[styles.bankChipText, isSelected && styles.bankChipTextActive]}>
+                              {b.shortName || b.id}
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </ScrollView>
+
+                    <Text style={[styles.inputFieldLabel, { marginTop: 12 }]}>Tên ngân hàng đầy đủ</Text>
+                    <TextInput
+                      style={styles.dialogInput}
+                      value={adminBankName}
+                      onChangeText={setAdminBankName}
+                      placeholder="Ví dụ: MBBank (Ngân Hàng Quân Đội)"
+                      placeholderTextColor={Colors.dark.textMuted}
+                    />
+
+                    {/* Account Number */}
+                    <Text style={styles.inputFieldLabel}>Số Tài Khoản Ngân Hàng *</Text>
+                    <TextInput
+                      style={styles.dialogInput}
+                      value={adminAccountNo}
+                      onChangeText={setAdminAccountNo}
+                      placeholder="Ví dụ: 0987654321 hoặc 1903..."
+                      placeholderTextColor={Colors.dark.textMuted}
+                      keyboardType="numeric"
+                    />
+
+                    {/* Account Holder Name */}
+                    <Text style={styles.inputFieldLabel}>Tên Chủ Tài Khoản (In hoa không dấu) *</Text>
+                    <TextInput
+                      style={styles.dialogInput}
+                      value={adminAccountName}
+                      onChangeText={(val) => setAdminAccountName(val.toUpperCase())}
+                      placeholder="Ví dụ: NGUYEN VAN ADMIN"
+                      placeholderTextColor={Colors.dark.textMuted}
+                      autoCapitalize="characters"
+                    />
+
+                    {/* QR Template */}
+                    <Text style={styles.inputFieldLabel}>Mẫu Giao Diện VietQR</Text>
+                    <View style={styles.templateOptionsRow}>
+                      {[
+                        { id: "compact2", label: "Compact 2 (Khuyên Dùng)", desc: "Logo + Khung thẻ" },
+                        { id: "compact", label: "Compact 1", desc: "Chuẩn gọn gàng" },
+                        { id: "qr_only", label: "QR Only", desc: "Chỉ mã QR vuông" },
+                      ].map((tpl) => {
+                        const isSelected = adminTemplate === tpl.id;
+                        return (
+                          <TouchableOpacity
+                            key={tpl.id}
+                            style={[styles.templateChip, isSelected && styles.templateChipActive]}
+                            onPress={() => setAdminTemplate(tpl.id as any)}
+                          >
+                            <Text style={[styles.templateChipText, isSelected && { color: "#fff", fontWeight: "700" }]}>
+                              {tpl.label}
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+
+                    {/* Memo Prefix */}
+                    <Text style={[styles.inputFieldLabel, { marginTop: 12 }]}>Tiền Tố Nội Dung Chuyển Khoản (Prefix)</Text>
+                    <TextInput
+                      style={styles.dialogInput}
+                      value={adminMemoPrefix}
+                      onChangeText={(val) => setAdminMemoPrefix(val.toUpperCase())}
+                      placeholder="Ví dụ: WFP hoặc WAIFU"
+                      placeholderTextColor={Colors.dark.textMuted}
+                      autoCapitalize="characters"
+                    />
+
+                    {/* Save Button */}
+                    <TouchableOpacity
+                      style={styles.saveBankBtn}
+                      onPress={handleSaveBankConfig}
+                      disabled={savingBankConfig}
+                      activeOpacity={0.85}
+                    >
+                      {savingBankConfig ? (
+                        <ActivityIndicator color="#fff" />
+                      ) : (
+                        <>
+                          <Ionicons name="checkmark-done" size={18} color="#fff" />
+                          <Text style={styles.saveBankBtnText}>Lưu Cấu Hình Ngân Hàng & VietQR</Text>
+                        </>
+                      )}
+                    </TouchableOpacity>
+                  </View>
+
+                  {/* Right Column: Live VietQR Simulator */}
+                  <View style={styles.bankingSimCard}>
+                    <View style={styles.bankingCardHeader}>
+                      <Ionicons name="qr-code" size={20} color={Colors.dark.accent} />
+                      <Text style={styles.bankingCardTitle}>Mô Phỏng Trực Tiếp Mã VietQR Động</Text>
+                    </View>
+
+                    {/* Interactive Test Amount Selector */}
+                    <Text style={styles.inputFieldLabel}>Mô phỏng thử số tiền thanh toán:</Text>
+                    <View style={styles.simAmountsGrid}>
+                      {["49000", "129000", "449000", "100000"].map((amt) => {
+                        const isSelected = customSimAmount === amt;
+                        return (
+                          <TouchableOpacity
+                            key={amt}
+                            style={[styles.simAmountChip, isSelected && styles.simAmountChipActive]}
+                            onPress={() => setCustomSimAmount(amt)}
+                          >
+                            <Text style={[styles.simAmountChipText, isSelected && { color: Colors.dark.primaryLight, fontWeight: "700" }]}>
+                              {Number(amt).toLocaleString()} ₫
+                            </Text>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+
+                    {/* Dynamic VietQR Image Preview */}
+                    <View style={styles.qrImageContainer}>
+                      <Image
+                        source={{
+                          uri: `https://img.vietqr.io/image/${adminBankId}-${adminAccountNo}-${adminTemplate}.png?amount=${customSimAmount}&addInfo=${adminMemoPrefix}%20TEST%20SIM&accountName=${encodeURIComponent(adminAccountName)}`,
+                        }}
+                        style={styles.simQrImage}
+                        resizeMode="contain"
+                      />
+                      <View style={styles.qrScanInstructionBadge}>
+                        <Ionicons name="scan-outline" size={14} color="#10b981" />
+                        <Text style={styles.qrScanInstructionText}>
+                          Mã QR tự động điền {Number(customSimAmount).toLocaleString()} VNĐ
+                        </Text>
+                      </View>
+                    </View>
+
+                    {/* Information summary */}
+                    <View style={styles.qrDetailsBox}>
+                      <View style={styles.qrDetailRow}>
+                        <Text style={styles.qrDetailKey}>Ngân Hàng:</Text>
+                        <Text style={styles.qrDetailVal}>{adminBankName} ({adminBankId})</Text>
+                      </View>
+                      <View style={styles.qrDetailRow}>
+                        <Text style={styles.qrDetailKey}>Số Tài Khoản:</Text>
+                        <Text style={[styles.qrDetailVal, { color: Colors.dark.accent, fontWeight: "800" }]}>{adminAccountNo}</Text>
+                      </View>
+                      <View style={styles.qrDetailRow}>
+                        <Text style={styles.qrDetailKey}>Chủ Tài Khoản:</Text>
+                        <Text style={[styles.qrDetailVal, { color: "#fff", fontWeight: "700" }]}>{adminAccountName}</Text>
+                      </View>
+                      <View style={styles.qrDetailRow}>
+                        <Text style={styles.qrDetailKey}>Nội Dung Mẫu:</Text>
+                        <Text style={[styles.qrDetailVal, { color: Colors.dark.primaryLight }]}>{adminMemoPrefix} VIP 1M TEST</Text>
+                      </View>
+                    </View>
+                  </View>
+                </View>
+
+                {/* Revenue & Transaction Ledger */}
+                <View style={[styles.sectionHeaderRow, { marginTop: 28 }]}>
+                  <Text style={styles.sectionTitle}>Sổ Cái Giao Dịch & Nạp Tiền ({adminTransactions.length})</Text>
+                  <View style={styles.revenueBadge}>
+                    <Ionicons name="cash-outline" size={16} color="#10b981" />
+                    <Text style={styles.revenueBadgeText}>
+                      Doanh thu: {adminTotalRevenue.toLocaleString()} ₫
+                    </Text>
+                  </View>
+                </View>
+
+                {adminTransactions.length === 0 ? (
+                  <View style={styles.emptyStateBox}>
+                    <Ionicons name="receipt-outline" size={48} color={Colors.dark.textMuted} />
+                    <Text style={styles.emptyStateText}>Chưa có giao dịch nào phát sinh.</Text>
+                  </View>
+                ) : (
+                  adminTransactions.map((tx) => (
+                    <View key={tx.id} style={styles.txRowCard}>
+                      <View style={styles.txIconBox}>
+                        <Ionicons
+                          name={tx.type === "BUY_VIP" ? "diamond" : "card"}
+                          size={20}
+                          color={tx.type === "BUY_VIP" ? Colors.dark.primaryLight : "#10b981"}
+                        />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.txTitle}>
+                          {tx.type === "BUY_VIP" ? (tx.packageName || "Mua Gói VIP") : "Nạp Tiền Waifu Coins"}
+                        </Text>
+                        <Text style={styles.txUserSub}>
+                          Khách hàng: {tx.userName || tx.userEmail || tx.userId.slice(0, 8)} • {tx.transactionCode}
+                        </Text>
+                        <Text style={styles.txDateSub}>
+                          {new Date(tx.createdAt).toLocaleString("vi-VN")}
+                        </Text>
+                      </View>
+                      <View style={{ alignItems: "flex-end" }}>
+                        <Text style={[styles.txAmount, { color: tx.type === "BUY_VIP" ? Colors.dark.primaryLight : "#10b981" }]}>
+                          +{Number(tx.amount).toLocaleString()} ₫
+                        </Text>
+                        <View style={styles.txStatusSuccess}>
+                          <Text style={styles.txStatusText}>{tx.status}</Text>
+                        </View>
+                      </View>
+                    </View>
+                  ))
+                )}
+              </View>
+            )}
           </>
         )}
       </ScrollView>
+
 
       {/* ─── MODAL: EDIT USER ROLE & VIP ─────────────────────────────────── */}
       <Modal
@@ -1891,4 +2226,288 @@ const styles = StyleSheet.create({
     height: 36,
     borderRadius: 6,
   },
+  // Banking & VietQR Styles
+  bankingHeroBanner: {
+    backgroundColor: "rgba(236, 72, 153, 0.1)",
+    borderRadius: 16,
+    padding: 18,
+    borderWidth: 1,
+    borderColor: "rgba(236, 72, 153, 0.3)",
+    marginBottom: 20,
+  },
+  bankingHeroBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    alignSelf: "flex-start",
+    backgroundColor: Colors.dark.primary,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    gap: 4,
+    marginBottom: 8,
+  },
+  bankingHeroBadgeText: {
+    color: "#fff",
+    fontSize: 9,
+    fontWeight: "900",
+    letterSpacing: 0.5,
+  },
+  bankingHeroTitle: {
+    fontSize: 18,
+    fontWeight: "800",
+    color: "#fff",
+    marginBottom: 6,
+  },
+  bankingHeroDesc: {
+    fontSize: 13,
+    color: Colors.dark.textMuted,
+    lineHeight: 18,
+  },
+  bankingTwoCols: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 16,
+  },
+  bankingFormCard: {
+    flex: 1,
+    minWidth: 320,
+    backgroundColor: "#161622",
+    borderRadius: 18,
+    padding: 18,
+    borderWidth: 1,
+    borderColor: "#262638",
+  },
+  bankingSimCard: {
+    flex: 1,
+    minWidth: 320,
+    backgroundColor: "#161622",
+    borderRadius: 18,
+    padding: 18,
+    borderWidth: 1,
+    borderColor: "rgba(6, 182, 212, 0.3)",
+  },
+  bankingCardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255, 255, 255, 0.06)",
+    paddingBottom: 10,
+  },
+  bankingCardTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#fff",
+  },
+  bankChipsScroll: {
+    gap: 8,
+    paddingVertical: 4,
+    marginBottom: 4,
+  },
+  bankChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 8,
+    backgroundColor: Colors.dark.card,
+    borderWidth: 1,
+    borderColor: Colors.dark.border,
+  },
+  bankChipActive: {
+    backgroundColor: Colors.dark.primary,
+    borderColor: Colors.dark.primaryLight,
+  },
+  bankChipText: {
+    fontSize: 12,
+    color: Colors.dark.textMuted,
+    fontWeight: "600",
+  },
+  bankChipTextActive: {
+    color: "#fff",
+    fontWeight: "700",
+  },
+  templateOptionsRow: {
+    flexDirection: "row",
+    gap: 8,
+    marginBottom: 6,
+  },
+  templateChip: {
+    flex: 1,
+    paddingVertical: 8,
+    paddingHorizontal: 6,
+    borderRadius: 8,
+    backgroundColor: Colors.dark.card,
+    borderWidth: 1,
+    borderColor: Colors.dark.border,
+    alignItems: "center",
+  },
+  templateChipActive: {
+    backgroundColor: "rgba(236, 72, 153, 0.2)",
+    borderColor: Colors.dark.primary,
+  },
+  templateChipText: {
+    fontSize: 11,
+    color: Colors.dark.textMuted,
+  },
+  saveBankBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: Colors.dark.primary,
+    paddingVertical: 14,
+    borderRadius: 12,
+    marginTop: 16,
+    shadowColor: Colors.dark.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  saveBankBtnText: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  simAmountsGrid: {
+    flexDirection: "row",
+    gap: 8,
+    marginBottom: 16,
+  },
+  simAmountChip: {
+    flex: 1,
+    backgroundColor: Colors.dark.card,
+    borderRadius: 8,
+    paddingVertical: 8,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: Colors.dark.border,
+  },
+  simAmountChipActive: {
+    borderColor: Colors.dark.primary,
+    backgroundColor: "rgba(233, 30, 140, 0.15)",
+  },
+  simAmountChipText: {
+    fontSize: 11,
+    color: Colors.dark.textMuted,
+  },
+  qrImageContainer: {
+    backgroundColor: "#fff",
+    borderRadius: 16,
+    padding: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    marginVertical: 10,
+    borderWidth: 2,
+    borderColor: Colors.dark.accent,
+  },
+  simQrImage: {
+    width: "100%",
+    height: 280,
+    maxWidth: 280,
+  },
+  qrScanInstructionBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "rgba(16, 185, 129, 0.12)",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 6,
+    marginTop: 8,
+  },
+  qrScanInstructionText: {
+    color: "#059669",
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  qrDetailsBox: {
+    backgroundColor: "#11111a",
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: "#262638",
+    gap: 6,
+    marginTop: 8,
+  },
+  qrDetailRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  qrDetailKey: {
+    fontSize: 12,
+    color: Colors.dark.textMuted,
+  },
+  qrDetailVal: {
+    fontSize: 12,
+    color: Colors.dark.text,
+  },
+  revenueBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "rgba(16, 185, 129, 0.15)",
+    borderWidth: 1,
+    borderColor: "rgba(16, 185, 129, 0.3)",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 8,
+  },
+  revenueBadgeText: {
+    color: "#10b981",
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  txRowCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#161622",
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: "#262638",
+    marginBottom: 10,
+  },
+  txIconBox: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(255, 255, 255, 0.05)",
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 12,
+  },
+  txTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: "#fff",
+    marginBottom: 2,
+  },
+  txUserSub: {
+    fontSize: 12,
+    color: Colors.dark.textMuted,
+  },
+  txDateSub: {
+    fontSize: 10,
+    color: Colors.dark.textMuted,
+    marginTop: 2,
+  },
+  txAmount: {
+    fontSize: 15,
+    fontWeight: "800",
+    marginBottom: 4,
+  },
+  txStatusSuccess: {
+    backgroundColor: "rgba(16, 185, 129, 0.15)",
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  txStatusText: {
+    color: "#10b981",
+    fontSize: 10,
+    fontWeight: "700",
+  },
 });
+
