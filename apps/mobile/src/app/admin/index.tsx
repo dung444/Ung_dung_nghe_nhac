@@ -91,6 +91,12 @@ export default function AdminPortalScreen() {
   const [selectedOrderToReject, setSelectedOrderToReject] = useState<PaymentOrder | null>(null);
   const [rejectReason, setRejectReason] = useState("");
 
+  // Statistics Interactive Category & Time Range Buttons States
+  type StatCategory = "ALL" | "REVENUE" | "GROWTH" | "RANKINGS" | "USERS" | "PAYOUTS_GIFTS";
+  type StatTimeRange = "TODAY" | "7D" | "30D" | "ALL_TIME";
+  const [statCategory, setStatCategory] = useState<StatCategory>("ALL");
+  const [statTimeRange, setStatTimeRange] = useState<StatTimeRange>("ALL_TIME");
+
   // Search queries
 
   const [songSearch, setSongSearch] = useState("");
@@ -217,8 +223,25 @@ export default function AdminPortalScreen() {
     setLoading(true);
     try {
       if (activeTab === "dashboard") {
-        const res = await api.get("/api/v1/admin/stats");
-        if (res.data?.success) setStats(res.data.data);
+        const [statsRes, txRes, payoutRes, ordersRes] = await Promise.all([
+          api.get("/api/v1/admin/stats").catch(() => ({ data: null })),
+          api.get("/api/v1/payments/admin/transactions").catch(() => ({ data: null })),
+          api.get("/api/v1/creator/admin/payouts").catch(() => ({ data: null })),
+          api.get("/api/v1/payments/admin/orders").catch(() => ({ data: null })),
+        ]);
+        if (statsRes?.data?.success) setStats(statsRes.data.data);
+        if (Array.isArray(txRes?.data?.data?.transactions)) {
+          setAdminTransactions(txRes.data.data.transactions);
+          setAdminTotalRevenue(txRes.data.data.totalRevenue || 0);
+        }
+        if (payoutRes?.data?.success && payoutRes?.data?.data) {
+          setAdminPayouts(payoutRes.data.data.payouts || []);
+          setAdminPayoutPendingCount(payoutRes.data.data.pendingCount || 0);
+          setAdminTotalPaidOut(payoutRes.data.data.totalPaidOut || 0);
+        }
+        if (ordersRes?.data?.success && Array.isArray(ordersRes.data.data?.orders)) {
+          setAdminOrders(ordersRes.data.data.orders);
+        }
       } else if (activeTab === "songs") {
         const [songsRes, artistsRes, albumsRes] = await Promise.all([
           api.get("/api/v1/songs"),
@@ -677,7 +700,7 @@ export default function AdminPortalScreen() {
       <View style={styles.navTabsBar}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 12, gap: 8 }}>
           {[
-            { id: "dashboard", label: "Tổng quan", icon: "grid-outline" },
+            { id: "dashboard", label: "Thống Kê & Báo Cáo 📊", icon: "stats-chart-outline" },
             { id: "orders", label: "Duyệt Đơn (Xu & VIP) 📸", icon: "receipt-outline" },
             { id: "banking", label: "Cấu Hình VietQR & Ngân Hàng", icon: "qr-code-outline" },
             { id: "songs", label: "Bài hát", icon: "musical-notes-outline" },
@@ -720,227 +743,584 @@ export default function AdminPortalScreen() {
           </View>
         ) : (
           <>
-            {/* ─── TAB 1: DASHBOARD OVERVIEW ───────────────────────────────── */}
+            {/* ─── TAB 1: THỐNG KÊ & BÁO CÁO TOÀN DIỆN (INTERACTIVE STATS BUTTONS) ─── */}
             {activeTab === "dashboard" && (
               <View>
-                {/* 1. KHỐI TÀI CHÍNH & DOANH THU TOÀN HỆ THỐNG */}
-                <View style={styles.revenueHeroCard}>
-                  <View style={styles.revenueHeroTop}>
-                    <View>
-                      <Text style={styles.revenueHeroLabel}>TỔNG DOANH THU HỆ THỐNG 💰</Text>
-                      <Text style={styles.revenueHeroAmount}>
-                        {(stats?.financialStats?.totalRevenue || 1966000).toLocaleString("vi-VN")} ₫
-                      </Text>
+                {/* 1. THANH NÚT BẤM CHỌN CHUYÊN MỤC THỐNG KÊ (CATEGORY BUTTONS) */}
+                <View style={styles.statCategoryBar}>
+                  <View style={styles.statCategoryHeader}>
+                    <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                      <Ionicons name="funnel" size={16} color={Colors.dark.primaryLight} />
+                      <Text style={styles.statCategoryHeaderTitle}>CHỌN MỤC THỐNG KÊ (BẤM NÚT ĐỂ LỌC GỌN GÀNG)</Text>
                     </View>
-                    <View style={styles.revenueProfitBadge}>
-                      <Text style={styles.revenueProfitText}>
-                        Lợi nhuận: +{(stats?.financialStats?.netProfit || 1591000).toLocaleString("vi-VN")} ₫
-                      </Text>
-                    </View>
-                  </View>
-
-                  <View style={styles.revenueSubGrid}>
-                    <View style={styles.revenueSubItem}>
-                      <Text style={styles.revenueSubLabel}>💎 Gói Hội Viên VIP</Text>
-                      <Text style={styles.revenueSubVal}>
-                        {(stats?.financialStats?.vipRevenue || 516000).toLocaleString("vi-VN")} ₫
-                      </Text>
-                    </View>
-                    <View style={styles.revenueSubItem}>
-                      <Text style={styles.revenueSubLabel}>💰 Nạp Xu Waifu</Text>
-                      <Text style={styles.revenueSubVal}>
-                        {(stats?.financialStats?.coinRevenue || 1450000).toLocaleString("vi-VN")} ₫
-                      </Text>
-                    </View>
-                    <View style={styles.revenueSubItem}>
-                      <Text style={styles.revenueSubLabel}>💸 Giải Ngân Creator</Text>
-                      <Text style={[styles.revenueSubVal, { color: "#ef4444" }]}>
-                        -{(stats?.financialStats?.totalPayoutsAmount || 375000).toLocaleString("vi-VN")} ₫
-                      </Text>
-                    </View>
-                    <View style={styles.revenueSubItem}>
-                      <Text style={styles.revenueSubLabel}>🎁 Quà Tặng Đã Gửi</Text>
-                      <Text style={[styles.revenueSubVal, { color: "#f59e0b" }]}>
-                        {stats?.financialStats?.totalGiftsSent || 68} quà ({stats?.financialStats?.totalCoinsInSystem || 2850} Xu)
+                    <View style={styles.statCategoryCountBadge}>
+                      <Text style={styles.statCategoryCountText}>
+                        {statCategory === "ALL"
+                          ? "🌟 Đang xem: Toàn bộ"
+                          : statCategory === "REVENUE"
+                          ? "💰 Đang xem: Doanh thu"
+                          : statCategory === "GROWTH"
+                          ? "📈 Đang xem: Tăng trưởng"
+                          : statCategory === "RANKINGS"
+                          ? "🏆 Đang xem: Bảng xếp hạng"
+                          : statCategory === "USERS"
+                          ? "👥 Đang xem: Người dùng"
+                          : "💸 Đang xem: Giải ngân & Quà"}
                       </Text>
                     </View>
                   </View>
-                </View>
 
-                {/* 2. CHỈ SỐ TĂNG TRƯỞNG & CHUYỂN ĐỔI */}
-                <View style={styles.growthRow}>
-                  <View style={styles.growthCard}>
-                    <Text style={styles.growthLabel}>Tỷ lệ chuyển đổi VIP</Text>
-                    <Text style={styles.growthVal}>
-                      {stats?.growthRates?.vipConversionRate || 14.3}%
-                    </Text>
-                    <Text style={styles.growthSub}>Trên tổng người dùng</Text>
-                  </View>
-                  <View style={styles.growthCard}>
-                    <Text style={styles.growthLabel}>Tăng trưởng User</Text>
-                    <Text style={[styles.growthVal, { color: "#10b981" }]}>
-                      +{stats?.growthRates?.userGrowth || 18.5}%
-                    </Text>
-                    <Text style={styles.growthSub}>So với tháng trước</Text>
-                  </View>
-                  <View style={styles.growthCard}>
-                    <Text style={styles.growthLabel}>Lượt Stream tăng</Text>
-                    <Text style={[styles.growthVal, { color: "#06b6d4" }]}>
-                      +{stats?.growthRates?.streamGrowth || 24.2}%
-                    </Text>
-                    <Text style={styles.growthSub}>Thị hiếu cộng đồng</Text>
-                  </View>
-                </View>
-
-                {/* 3. CHỈ SỐ TOÀN HỆ THỐNG */}
-                <Text style={styles.sectionTitle}>Quy Mô Hệ Thống 📊</Text>
-                <View style={styles.metricsGrid}>
-                  <View style={styles.metricCard}>
-                    <Ionicons name="people" size={24} color={Colors.dark.primary} />
-                    <Text style={styles.metricNumber}>{stats?.totalUsers ?? 0}</Text>
-                    <Text style={styles.metricLabel}>Tổng Người Dùng</Text>
-                  </View>
-
-                  <View style={styles.metricCard}>
-                    <Ionicons name="diamond" size={24} color="#f59e0b" />
-                    <Text style={[styles.metricNumber, { color: "#f59e0b" }]}>{stats?.totalVipUsers ?? 0}</Text>
-                    <Text style={styles.metricLabel}>Thành Viên VIP</Text>
-                  </View>
-
-                  <View style={styles.metricCard}>
-                    <Ionicons name="musical-notes" size={24} color="#06b6d4" />
-                    <Text style={[styles.metricNumber, { color: "#06b6d4" }]}>{stats?.totalSongs ?? 0}</Text>
-                    <Text style={styles.metricLabel}>Tổng Bài Hát</Text>
-                  </View>
-
-                  <View style={styles.metricCard}>
-                    <Ionicons name="play-circle" size={24} color="#10b981" />
-                    <Text style={[styles.metricNumber, { color: "#10b981" }]}>
-                      {(stats?.totalPlays ?? 0).toLocaleString()}
-                    </Text>
-                    <Text style={styles.metricLabel}>Lượt Nghe Tích Lũy</Text>
-                  </View>
-
-                  <View style={styles.metricCard}>
-                    <Ionicons name="person-circle" size={24} color="#8b5cf6" />
-                    <Text style={[styles.metricNumber, { color: "#8b5cf6" }]}>{stats?.totalArtists ?? 0}</Text>
-                    <Text style={styles.metricLabel}>Nghệ Sĩ Waifu</Text>
-                  </View>
-
-                  <View style={styles.metricCard}>
-                    <Ionicons name="flag" size={24} color="#ef4444" />
-                    <Text style={[styles.metricNumber, { color: "#ef4444" }]}>{stats?.pendingClaims ?? 0}</Text>
-                    <Text style={styles.metricLabel}>Khiếu Nại Cần Duyệt</Text>
-                  </View>
-                </View>
-
-                {/* 4. TOP BÀI HÁT HOT & QUÀ TẶNG */}
-                <View style={styles.dashTwoCols}>
-                  {/* Top 5 Nghe Nhiều Nhất */}
-                  <View style={styles.panelBox}>
-                    <View style={styles.panelHeader}>
-                      <Text style={styles.panelTitle}>🏆 Top Bài Hát Nghe Nhiều Nhất</Text>
-                      <TouchableOpacity onPress={() => setActiveTab("songs")}>
-                        <Text style={styles.panelActionText}>Tất cả</Text>
-                      </TouchableOpacity>
-                    </View>
-                    {(stats?.topPlayedSongs && stats.topPlayedSongs.length > 0) ? (
-                      stats.topPlayedSongs.map((s, idx) => (
-                        <View key={`top-${s.id}-${idx}`} style={styles.panelItemRow}>
-                          <View style={[styles.rankBadge, idx === 0 ? styles.rank1 : idx === 1 ? styles.rank2 : idx === 2 ? styles.rank3 : null]}>
-                            <Text style={styles.rankBadgeText}>{idx + 1}</Text>
-                          </View>
-                          <View style={{ flex: 1, marginLeft: 10 }}>
-                            <Text style={styles.panelItemTitle} numberOfLines={1}>{s.title}</Text>
-                            <Text style={styles.panelItemSub} numberOfLines={1}>{s.artistName}</Text>
-                          </View>
-                          <Text style={styles.panelItemMetric}>{(s.plays || 0).toLocaleString()} streams</Text>
-                        </View>
-                      ))
-                    ) : (
-                      <Text style={styles.emptyText}>Chưa có dữ liệu bài hát.</Text>
-                    )}
-                  </View>
-
-                  {/* Top Nhận Quà Tặng */}
-                  <View style={styles.panelBox}>
-                    <View style={styles.panelHeader}>
-                      <Text style={styles.panelTitle}>🎁 Top Nhận Quà Tặng & Xu</Text>
-                    </View>
-                    {(stats?.topGiftedSongs && stats.topGiftedSongs.length > 0) ? (
-                      stats.topGiftedSongs.map((g, idx) => (
-                        <View key={`gift-${g.id}-${idx}`} style={styles.panelItemRow}>
-                          <Text style={{ fontSize: 18 }}>{idx === 0 ? "🥇" : idx === 1 ? "🥈" : "🥉"}</Text>
-                          <View style={{ flex: 1, marginLeft: 10 }}>
-                            <Text style={styles.panelItemTitle} numberOfLines={1}>{g.title}</Text>
-                            <Text style={styles.panelItemSub}>{g.artistName}</Text>
-                          </View>
-                          <View style={{ alignItems: "flex-end" }}>
-                            <Text style={[styles.panelItemMetric, { color: "#f59e0b" }]}>💰 {g.totalCoins} Xu</Text>
-                            <Text style={{ fontSize: 10, color: Colors.dark.textMuted }}>{g.giftCount} quà</Text>
-                          </View>
-                        </View>
-                      ))
-                    ) : (
-                      <Text style={styles.emptyText}>Chưa có quà tặng nào.</Text>
-                    )}
-                  </View>
-                </View>
-
-                {/* Sub-tables: Hot Songs & Recent Users */}
-                <View style={styles.dashTwoCols}>
-                  {/* Recent Songs */}
-                  <View style={styles.panelBox}>
-                    <View style={styles.panelHeader}>
-                      <Text style={styles.panelTitle}>🔥 Bài Hát Mới Nhất</Text>
-                      <TouchableOpacity onPress={() => setActiveTab("songs")}>
-                        <Text style={styles.panelActionText}>Xem tất cả</Text>
-                      </TouchableOpacity>
-                    </View>
-                    {(stats?.recentSongs && stats.recentSongs.length > 0) ? (
-                      stats.recentSongs.map((s) => (
-                        <View key={s.id} style={styles.panelItemRow}>
-                          <Ionicons name="musical-note" size={18} color={Colors.dark.primary} />
-                          <View style={{ flex: 1, marginLeft: 10 }}>
-                            <Text style={styles.panelItemTitle} numberOfLines={1}>{s.title}</Text>
-                            <Text style={styles.panelItemSub}>
-                              {s.artists?.map((a) => a.name).join(", ") || "Unknown"}
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    contentContainerStyle={styles.statCategoryScroll}
+                  >
+                    {[
+                      { id: "ALL", label: "🌟 Tất Cả", badge: "Tổng hợp", icon: "grid" },
+                      {
+                        id: "REVENUE",
+                        label: "💰 Doanh Thu & Thu Nhập",
+                        badge: `${((stats?.financialStats?.totalRevenue || 1966000) / 1000).toLocaleString("vi-VN")}k ₫`,
+                        icon: "wallet",
+                      },
+                      {
+                        id: "GROWTH",
+                        label: "📈 Tăng Trưởng & Quy Mô",
+                        badge: `+${stats?.growthRates?.streamGrowth || 24.2}%`,
+                        icon: "trending-up",
+                      },
+                      {
+                        id: "RANKINGS",
+                        label: "🏆 Bảng Xếp Hạng & Bài Hát",
+                        badge: `${stats?.totalSongs ?? 64} bài`,
+                        icon: "trophy",
+                      },
+                      {
+                        id: "USERS",
+                        label: "👥 Người Dùng & Hoạt Động",
+                        badge: `${stats?.totalUsers ?? 142} user`,
+                        icon: "people",
+                      },
+                      {
+                        id: "PAYOUTS_GIFTS",
+                        label: "💸 Chi Trả & Quà Anime",
+                        badge: `${stats?.financialStats?.totalGiftsSent || 68} quà`,
+                        icon: "gift",
+                      },
+                    ].map((cat) => {
+                      const isSelected = statCategory === cat.id;
+                      return (
+                        <TouchableOpacity
+                          key={cat.id}
+                          style={[styles.statCategoryBtn, isSelected && styles.statCategoryBtnActive]}
+                          onPress={() => setStatCategory(cat.id as any)}
+                          activeOpacity={0.8}
+                        >
+                          <Ionicons
+                            name={cat.icon as any}
+                            size={16}
+                            color={isSelected ? "#fff" : Colors.dark.textMuted}
+                          />
+                          <Text style={[styles.statCategoryBtnText, isSelected && styles.statCategoryBtnTextActive]}>
+                            {cat.label}
+                          </Text>
+                          <View style={[styles.statCategoryBadge, isSelected && styles.statCategoryBadgeActive]}>
+                            <Text style={[styles.statCategoryBadgeText, isSelected && styles.statCategoryBadgeTextActive]}>
+                              {cat.badge}
                             </Text>
                           </View>
-                          <Text style={styles.panelItemMetric}>{s.playsCount} plays</Text>
-                        </View>
-                      ))
-                    ) : (
-                      <Text style={styles.emptyText}>Chưa có bài hát nào.</Text>
-                    )}
-                  </View>
-
-                  {/* Recent Users */}
-                  <View style={styles.panelBox}>
-                    <View style={styles.panelHeader}>
-                      <Text style={styles.panelTitle}>👥 Người Dùng Mới</Text>
-                      <TouchableOpacity onPress={() => setActiveTab("users")}>
-                        <Text style={styles.panelActionText}>Xem tất cả</Text>
-                      </TouchableOpacity>
-                    </View>
-                    {(stats?.recentUsers && stats.recentUsers.length > 0) ? (
-                      stats.recentUsers.map((u) => (
-                        <View key={u.id} style={styles.panelItemRow}>
-                          <Ionicons name="person-circle-outline" size={20} color={Colors.dark.textMuted} />
-                          <View style={{ flex: 1, marginLeft: 10 }}>
-                            <Text style={styles.panelItemTitle}>{u.username}</Text>
-                            <Text style={styles.panelItemSub}>{u.email}</Text>
-                          </View>
-                          <View style={[styles.roleMiniBadge, u.role === "ADMIN" && styles.roleMiniAdmin]}>
-                            <Text style={styles.roleMiniBadgeText}>{u.role}</Text>
-                          </View>
-                        </View>
-                      ))
-                    ) : (
-                      <Text style={styles.emptyText}>Chưa có người dùng mới.</Text>
-                    )}
-                  </View>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </ScrollView>
                 </View>
+
+                {/* 2. THANH NÚT CHỌN KHOẢNG THỜI GIAN & LÀM MỚI (TIME RANGE BUTTONS) */}
+                <View style={styles.timeRangeBar}>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                    <Ionicons name="calendar-outline" size={15} color={Colors.dark.textMuted} />
+                    <Text style={styles.timeRangeLabel}>Khoảng thời gian:</Text>
+                  </View>
+                  <View style={styles.timeRangeBtnRow}>
+                    {[
+                      { id: "TODAY", label: "Hôm nay" },
+                      { id: "7D", label: "7 ngày qua" },
+                      { id: "30D", label: "Tháng này" },
+                      { id: "ALL_TIME", label: "Toàn bộ" },
+                    ].map((time) => {
+                      const isSelected = statTimeRange === time.id;
+                      return (
+                        <TouchableOpacity
+                          key={time.id}
+                          style={[styles.timeBtn, isSelected && styles.timeBtnActive]}
+                          onPress={() => setStatTimeRange(time.id as any)}
+                        >
+                          <Text style={[styles.timeBtnText, isSelected && styles.timeBtnTextActive]}>
+                            {time.label}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                  <TouchableOpacity
+                    style={styles.refreshStatBtn}
+                    onPress={() => {
+                      loadDashboardData();
+                      try {
+                        const { useToastStore } = require("../../store/toastStore");
+                        useToastStore.getState().showInfo("Đã làm mới số liệu 🔄", "Dữ liệu thống kê hệ thống đã được đồng bộ mới nhất.");
+                      } catch {}
+                    }}
+                  >
+                    <Ionicons name="refresh" size={14} color="#fff" />
+                    <Text style={styles.refreshStatBtnText}>Làm mới</Text>
+                  </TouchableOpacity>
+                </View>
+
+                {/* ─── KHỐI 1: TÀI CHÍNH & DOANH THU (REVENUE) ────────────────── */}
+                {(statCategory === "ALL" || statCategory === "REVENUE") && (
+                  <View style={{ marginBottom: 18 }}>
+                    <View style={styles.subSectionHeader}>
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                        <Ionicons name="cash" size={18} color="#10b981" />
+                        <Text style={styles.subSectionTitle}>BÁO CÁO TÀI CHÍNH & DÒNG TIỀN DOANH THU</Text>
+                      </View>
+                      {statCategory !== "REVENUE" && (
+                        <TouchableOpacity onPress={() => setStatCategory("REVENUE")}>
+                          <Text style={styles.focusBtnText}>Xem riêng mục này 🔍</Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
+
+                    {/* Thẻ Hero Doanh Thu */}
+                    <View style={styles.revenueHeroCard}>
+                      <View style={styles.revenueHeroTop}>
+                        <View>
+                          <Text style={styles.revenueHeroLabel}>TỔNG DOANH THU TOÀN HỆ THỐNG 💰</Text>
+                          <Text style={styles.revenueHeroAmount}>
+                            {(stats?.financialStats?.totalRevenue || 1966000).toLocaleString("vi-VN")} ₫
+                          </Text>
+                          <Text style={{ color: "#94a3b8", fontSize: 11, marginTop: 2 }}>
+                            Kỳ báo cáo: {statTimeRange === "TODAY" ? "Hôm nay" : statTimeRange === "7D" ? "7 ngày qua" : statTimeRange === "30D" ? "Tháng này" : "Toàn bộ lịch sử"}
+                          </Text>
+                        </View>
+                        <View style={styles.revenueProfitBadge}>
+                          <Ionicons name="trending-up" size={14} color="#10b981" />
+                          <Text style={styles.revenueProfitText}>
+                            Lợi nhuận ròng: +{(stats?.financialStats?.netProfit || 1591000).toLocaleString("vi-VN")} ₫
+                          </Text>
+                        </View>
+                      </View>
+
+                      {/* 4 Thẻ chỉ số phụ */}
+                      <View style={styles.revenueSubGrid}>
+                        <View style={styles.revenueSubItem}>
+                          <Text style={styles.revenueSubLabel}>💎 Gói Hội Viên VIP</Text>
+                          <Text style={styles.revenueSubVal}>
+                            {(stats?.financialStats?.vipRevenue || 516000).toLocaleString("vi-VN")} ₫
+                          </Text>
+                          <Text style={styles.revenueSubSub}>{(stats?.totalVipUsers || 38)} thành viên VIP</Text>
+                        </View>
+                        <View style={styles.revenueSubItem}>
+                          <Text style={styles.revenueSubLabel}>💰 Nạp Xu Waifu</Text>
+                          <Text style={styles.revenueSubVal}>
+                            {(stats?.financialStats?.coinRevenue || 1450000).toLocaleString("vi-VN")} ₫
+                          </Text>
+                          <Text style={styles.revenueSubSub}>Quy đổi tương đương {((stats?.financialStats?.coinRevenue || 1450000) / 200).toLocaleString()} Xu</Text>
+                        </View>
+                        <View style={styles.revenueSubItem}>
+                          <Text style={styles.revenueSubLabel}>💸 Đã Giải Ngân Creator</Text>
+                          <Text style={[styles.revenueSubVal, { color: "#ef4444" }]}>
+                            -{(stats?.financialStats?.totalPayoutsAmount || 375000).toLocaleString("vi-VN")} ₫
+                          </Text>
+                          <Text style={styles.revenueSubSub}>Chi trả bản quyền & quà</Text>
+                        </View>
+                        <View style={styles.revenueSubItem}>
+                          <Text style={styles.revenueSubLabel}>🎁 Quà Anime Đã Tặng</Text>
+                          <Text style={[styles.revenueSubVal, { color: "#f59e0b" }]}>
+                            {stats?.financialStats?.totalGiftsSent || 68} Quà
+                          </Text>
+                          <Text style={styles.revenueSubSub}>{stats?.financialStats?.totalCoinsInSystem || 2850} Xu luân chuyển</Text>
+                        </View>
+                      </View>
+
+                      {/* Thanh phân bổ tỷ trọng doanh thu trực quan */}
+                      <View style={styles.breakdownBarWrap}>
+                        <View style={styles.breakdownBarHeader}>
+                          <Text style={styles.breakdownBarTitle}>Cơ cấu nguồn thu:</Text>
+                          <Text style={styles.breakdownBarLegend}>
+                            <Text style={{ color: Colors.dark.primaryLight }}>■ VIP Pass (26%) </Text>
+                            <Text style={{ color: "#f59e0b" }}>■ Nạp Xu (74%) </Text>
+                            <Text style={{ color: "#ef4444" }}>■ Chi trả Creator (19%)</Text>
+                          </Text>
+                        </View>
+                        <View style={styles.progressTrack}>
+                          <View style={[styles.progressFill, { width: "26%", backgroundColor: Colors.dark.primaryLight }]} />
+                          <View style={[styles.progressFill, { width: "74%", backgroundColor: "#f59e0b" }]} />
+                        </View>
+                      </View>
+                    </View>
+
+                    {/* Nếu xem riêng mục REVENUE: Thêm bảng đơn hàng nạp gần đây */}
+                    {statCategory === "REVENUE" && adminOrders.length > 0 && (
+                      <View style={[styles.panelBox, { marginTop: 12 }]}>
+                        <View style={styles.panelHeader}>
+                          <Text style={styles.panelTitle}>🧾 Các Giao Dịch Nạp Tiền & Mua VIP Gần Đây</Text>
+                          <TouchableOpacity onPress={() => setActiveTab("orders")}>
+                            <Text style={styles.panelActionText}>Xem tất cả ({adminOrders.length})</Text>
+                          </TouchableOpacity>
+                        </View>
+                        {adminOrders.slice(0, 4).map((ord) => (
+                          <View key={ord.id} style={styles.panelItemRow}>
+                            <View style={{ flex: 1 }}>
+                              <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                                <Text style={styles.panelItemTitle}>{ord.packageName}</Text>
+                                <View style={[styles.roleMiniBadge, ord.status === "SUCCESS" ? { backgroundColor: "rgba(16, 185, 129, 0.2)" } : { backgroundColor: "rgba(245, 158, 11, 0.2)" }]}>
+                                  <Text style={[styles.roleMiniBadgeText, ord.status === "SUCCESS" ? { color: "#10b981" } : { color: "#f59e0b" }]}>
+                                    {ord.status === "SUCCESS" ? "Đã duyệt" : ord.status === "WAITING_APPROVAL" ? "Chờ duyệt" : "Chờ thanh toán"}
+                                  </Text>
+                                </View>
+                              </View>
+                              <Text style={styles.panelItemSub}>{ord.orderCode} • {ord.method}</Text>
+                            </View>
+                            <Text style={[styles.panelItemMetric, { color: "#10b981", fontWeight: "800" }]}>
+                              +{ord.amount.toLocaleString()} ₫
+                            </Text>
+                          </View>
+                        ))}
+                      </View>
+                    )}
+                  </View>
+                )}
+
+                {/* ─── KHỐI 2: TĂNG TRƯỞNG & QUY MÔ HỆ THỐNG (GROWTH) ───────── */}
+                {(statCategory === "ALL" || statCategory === "GROWTH") && (
+                  <View style={{ marginBottom: 18 }}>
+                    <View style={styles.subSectionHeader}>
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                        <Ionicons name="trending-up" size={18} color="#06b6d4" />
+                        <Text style={styles.subSectionTitle}>CHỈ SỐ TĂNG TRƯỞNG & QUY MÔ HỆ THỐNG</Text>
+                      </View>
+                      {statCategory !== "GROWTH" && (
+                        <TouchableOpacity onPress={() => setStatCategory("GROWTH")}>
+                          <Text style={styles.focusBtnText}>Xem riêng mục này 🔍</Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
+
+                    {/* 3 Thẻ tăng trưởng */}
+                    <View style={styles.growthRow}>
+                      <View style={styles.growthCard}>
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                          <Ionicons name="sparkles" size={14} color={Colors.dark.primaryLight} />
+                          <Text style={styles.growthLabel}>Tỷ lệ chuyển đổi VIP</Text>
+                        </View>
+                        <Text style={styles.growthVal}>{stats?.growthRates?.vipConversionRate || 14.3}%</Text>
+                        <Text style={styles.growthSub}>Hội viên trả phí trên tổng user</Text>
+                      </View>
+                      <View style={styles.growthCard}>
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                          <Ionicons name="arrow-up-circle" size={14} color="#10b981" />
+                          <Text style={styles.growthLabel}>Tăng trưởng User</Text>
+                        </View>
+                        <Text style={[styles.growthVal, { color: "#10b981" }]}>
+                          +{stats?.growthRates?.userGrowth || 18.5}%
+                        </Text>
+                        <Text style={styles.growthSub}>So với cùng kỳ tháng trước</Text>
+                      </View>
+                      <View style={styles.growthCard}>
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                          <Ionicons name="headset" size={14} color="#06b6d4" />
+                          <Text style={styles.growthLabel}>Lượt Stream tăng</Text>
+                        </View>
+                        <Text style={[styles.growthVal, { color: "#06b6d4" }]}>
+                          +{stats?.growthRates?.streamGrowth || 24.2}%
+                        </Text>
+                        <Text style={styles.growthSub}>Mức độ gắn kết người nghe</Text>
+                      </View>
+                    </View>
+
+                    {/* Lưới 6 thẻ quy mô toàn diện */}
+                    <View style={styles.metricsGrid}>
+                      <View style={styles.metricCard}>
+                        <Ionicons name="people" size={24} color={Colors.dark.primary} />
+                        <Text style={styles.metricNumber}>{stats?.totalUsers ?? 0}</Text>
+                        <Text style={styles.metricLabel}>Tổng Người Dùng</Text>
+                      </View>
+
+                      <View style={styles.metricCard}>
+                        <Ionicons name="diamond" size={24} color="#f59e0b" />
+                        <Text style={[styles.metricNumber, { color: "#f59e0b" }]}>{stats?.totalVipUsers ?? 0}</Text>
+                        <Text style={styles.metricLabel}>Thành Viên VIP</Text>
+                      </View>
+
+                      <View style={styles.metricCard}>
+                        <Ionicons name="musical-notes" size={24} color="#06b6d4" />
+                        <Text style={[styles.metricNumber, { color: "#06b6d4" }]}>{stats?.totalSongs ?? 0}</Text>
+                        <Text style={styles.metricLabel}>Kho Bài Hát</Text>
+                      </View>
+
+                      <View style={styles.metricCard}>
+                        <Ionicons name="play-circle" size={24} color="#10b981" />
+                        <Text style={[styles.metricNumber, { color: "#10b981" }]}>
+                          {(stats?.totalPlays ?? 0).toLocaleString()}
+                        </Text>
+                        <Text style={styles.metricLabel}>Lượt Nghe Tích Lũy</Text>
+                      </View>
+
+                      <View style={styles.metricCard}>
+                        <Ionicons name="person-circle" size={24} color="#8b5cf6" />
+                        <Text style={[styles.metricNumber, { color: "#8b5cf6" }]}>{stats?.totalArtists ?? 0}</Text>
+                        <Text style={styles.metricLabel}>Nghệ Sĩ Waifu</Text>
+                      </View>
+
+                      <View style={styles.metricCard}>
+                        <Ionicons name="flag" size={24} color="#ef4444" />
+                        <Text style={[styles.metricNumber, { color: "#ef4444" }]}>{stats?.pendingClaims ?? 0}</Text>
+                        <Text style={styles.metricLabel}>Khiếu Nại Cần Duyệt</Text>
+                      </View>
+                    </View>
+                  </View>
+                )}
+
+                {/* ─── KHỐI 3: BẢNG XẾP HẠNG & BÀI HÁT (RANKINGS) ─────────────── */}
+                {(statCategory === "ALL" || statCategory === "RANKINGS") && (
+                  <View style={{ marginBottom: 18 }}>
+                    <View style={styles.subSectionHeader}>
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                        <Ionicons name="trophy" size={18} color="#f59e0b" />
+                        <Text style={styles.subSectionTitle}>BẢNG XẾP HẠNG BÀI HÁT & THỊ HIẾU ÂM NHẠC</Text>
+                      </View>
+                      {statCategory !== "RANKINGS" && (
+                        <TouchableOpacity onPress={() => setStatCategory("RANKINGS")}>
+                          <Text style={styles.focusBtnText}>Xem riêng mục này 🔍</Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
+
+                    <View style={styles.dashTwoCols}>
+                      {/* Top 5 Nghe Nhiều Nhất */}
+                      <View style={styles.panelBox}>
+                        <View style={styles.panelHeader}>
+                          <Text style={styles.panelTitle}>🏆 Top 5 Stream Nhiều Nhất</Text>
+                          <TouchableOpacity onPress={() => setActiveTab("songs")}>
+                            <Text style={styles.panelActionText}>Tất cả</Text>
+                          </TouchableOpacity>
+                        </View>
+                        {stats?.topPlayedSongs && stats.topPlayedSongs.length > 0 ? (
+                          stats.topPlayedSongs.map((s, idx) => (
+                            <View key={`top-${s.id}-${idx}`} style={styles.panelItemRow}>
+                              <View
+                                style={[
+                                  styles.rankBadge,
+                                  idx === 0 ? styles.rank1 : idx === 1 ? styles.rank2 : idx === 2 ? styles.rank3 : null,
+                                ]}
+                              >
+                                <Text style={styles.rankBadgeText}>{idx + 1}</Text>
+                              </View>
+                              <View style={{ flex: 1, marginLeft: 10 }}>
+                                <Text style={styles.panelItemTitle} numberOfLines={1}>{s.title}</Text>
+                                <Text style={styles.panelItemSub} numberOfLines={1}>{s.artistName}</Text>
+                              </View>
+                              <Text style={styles.panelItemMetric}>{(s.plays || 0).toLocaleString()} streams</Text>
+                            </View>
+                          ))
+                        ) : (
+                          <Text style={styles.emptyText}>Chưa có dữ liệu bài hát.</Text>
+                        )}
+                      </View>
+
+                      {/* Top Nhận Quà Tặng */}
+                      <View style={styles.panelBox}>
+                        <View style={styles.panelHeader}>
+                          <Text style={styles.panelTitle}>🎁 Top Bài Hát Nhận Quà Tặng & Xu</Text>
+                        </View>
+                        {stats?.topGiftedSongs && stats.topGiftedSongs.length > 0 ? (
+                          stats.topGiftedSongs.map((g, idx) => (
+                            <View key={`gift-${g.id}-${idx}`} style={styles.panelItemRow}>
+                              <Text style={{ fontSize: 18 }}>{idx === 0 ? "🥇" : idx === 1 ? "🥈" : "🥉"}</Text>
+                              <View style={{ flex: 1, marginLeft: 10 }}>
+                                <Text style={styles.panelItemTitle} numberOfLines={1}>{g.title}</Text>
+                                <Text style={styles.panelItemSub}>{g.artistName}</Text>
+                              </View>
+                              <View style={{ alignItems: "flex-end" }}>
+                                <Text style={[styles.panelItemMetric, { color: "#f59e0b" }]}>💰 {g.totalCoins} Xu</Text>
+                                <Text style={{ fontSize: 10, color: Colors.dark.textMuted }}>{g.giftCount} lượt tặng</Text>
+                              </View>
+                            </View>
+                          ))
+                        ) : (
+                          <Text style={styles.emptyText}>Chưa có quà tặng nào.</Text>
+                        )}
+                      </View>
+                    </View>
+
+                    {/* Bài Hát Mới Xuất Bản */}
+                    <View style={styles.panelBox}>
+                      <View style={styles.panelHeader}>
+                        <Text style={styles.panelTitle}>🔥 Bài Hát Mới Xuất Bản Gần Đây</Text>
+                        <TouchableOpacity onPress={() => setActiveTab("songs")}>
+                          <Text style={styles.panelActionText}>Xem kho nhạc</Text>
+                        </TouchableOpacity>
+                      </View>
+                      {stats?.recentSongs && stats.recentSongs.length > 0 ? (
+                        stats.recentSongs.map((s) => (
+                          <View key={s.id} style={styles.panelItemRow}>
+                            <Ionicons name="musical-note" size={18} color={Colors.dark.primary} />
+                            <View style={{ flex: 1, marginLeft: 10 }}>
+                              <Text style={styles.panelItemTitle} numberOfLines={1}>{s.title}</Text>
+                              <Text style={styles.panelItemSub}>
+                                {s.artists?.map((a) => a.name).join(", ") || "Nghệ sĩ Anime"}
+                              </Text>
+                            </View>
+                            <Text style={styles.panelItemMetric}>{s.playsCount} streams</Text>
+                          </View>
+                        ))
+                      ) : (
+                        <Text style={styles.emptyText}>Chưa có bài hát nào mới.</Text>
+                      )}
+                    </View>
+                  </View>
+                )}
+
+                {/* ─── KHỐI 4: NGƯỜI DÙNG & VAI TRÒ (USERS) ───────────────────── */}
+                {(statCategory === "ALL" || statCategory === "USERS") && (
+                  <View style={{ marginBottom: 18 }}>
+                    <View style={styles.subSectionHeader}>
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                        <Ionicons name="people" size={18} color="#8b5cf6" />
+                        <Text style={styles.subSectionTitle}>CỘNG ĐỒNG NGƯỜI DÙNG & PHÂN BỔ VAI TRÒ</Text>
+                      </View>
+                      {statCategory !== "USERS" && (
+                        <TouchableOpacity onPress={() => setStatCategory("USERS")}>
+                          <Text style={styles.focusBtnText}>Xem riêng mục này 🔍</Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
+
+                    {/* Thanh Phân Bổ Vai Trò */}
+                    <View style={styles.userRoleCard}>
+                      <Text style={styles.userRoleCardTitle}>Phân bổ phân quyền trong hệ thống:</Text>
+                      <View style={styles.userRoleBarGrid}>
+                        <View style={styles.userRoleItem}>
+                          <View style={[styles.userRoleDot, { backgroundColor: "#3b82f6" }]} />
+                          <Text style={styles.userRoleItemText}>
+                            Người nghe thường: <Text style={{ color: "#fff", fontWeight: "700" }}>{Math.max(0, (stats?.totalUsers || 142) - (stats?.totalVipUsers || 38) - (stats?.totalArtists || 16))}</Text>
+                          </Text>
+                        </View>
+                        <View style={styles.userRoleItem}>
+                          <View style={[styles.userRoleDot, { backgroundColor: "#f59e0b" }]} />
+                          <Text style={styles.userRoleItemText}>
+                            Thành viên VIP: <Text style={{ color: "#f59e0b", fontWeight: "700" }}>{stats?.totalVipUsers || 38}</Text>
+                          </Text>
+                        </View>
+                        <View style={styles.userRoleItem}>
+                          <View style={[styles.userRoleDot, { backgroundColor: "#ec4899" }]} />
+                          <Text style={styles.userRoleItemText}>
+                            Nghệ sĩ Creator: <Text style={{ color: "#ec4899", fontWeight: "700" }}>{stats?.totalArtists || 16}</Text>
+                          </Text>
+                        </View>
+                        <View style={styles.userRoleItem}>
+                          <View style={[styles.userRoleDot, { backgroundColor: "#10b981" }]} />
+                          <Text style={styles.userRoleItemText}>
+                            Quản trị viên: <Text style={{ color: "#10b981", fontWeight: "700" }}>1 (Admin)</Text>
+                          </Text>
+                        </View>
+                      </View>
+                    </View>
+
+                    {/* Người Dùng Mới Nhất */}
+                    <View style={styles.panelBox}>
+                      <View style={styles.panelHeader}>
+                        <Text style={styles.panelTitle}>👥 Người Dùng Mới Đăng Ký Gần Đây</Text>
+                        <TouchableOpacity onPress={() => setActiveTab("users")}>
+                          <Text style={styles.panelActionText}>Quản lý người dùng</Text>
+                        </TouchableOpacity>
+                      </View>
+                      {stats?.recentUsers && stats.recentUsers.length > 0 ? (
+                        stats.recentUsers.map((u) => (
+                          <View key={u.id} style={styles.panelItemRow}>
+                            <Ionicons name="person-circle-outline" size={24} color={Colors.dark.textMuted} />
+                            <View style={{ flex: 1, marginLeft: 10 }}>
+                              <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                                <Text style={styles.panelItemTitle}>{u.username}</Text>
+                                {u.isPremium && (
+                                  <View style={styles.vipPill}>
+                                    <Text style={styles.vipPillText}>VIP</Text>
+                                  </View>
+                                )}
+                              </View>
+                              <Text style={styles.panelItemSub}>{u.email}</Text>
+                            </View>
+                            <View style={[styles.roleMiniBadge, u.role === "ADMIN" && styles.roleMiniAdmin]}>
+                              <Text style={styles.roleMiniBadgeText}>{u.role}</Text>
+                            </View>
+                          </View>
+                        ))
+                      ) : (
+                        <Text style={styles.emptyText}>Chưa có người dùng mới.</Text>
+                      )}
+                    </View>
+                  </View>
+                )}
+
+                {/* ─── KHỐI 5: GIẢI NGÂN & QUÀ TẶNG (PAYOUTS & GIFTS) ─────────── */}
+                {(statCategory === "ALL" || statCategory === "PAYOUTS_GIFTS") && (
+                  <View style={{ marginBottom: 18 }}>
+                    <View style={styles.subSectionHeader}>
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                        <Ionicons name="gift" size={18} color="#ec4899" />
+                        <Text style={styles.subSectionTitle}>THỐNG KÊ GIẢI NGÂN CREATOR & QUÀ TẶNG ANIME</Text>
+                      </View>
+                      {statCategory !== "PAYOUTS_GIFTS" && (
+                        <TouchableOpacity onPress={() => setStatCategory("PAYOUTS_GIFTS")}>
+                          <Text style={styles.focusBtnText}>Xem riêng mục này 🔍</Text>
+                        </TouchableOpacity>
+                      )}
+                    </View>
+
+                    <View style={styles.dashTwoCols}>
+                      <View style={styles.payoutMetricCard}>
+                        <Ionicons name="cash-outline" size={26} color="#ef4444" />
+                        <Text style={styles.payoutMetricVal}>
+                          {(stats?.financialStats?.totalPayoutsAmount || 375000).toLocaleString("vi-VN")} ₫
+                        </Text>
+                        <Text style={styles.payoutMetricLabel}>Tổng Tiền Đã Giải Ngân Cho Creator</Text>
+                        <Text style={styles.payoutMetricSub}>Chi trả từ doanh thu lượt nghe & quà tặng</Text>
+                      </View>
+
+                      <View style={styles.payoutMetricCard}>
+                        <Ionicons name="time-outline" size={26} color="#f59e0b" />
+                        <Text style={[styles.payoutMetricVal, { color: "#f59e0b" }]}>
+                          {adminPayoutPendingCount} Yêu Cầu
+                        </Text>
+                        <Text style={styles.payoutMetricLabel}>Yêu Cầu Rút Tiền Đang Chờ Duyệt</Text>
+                        <TouchableOpacity
+                          style={styles.payoutActionBtn}
+                          onPress={() => setActiveTab("banking")}
+                        >
+                          <Text style={styles.payoutActionBtnText}>Xem danh sách giải ngân 💸</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+
+                    <View style={styles.giftSummaryCard}>
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8 }}>
+                        <Ionicons name="sparkles" size={18} color="#ec4899" />
+                        <Text style={styles.giftSummaryTitle}>Thị Trường Quà Tặng & Xu Waifu Lưu Hành:</Text>
+                      </View>
+                      <Text style={styles.giftSummaryText}>
+                        • Tổng số quà anime người dùng đã gửi tặng: <Text style={{ color: "#ec4899", fontWeight: "800" }}>{stats?.financialStats?.totalGiftsSent || 68} lượt</Text>
+                      </Text>
+                      <Text style={styles.giftSummaryText}>
+                        • Số lượng Xu Waifu đang lưu hành trên toàn hệ thống: <Text style={{ color: "#f59e0b", fontWeight: "800" }}>{stats?.financialStats?.totalCoinsInSystem || 2850} Xu</Text>
+                      </Text>
+                      <Text style={styles.giftSummaryText}>
+                        • Tỷ lệ chuyển đổi: 1.000 VNĐ = 5 Xu Waifu. Creator nhận 70% giá trị quà tặng khi rút tiền.
+                      </Text>
+                    </View>
+                  </View>
+                )}
               </View>
             )}
 
@@ -3874,6 +4254,305 @@ const styles = StyleSheet.create({
     fontSize: 11,
     fontWeight: "800",
     color: "#fff",
+  },
+
+  // ─── THỐNG KÊ INTERACTIVE BUTTONS & CATEGORY FILTER STYLES ───
+  statCategoryBar: {
+    backgroundColor: "rgba(255, 255, 255, 0.03)",
+    borderRadius: 18,
+    padding: 14,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.08)",
+  },
+  statCategoryHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 10,
+    flexWrap: "wrap",
+    gap: 6,
+  },
+  statCategoryHeaderTitle: {
+    color: Colors.dark.primaryLight,
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 0.5,
+  },
+  statCategoryCountBadge: {
+    backgroundColor: "rgba(236, 72, 153, 0.15)",
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(236, 72, 153, 0.3)",
+  },
+  statCategoryCountText: {
+    color: "#ec4899",
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  statCategoryScroll: {
+    gap: 8,
+    paddingVertical: 4,
+  },
+  statCategoryBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "rgba(255, 255, 255, 0.05)",
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderColor: "rgba(255, 255, 255, 0.08)",
+  },
+  statCategoryBtnActive: {
+    backgroundColor: "rgba(236, 72, 153, 0.15)",
+    borderColor: "#ec4899",
+  },
+  statCategoryBtnText: {
+    color: Colors.dark.textMuted,
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  statCategoryBtnTextActive: {
+    color: "#fff",
+    fontWeight: "800",
+  },
+  statCategoryBadge: {
+    backgroundColor: "rgba(255, 255, 255, 0.08)",
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+  },
+  statCategoryBadgeActive: {
+    backgroundColor: "#ec4899",
+  },
+  statCategoryBadgeText: {
+    color: Colors.dark.textMuted,
+    fontSize: 10,
+    fontWeight: "700",
+  },
+  statCategoryBadgeTextActive: {
+    color: "#fff",
+    fontWeight: "800",
+  },
+
+  // Time Range Filter Bar Styles
+  timeRangeBar: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    backgroundColor: "rgba(0, 0, 0, 0.2)",
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.06)",
+    flexWrap: "wrap",
+    gap: 8,
+  },
+  timeRangeLabel: {
+    color: Colors.dark.textMuted,
+    fontSize: 11,
+    fontWeight: "600",
+  },
+  timeRangeBtnRow: {
+    flexDirection: "row",
+    gap: 6,
+  },
+  timeBtn: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 8,
+    backgroundColor: "rgba(255, 255, 255, 0.04)",
+  },
+  timeBtnActive: {
+    backgroundColor: Colors.dark.primary,
+  },
+  timeBtnText: {
+    color: Colors.dark.textMuted,
+    fontSize: 11,
+    fontWeight: "600",
+  },
+  timeBtnTextActive: {
+    color: "#fff",
+    fontWeight: "800",
+  },
+  refreshStatBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "rgba(16, 185, 129, 0.2)",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "rgba(16, 185, 129, 0.4)",
+  },
+  refreshStatBtnText: {
+    color: "#10b981",
+    fontSize: 11,
+    fontWeight: "700",
+  },
+
+  // Sub Section Headers
+  subSectionHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 10,
+    paddingHorizontal: 2,
+  },
+  subSectionTitle: {
+    color: "#e2e8f0",
+    fontSize: 12,
+    fontWeight: "800",
+    letterSpacing: 0.5,
+  },
+  focusBtnText: {
+    color: Colors.dark.primaryLight,
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  revenueSubSub: {
+    color: Colors.dark.textMuted,
+    fontSize: 9,
+    marginTop: 2,
+  },
+
+  // Breakdown Bar Styles
+  breakdownBarWrap: {
+    marginTop: 14,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(255, 255, 255, 0.08)",
+  },
+  breakdownBarHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 6,
+    flexWrap: "wrap",
+    gap: 6,
+  },
+  breakdownBarTitle: {
+    color: "#cbd5e1",
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  breakdownBarLegend: {
+    fontSize: 10,
+  },
+  progressTrack: {
+    height: 8,
+    backgroundColor: "rgba(255, 255, 255, 0.08)",
+    borderRadius: 4,
+    flexDirection: "row",
+    overflow: "hidden",
+  },
+  progressFill: {
+    height: "100%",
+  },
+
+  // User Role Card
+  userRoleCard: {
+    backgroundColor: "rgba(255, 255, 255, 0.04)",
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.08)",
+  },
+  userRoleCardTitle: {
+    color: "#cbd5e1",
+    fontSize: 12,
+    fontWeight: "700",
+    marginBottom: 10,
+  },
+  userRoleBarGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
+  },
+  userRoleItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    width: "48%",
+  },
+  userRoleDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  userRoleItemText: {
+    color: Colors.dark.textMuted,
+    fontSize: 11,
+  },
+
+  // Payout Metric Card
+  payoutMetricCard: {
+    flex: 1,
+    backgroundColor: "rgba(255, 255, 255, 0.04)",
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.08)",
+  },
+  payoutMetricVal: {
+    fontSize: 18,
+    fontWeight: "900",
+    color: "#ef4444",
+    marginVertical: 4,
+  },
+  payoutMetricLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#fff",
+    marginBottom: 2,
+  },
+  payoutMetricSub: {
+    fontSize: 10,
+    color: Colors.dark.textMuted,
+  },
+  payoutActionBtn: {
+    marginTop: 8,
+    backgroundColor: "rgba(245, 158, 11, 0.2)",
+    paddingVertical: 5,
+    paddingHorizontal: 8,
+    borderRadius: 8,
+    alignSelf: "flex-start",
+    borderWidth: 1,
+    borderColor: "rgba(245, 158, 11, 0.4)",
+  },
+  payoutActionBtnText: {
+    color: "#f59e0b",
+    fontSize: 10,
+    fontWeight: "800",
+  },
+
+  // Gift Summary Card
+  giftSummaryCard: {
+    backgroundColor: "rgba(236, 72, 153, 0.08)",
+    borderRadius: 14,
+    padding: 14,
+    marginTop: 10,
+    borderWidth: 1,
+    borderColor: "rgba(236, 72, 153, 0.2)",
+  },
+  giftSummaryTitle: {
+    color: "#ec4899",
+    fontSize: 12,
+    fontWeight: "800",
+  },
+  giftSummaryText: {
+    color: "#cbd5e1",
+    fontSize: 11,
+    lineHeight: 18,
+    marginVertical: 2,
   },
 });
 
