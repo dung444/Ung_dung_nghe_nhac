@@ -35,7 +35,7 @@ export default function TabsLayout() {
           options={{
             title: "Trang chủ",
             tabBarIcon: ({ color, focused }) => (
-              <Ionicons name={focused ? "home" : "home-outline"} size={22} color={color} />
+              <Ionicons name={focused ? "sparkles" : "sparkles-outline"} size={22} color={color} />
             ),
           }}
         />
@@ -44,7 +44,7 @@ export default function TabsLayout() {
           options={{
             title: "Khám phá",
             tabBarIcon: ({ color, focused }) => (
-              <Ionicons name={focused ? "compass" : "compass-outline"} size={22} color={color} />
+              <Ionicons name={focused ? "planet" : "planet-outline"} size={22} color={color} />
             ),
           }}
         />
@@ -53,7 +53,7 @@ export default function TabsLayout() {
           options={{
             title: "Thư viện",
             tabBarIcon: ({ color, focused }) => (
-              <Ionicons name={focused ? "library" : "library-outline"} size={22} color={color} />
+              <Ionicons name={focused ? "albums" : "albums-outline"} size={22} color={color} />
             ),
           }}
         />
@@ -62,7 +62,7 @@ export default function TabsLayout() {
           options={{
             title: "Waifu Hub",
             tabBarIcon: ({ color, focused }) => (
-              <Ionicons name={focused ? "sparkles" : "sparkles-outline"} size={22} color={color} />
+              <Ionicons name={focused ? "heart" : "heart-outline"} size={22} color={color} />
             ),
           }}
         />

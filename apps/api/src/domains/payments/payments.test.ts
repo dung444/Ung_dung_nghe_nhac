@@ -169,5 +169,59 @@ describe("Payments & VIP Subscription Endpoints", () => {
     expect(Array.isArray(res.body.data.transactions)).toBe(true);
     expect(res.body.data.totalRevenue).toBeGreaterThan(0);
   });
+
+  it("should get anime gift catalog and coin packages", async () => {
+    const res = await request(app).get("/api/v1/payments/gifts");
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(Array.isArray(res.body.data.gifts)).toBe(true);
+    expect(res.body.data.gifts.length).toBeGreaterThanOrEqual(6);
+    expect(Array.isArray(res.body.data.coinPackages)).toBe(true);
+  });
+
+  it("should check user coin balance and top up coins", async () => {
+    const balanceRes = await request(app)
+      .get("/api/v1/payments/coins/balance")
+      .set("Authorization", `Bearer ${userToken}`);
+
+    expect(balanceRes.status).toBe(200);
+    expect(balanceRes.body.data.coins).toBeGreaterThanOrEqual(100);
+
+    const topupRes = await request(app)
+      .post("/api/v1/payments/coins/topup")
+      .set("Authorization", `Bearer ${userToken}`)
+      .send({ packageId: "COIN_120" });
+
+    expect(topupRes.status).toBe(200);
+    expect(topupRes.body.success).toBe(true);
+    expect(topupRes.body.data.addedCoins).toBe(120);
+  });
+
+  it("should send anime gift to a song and update leaderboard", async () => {
+    const song = await prisma.song.findFirst();
+    if (song) {
+      const sendRes = await request(app)
+        .post("/api/v1/payments/gifts/send")
+        .set("Authorization", `Bearer ${userToken}`)
+        .send({
+          songId: song.id,
+          giftId: "heart",
+          count: 2,
+          message: "Bài hát anime quá đỉnh!",
+        });
+
+      expect(sendRes.status).toBe(200);
+      expect(sendRes.body.success).toBe(true);
+      expect(sendRes.body.data.gift.name).toBe("Trái Tim Waifu");
+      expect(sendRes.body.data.totalCoins).toBe(40); // 20 * 2
+    }
+
+    const leaderboardRes = await request(app).get("/api/v1/payments/gifts/leaderboard");
+    expect(leaderboardRes.status).toBe(200);
+    expect(leaderboardRes.body.success).toBe(true);
+    expect(Array.isArray(leaderboardRes.body.data)).toBe(true);
+    expect(leaderboardRes.body.data.length).toBeGreaterThan(0);
+    expect(leaderboardRes.body.data[0].rank).toBe(1);
+  });
 });
 

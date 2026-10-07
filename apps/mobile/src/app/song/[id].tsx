@@ -33,6 +33,7 @@ import Animated, {
 } from "react-native-reanimated";
 import type { Song, SongCopyright } from "@waifu-player/types";
 import { formatDuration } from "@waifu-player/utils";
+import { GiftModal } from "../../features/gifts/GiftModal";
 
 interface LyricLine {
   time: number; // seconds
@@ -83,6 +84,7 @@ export default function SongDetailScreen() {
   const [showVolumeBar, setShowVolumeBar] = useState(false);
   const [isLiked, setIsLiked] = useState(false);
   const [queueAdded, setQueueAdded] = useState(false);
+  const [showGiftModal, setShowGiftModal] = useState(false);
 
   // Synced Lyrics from Online API / Database
   const [lrcText, setLrcText] = useState<string | null>(null);
@@ -711,6 +713,10 @@ export default function SongDetailScreen() {
             />
           </TouchableOpacity>
 
+          <TouchableOpacity onPress={() => setShowGiftModal(true)} style={styles.giftIconBtn} activeOpacity={0.7}>
+            <Text style={{ fontSize: 24 }}>🎁</Text>
+          </TouchableOpacity>
+
           <TouchableOpacity onPress={toggleLike} style={styles.heartBtn} activeOpacity={0.7}>
             <Ionicons
               name={isLiked ? "heart" : "heart-outline"}
@@ -787,6 +793,17 @@ export default function SongDetailScreen() {
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.bottomUtilsRow}
         >
+          {/* Nút Tặng quà Anime */}
+          <TouchableOpacity
+            style={[styles.utilPill, { borderColor: "#f59e0b", backgroundColor: "rgba(245, 158, 11, 0.15)" }]}
+            onPress={() => setShowGiftModal(true)}
+          >
+            <Text style={{ fontSize: 16 }}>🎁</Text>
+            <Text style={[styles.utilPillText, { color: "#f59e0b", fontWeight: "800" }]}>
+              Tặng quà
+            </Text>
+          </TouchableOpacity>
+
           {/* WV Âm nhạc toggle pill */}
           <TouchableOpacity
             style={[styles.utilPill, showWaveform && styles.utilPillWave]}
@@ -1418,6 +1435,13 @@ export default function SongDetailScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Anime Gift Modal */}
+      <GiftModal
+        visible={showGiftModal}
+        song={currentSong}
+        onClose={() => setShowGiftModal(false)}
+      />
     </SafeAreaView>
   );
 }
@@ -1604,6 +1628,10 @@ const styles = StyleSheet.create({
   },
   speakerIconBtn: {
     padding: 8,
+    marginRight: 4,
+  },
+  giftIconBtn: {
+    padding: 6,
     marginRight: 4,
   },
   heartBtn: {

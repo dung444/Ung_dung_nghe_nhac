@@ -67,6 +67,13 @@ export const ENDPOINTS = {
   topup:         `${API_V1}/payments/topup`,
   buyVip:        `${API_V1}/payments/buy-vip`,
   paymentHistory:`${API_V1}/payments/history`,
+  // Gifts & Coins
+  gifts:              `${API_V1}/payments/gifts`,
+  giftLeaderboard:    `${API_V1}/payments/gifts/leaderboard`,
+  sendGift:           `${API_V1}/payments/gifts/send`,
+  coinBalance:        `${API_V1}/payments/coins/balance`,
+  coinTopup:          `${API_V1}/payments/coins/topup`,
+  songGiftStats:      (id: string) => `${API_V1}/payments/gifts/song/${id}`,
 } as const;
 
 

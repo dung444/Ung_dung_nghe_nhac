@@ -8,11 +8,17 @@ export const paymentsRouter = Router();
 paymentsRouter.get("/packages", ctrl.getPackages);
 paymentsRouter.get("/bank-config", ctrl.handleGetBankConfig);
 paymentsRouter.post("/generate-qr", ctrl.handleGenerateQr);
+paymentsRouter.get("/gifts", ctrl.handleGetGiftCatalog);
+paymentsRouter.get("/gifts/leaderboard", ctrl.handleGetGiftLeaderboard);
+paymentsRouter.get("/gifts/song/:songId", ctrl.handleGetSongGiftStats);
 
 // Authenticated user routes
 paymentsRouter.post("/topup", authenticate, ctrl.handleTopup);
 paymentsRouter.post("/buy-vip", authenticate, ctrl.handleBuyVip);
 paymentsRouter.get("/history", authenticate, ctrl.getHistory);
+paymentsRouter.get("/coins/balance", authenticate, ctrl.handleGetUserCoins);
+paymentsRouter.post("/coins/topup", authenticate, ctrl.handleTopupCoins);
+paymentsRouter.post("/gifts/send", authenticate, ctrl.handleSendGift);
 
 // Admin-only routes
 paymentsRouter.put("/bank-config", authenticate, requireAdmin, ctrl.handleUpdateBankConfig);

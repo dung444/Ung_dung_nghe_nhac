@@ -106,6 +106,14 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
     sleepTimerEndTime: null,
 
     setCurrentSong: (song) => {
+      const { currentSong, isPlaying } = get();
+      // Nếu bài hát đang chọn chính là bài đang nghe: giữ nguyên tiến trình phát, không reset về 0
+      if (currentSong?.id === song.id) {
+        if (!isPlaying) {
+          get().setPlaying(true);
+        }
+        return;
+      }
       set({ currentSong: song, isPlaying: true, position: 0, duration: song.duration || 0 });
       playSongOnPlayer(song).catch(() => {});
       notifyPresenceAndRecordPlay(song);
@@ -113,6 +121,15 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
 
     setQueue: (songs, startIndex = 0) => {
       const startSong = songs[startIndex] ?? null;
+      const { currentSong, isPlaying } = get();
+      // Nếu bài bắt đầu chính là bài đang nghe: giữ nguyên tiến trình phát của bài, chỉ cập nhật hàng đợi
+      if (startSong && currentSong?.id === startSong.id) {
+        set({ queue: songs });
+        if (!isPlaying) {
+          get().setPlaying(true);
+        }
+        return;
+      }
       set({
         queue: songs,
         currentSong: startSong,

@@ -79,3 +79,58 @@ export const handleGetAllTransactions = async (_req: Request, res: Response, nex
   }
 };
 
+export const handleGetGiftCatalog = async (_req: Request, res: Response, next: NextFunction) => {
+  try {
+    const data = await svc.getGiftCatalog();
+    res.json({ success: true, data });
+  } catch (e) {
+    next(e);
+  }
+};
+
+export const handleGetUserCoins = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const coins = await svc.getUserCoins(req.user!.userId);
+    res.json({ success: true, data: { coins } });
+  } catch (e) {
+    next(e);
+  }
+};
+
+export const handleTopupCoins = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const data = await svc.topupCoins(req.user!.userId, req.body);
+    res.json({ success: true, data });
+  } catch (e) {
+    next(e);
+  }
+};
+
+export const handleSendGift = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const data = await svc.sendGiftToSong(req.user!.userId, req.body);
+    res.json({ success: true, data });
+  } catch (e) {
+    next(e);
+  }
+};
+
+export const handleGetGiftLeaderboard = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const limit = Number(req.query.limit) || 20;
+    const data = await svc.getGiftLeaderboard(limit);
+    res.json({ success: true, data });
+  } catch (e) {
+    next(e);
+  }
+};
+
+export const handleGetSongGiftStats = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const data = await svc.getSongGiftStats(req.params.songId);
+    res.json({ success: true, data });
+  } catch (e) {
+    next(e);
+  }
+};
+

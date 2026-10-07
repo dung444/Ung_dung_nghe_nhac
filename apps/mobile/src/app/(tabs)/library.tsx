@@ -16,26 +16,33 @@ import { Colors } from "../../constants/colors";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { api } from "../../services/api";
+import { ENDPOINTS } from "../../constants/api";
 import { useAuthStore } from "../../store/authStore";
 import { usePlayerStore } from "../../store/playerStore";
+import { useToastStore } from "../../store/toastStore";
 import { SongRow } from "../../features/songs/components/SongRow";
-import type { Playlist, Song, Room } from "@waifu-player/types";
+import { GiftModal } from "../../features/gifts/GiftModal";
+import type { Playlist, Song, Artist, Album } from "@waifu-player/types";
 
-const LIBRARY_TABS = ["Tất cả", "Playlists", "Yêu thích", "Lịch sử", "Phòng nghe"] as const;
+const LIBRARY_TABS = ["Bài hát", "Album", "Nghệ sĩ", "Playlist", "BXH Quà Tặng"] as const;
 type LibraryTab = (typeof LIBRARY_TABS)[number];
 
 export default function LibraryScreen() {
   const router = useRouter();
   const { isAuthenticated } = useAuthStore();
+  const { showSuccess, showWarning } = useToastStore();
   const { currentSong, isPlaying, setQueue, setCurrentSong, setPlaying } = usePlayerStore();
 
-  const [activeTab, setActiveTab] = useState<LibraryTab>("Tất cả");
+  const [activeTab, setActiveTab] = useState<LibraryTab>("Bài hát");
   const [loading, setLoading] = useState(false);
 
-  const [playlists, setPlaylists] = useState<Playlist[]>([]);
+  // Data states
   const [likedSongs, setLikedSongs] = useState<Song[]>([]);
   const [historySongs, setHistorySongs] = useState<Song[]>([]);
-  const [rooms, setRooms] = useState<Room[]>([]);
+  const [albums, setAlbums] = useState<any[]>([]);
+  const [artists, setArtists] = useState<any[]>([]);
+  const [playlists, setPlaylists] = useState<Playlist[]>([]);
+  const [leaderboard, setLeaderboard] = useState<any[]>([]);
 
   // Modals
   const [showCreatePlaylistModal, setShowCreatePlaylistModal] = useState(false);
@@ -43,30 +50,29 @@ export default function LibraryScreen() {
   const [newPlaylistDesc, setNewPlaylistDesc] = useState("");
   const [creatingPlaylist, setCreatingPlaylist] = useState(false);
 
-  const [showCreateRoomModal, setShowCreateRoomModal] = useState(false);
-  const [newRoomName, setNewRoomName] = useState("");
-  const [creatingRoom, setCreatingRoom] = useState(false);
+  // Gift Modal
+  const [showGiftModal, setShowGiftModal] = useState(false);
+  const [giftTargetSong, setGiftTargetSong] = useState<Song | null>(null);
 
   const loadData = async () => {
     setLoading(true);
     try {
-      // Fetch Playlists
+      // 1. Playlists
       api.get("/api/v1/playlists").then((res) => {
         if (res.data?.success && Array.isArray(res.data.data)) {
           setPlaylists(res.data.data);
         }
       }).catch(() => {});
 
-      // Fetch Liked songs
+      // 2. Liked songs
       api.get("/api/v1/users/me/liked").then((res) => {
         if (res.data?.success && Array.isArray(res.data.data)) {
-          // data can be array of LikedSong or Song
           const mapped = res.data.data.map((item: any) => item.song || item);
           setLikedSongs(mapped);
         }
       }).catch(() => {});
 
-      // Fetch History
+      // 3. History songs
       api.get("/api/v1/users/me/history").then((res) => {
         if (res.data?.success && Array.isArray(res.data.data)) {
           const mapped = res.data.data.map((item: any) => item.song || item);
@@ -74,10 +80,24 @@ export default function LibraryScreen() {
         }
       }).catch(() => {});
 
-      // Fetch Live Rooms
-      api.get("/api/v1/rooms").then((res) => {
+      // 4. Albums
+      api.get("/api/v1/albums").then((res) => {
         if (res.data?.success && Array.isArray(res.data.data)) {
-          setRooms(res.data.data);
+          setAlbums(res.data.data);
+        }
+      }).catch(() => {});
+
+      // 5. Artists
+      api.get("/api/v1/artists").then((res) => {
+        if (res.data?.success && Array.isArray(res.data.data)) {
+          setArtists(res.data.data);
+        }
+      }).catch(() => {});
+
+      // 6. Gift Leaderboard
+      api.get(ENDPOINTS.giftLeaderboard).then((res) => {
+        if (res.data?.success && Array.isArray(res.data.data)) {
+          setLeaderboard(res.data.data);
         }
       }).catch(() => {});
     } finally {
@@ -91,11 +111,7 @@ export default function LibraryScreen() {
 
   const handleCreatePlaylist = async () => {
     if (!newPlaylistName.trim()) {
-      try {
-        const { useToastStore } = require("../../store/toastStore");
-        useToastStore.getState().showWarning("Thiếu thông tin", "Vui lòng nhập tên danh sách phát!");
-      } catch {}
-      Alert.alert("Lỗi", "Vui lòng nhập tên danh sách phát!");
+      showWarning("Thiếu thông tin", "Vui lòng nhập tên danh sách phát!");
       return;
     }
     const plName = newPlaylistName.trim();
@@ -111,13 +127,9 @@ export default function LibraryScreen() {
         setShowCreatePlaylistModal(false);
         setNewPlaylistName("");
         setNewPlaylistDesc("");
-        try {
-          const { useToastStore } = require("../../store/toastStore");
-          useToastStore.getState().showSuccess("Tạo danh sách phát 🎵", `Đã tạo playlist "${plName}" thành công!`);
-        } catch {}
+        showSuccess("Tạo danh sách phát 🎵", `Đã tạo playlist "${plName}" thành công!`);
       }
-    } catch (err: any) {
-      // Mock creation if offline
+    } catch {
       const mockPlaylist: Playlist = {
         id: `pl-${Date.now()}`,
         name: plName,
@@ -133,108 +145,71 @@ export default function LibraryScreen() {
       setShowCreatePlaylistModal(false);
       setNewPlaylistName("");
       setNewPlaylistDesc("");
-      try {
-        const { useToastStore } = require("../../store/toastStore");
-        useToastStore.getState().showSuccess("Tạo danh sách phát 🎵", `Đã tạo playlist "${plName}" thành công!`);
-      } catch {}
+      showSuccess("Tạo danh sách phát 🎵", `Đã tạo playlist "${plName}" thành công!`);
     } finally {
       setCreatingPlaylist(false);
     }
   };
 
-  const handleCreateRoom = async () => {
-    if (!newRoomName.trim()) {
-      try {
-        const { useToastStore } = require("../../store/toastStore");
-        useToastStore.getState().showWarning("Thiếu thông tin", "Vui lòng nhập tên phòng nghe!");
-      } catch {}
-      Alert.alert("Lỗi", "Vui lòng nhập tên phòng nghe!");
-      return;
-    }
-    const rName = newRoomName.trim();
-    setCreatingRoom(true);
-    try {
-      const res = await api.post("/api/v1/rooms", {
-        name: rName,
-      });
-      if (res.data?.success) {
-        setShowCreateRoomModal(false);
-        setNewRoomName("");
-        try {
-          const { useToastStore } = require("../../store/toastStore");
-          useToastStore.getState().showSuccess("Tạo phòng nghe nhạc 🎧", `Phòng nghe "${rName}" đã sẵn sàng!`);
-        } catch {}
-        router.push(`/room/${res.data.data.id}` as any);
-      }
-    } catch {
-      setShowCreateRoomModal(false);
-      setNewRoomName("");
-      try {
-        const { useToastStore } = require("../../store/toastStore");
-        useToastStore.getState().showSuccess("Tạo phòng nghe nhạc 🎧", `Phòng nghe "${rName}" đã sẵn sàng!`);
-      } catch {}
-      router.push(`/room/room-demo` as any);
-    } finally {
-      setCreatingRoom(false);
-    }
-  };
-
-  const handlePlayLikedSongs = () => {
-    if (likedSongs.length === 0) {
-      try {
-        const { useToastStore } = require("../../store/toastStore");
-        useToastStore.getState().showInfo("Chưa có bài hát", "Danh sách bài hát yêu thích của bạn đang trống.");
-      } catch {}
-      Alert.alert("Thông báo", "Bạn chưa có bài hát yêu thích nào.");
-      return;
-    }
-    setQueue(likedSongs, 0);
-    try {
-      const { useToastStore } = require("../../store/toastStore");
-      useToastStore.getState().showSuccess("Phát yêu thích 💖", `Bắt đầu phát ${likedSongs.length} bài hát yêu thích.`);
-    } catch {}
-  };
-
   const handlePlaySong = (song: Song, index: number, songList: Song[]) => {
+    // Nếu bấm vào bài đang phát: không reset về đầu
     if (currentSong?.id === song.id) {
-      setPlaying(!isPlaying);
+      if (!isPlaying) {
+        setPlaying(true);
+      }
     } else {
       setQueue(songList, index);
       setCurrentSong(song);
     }
   };
 
+  const handleOpenGiftForSong = (song: Song) => {
+    setGiftTargetSong(song);
+    setShowGiftModal(true);
+  };
+
   return (
     <SafeAreaView style={styles.container} edges={["top"]}>
-      {/* Header */}
+      {/* Top Header */}
       <View style={styles.header}>
-        <Text style={styles.title}>Thư viện 📚</Text>
+        <View>
+          <Text style={styles.title}>Thư viện Anime 📚✨</Text>
+          <Text style={styles.subTitle}>Bộ sưu tập âm nhạc & thế giới thần tượng của bạn</Text>
+        </View>
         <View style={styles.headerActions}>
           <TouchableOpacity
-            style={styles.iconBtn}
-            onPress={() => setShowCreateRoomModal(true)}
-          >
-            <Ionicons name="radio-outline" size={24} color={Colors.dark.primaryLight} />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.iconBtn}
+            style={styles.headerBtn}
             onPress={() => setShowCreatePlaylistModal(true)}
+            activeOpacity={0.8}
           >
-            <Ionicons name="add" size={28} color={Colors.dark.primary} />
+            <Ionicons name="add-circle" size={28} color={Colors.dark.primary} />
           </TouchableOpacity>
         </View>
       </View>
 
-      {/* Filter Tabs */}
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabScroll}>
+      {/* 5 Filter Tabs with Anime Aesthetic */}
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabScroll} contentContainerStyle={styles.tabContent}>
         {LIBRARY_TABS.map((tab) => {
           const isSelected = activeTab === tab;
+          let iconName: any = "musical-note";
+          if (tab === "Album") iconName = "disc";
+          else if (tab === "Nghệ sĩ") iconName = "people";
+          else if (tab === "Playlist") iconName = "list";
+          else if (tab === "BXH Quà Tặng") iconName = "trophy";
+
           return (
             <TouchableOpacity
               key={tab}
               style={[styles.tabChip, isSelected && styles.tabChipActive]}
               onPress={() => setActiveTab(tab)}
+              activeOpacity={0.7}
             >
+              <Ionicons
+                name={iconName}
+                size={14}
+                color={isSelected ? "#fff" : Colors.dark.textMuted}
+                style={{ marginRight: 5 }}
+              />
               <Text style={[styles.tabChipText, isSelected && styles.tabChipTextActive]}>
                 {tab}
               </Text>
@@ -243,7 +218,7 @@ export default function LibraryScreen() {
         })}
       </ScrollView>
 
-      {loading && playlists.length === 0 ? (
+      {loading && likedSongs.length === 0 && playlists.length === 0 ? (
         <View style={styles.loadingBox}>
           <ActivityIndicator size="large" color={Colors.dark.primary} />
         </View>
@@ -252,179 +227,327 @@ export default function LibraryScreen() {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
-          {/* Liked Songs Featured Banner (shown in "Tất cả" & "Yêu thích") */}
-          {(activeTab === "Tất cả" || activeTab === "Yêu thích") && (
-            <TouchableOpacity
-              style={styles.likedBanner}
-              onPress={handlePlayLikedSongs}
-              activeOpacity={0.85}
-            >
-              <View style={styles.likedIconBox}>
-                <Ionicons name="heart" size={32} color="#fff" />
-              </View>
-              <View style={styles.likedInfo}>
-                <Text style={styles.likedTitle}>Bài Hát Đã Thích ❤️</Text>
-                <Text style={styles.likedSub}>
-                  {likedSongs.length > 0 ? `${likedSongs.length} bài hát anime yêu thích` : "Chưa có bài hát nào"}
-                </Text>
-              </View>
-              <Ionicons name="play-circle" size={38} color={Colors.dark.secondary} />
-            </TouchableOpacity>
-          )}
-
-          {/* Liked Songs List (when active tab is "Yêu thích") */}
-          {activeTab === "Yêu thích" && likedSongs.length > 0 && (
-            <View style={{ marginBottom: 24 }}>
-              {likedSongs.map((song, index) => (
-                <SongRow
-                  key={`liked-${song.id}-${index}`}
-                  song={song}
-                  isPlaying={currentSong?.id === song.id && isPlaying}
-                  onPress={() => handlePlaySong(song, index, likedSongs)}
-                />
-              ))}
-            </View>
-          )}
-
-          {/* Live Rooms Section (shown in "Tất cả" & "Phòng nghe") */}
-          {(activeTab === "Tất cả" || activeTab === "Phòng nghe") && (
-            <View style={styles.sectionContainer}>
-              <View style={styles.sectionHeaderRow}>
-                <Text style={styles.sectionTitle}>Phòng nghe nhạc chung (Live) 📡</Text>
-                <TouchableOpacity onPress={() => setShowCreateRoomModal(true)}>
-                  <Text style={styles.createLinkText}>+ Tạo phòng</Text>
-                </TouchableOpacity>
-              </View>
-              {rooms.length === 0 ? (
-                <View style={styles.emptyCard}>
-                  <Ionicons name="headset-outline" size={36} color={Colors.dark.textMuted} />
-                  <Text style={styles.emptyCardText}>Chưa có phòng nào đang mở.</Text>
-                  <TouchableOpacity
-                    style={styles.miniCreateBtn}
-                    onPress={() => setShowCreateRoomModal(true)}
-                  >
-                    <Text style={styles.miniCreateBtnText}>Tạo phòng nghe cùng bạn bè</Text>
-                  </TouchableOpacity>
+          {/* ═════════════════ TAB 1: BÀI HÁT ═════════════════ */}
+          {activeTab === "Bài hát" && (
+            <View>
+              {/* Liked Songs Hero Banner */}
+              <TouchableOpacity
+                style={styles.heroCard}
+                onPress={() => {
+                  if (likedSongs.length > 0) {
+                    setQueue(likedSongs, 0);
+                    showSuccess("Phát bài hát yêu thích 💖", `Bắt đầu phát ${likedSongs.length} bài hát anime.`);
+                  } else {
+                    showWarning("Chưa có bài hát", "Bạn chưa bấm thích bài hát nào.");
+                  }
+                }}
+                activeOpacity={0.85}
+              >
+                <View style={styles.heroIconBox}>
+                  <Ionicons name="heart" size={32} color="#fff" />
                 </View>
-              ) : (
-                rooms.map((room) => (
-                  <TouchableOpacity
-                    key={room.id}
-                    style={styles.roomCard}
-                    onPress={() => router.push(`/room/${room.id}` as any)}
-                  >
-                    <View style={styles.roomIconBox}>
-                      <Ionicons name="radio" size={24} color={Colors.dark.primary} />
-                    </View>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.roomName}>{room.name}</Text>
-                      <Text style={styles.roomSub}>
-                        Chủ phòng: {room.owner?.username || "Admin"} • {room.participants?.length || 1} người đang nghe
-                      </Text>
-                    </View>
-                    <Ionicons name="chevron-forward" size={20} color={Colors.dark.textMuted} />
-                  </TouchableOpacity>
-                ))
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.heroTitle}>Bài Hát Đã Thích 💖</Text>
+                  <Text style={styles.heroSub}>
+                    {likedSongs.length > 0
+                      ? `${likedSongs.length} bài hát trong danh sách yêu thích`
+                      : "Nhấn tim trên các bài hát để lưu vào đây"}
+                  </Text>
+                </View>
+                <Ionicons name="play-circle" size={42} color={Colors.dark.secondary} />
+              </TouchableOpacity>
+
+              {/* Liked Songs List */}
+              {likedSongs.length > 0 && (
+                <View style={styles.sectionWrap}>
+                  <Text style={styles.sectionTitle}>YÊU THÍCH GẦN ĐÂY 🌸 ({likedSongs.length})</Text>
+                  {likedSongs.map((song, idx) => (
+                    <SongRow
+                      key={`liked-${song.id}-${idx}`}
+                      song={song}
+                      isPlaying={currentSong?.id === song.id && isPlaying}
+                      onPress={() => handlePlaySong(song, idx, likedSongs)}
+                    />
+                  ))}
+                </View>
+              )}
+
+              {/* Listening History List */}
+              {historySongs.length > 0 && (
+                <View style={styles.sectionWrap}>
+                  <Text style={styles.sectionTitle}>LỊCH SỬ NGHE GẦN ĐÂY 🎧 ({historySongs.length})</Text>
+                  {historySongs.slice(0, 15).map((song, idx) => (
+                    <SongRow
+                      key={`history-${song.id}-${idx}`}
+                      song={song}
+                      isPlaying={currentSong?.id === song.id && isPlaying}
+                      onPress={() => handlePlaySong(song, idx, historySongs)}
+                    />
+                  ))}
+                </View>
+              )}
+
+              {likedSongs.length === 0 && historySongs.length === 0 && (
+                <View style={styles.emptyCard}>
+                  <Ionicons name="musical-notes-outline" size={48} color={Colors.dark.textMuted} />
+                  <Text style={styles.emptyTitle}>Thư viện bài hát đang trống</Text>
+                  <Text style={styles.emptySub}>Hãy khám phá trang chủ và bấm thích các giai điệu bạn yêu thích!</Text>
+                </View>
               )}
             </View>
           )}
 
-          {/* Playlists Section (shown in "Tất cả" & "Playlists") */}
-          {(activeTab === "Tất cả" || activeTab === "Playlists") && (
-            <View style={styles.sectionContainer}>
-              <View style={styles.sectionHeaderRow}>
-                <Text style={styles.sectionTitle}>Danh sách phát ({playlists.length})</Text>
-                <TouchableOpacity onPress={() => setShowCreatePlaylistModal(true)}>
-                  <Text style={styles.createLinkText}>+ Tạo mới</Text>
-                </TouchableOpacity>
-              </View>
+          {/* ═════════════════ TAB 2: ALBUM ═════════════════ */}
+          {activeTab === "Album" && (
+            <View>
+              <Text style={styles.sectionTitle}>ALBUM ANIME & VOCALOID TUYỂN CHỌN 💿</Text>
+              {albums.length === 0 ? (
+                <View style={styles.emptyCard}>
+                  <Ionicons name="disc-outline" size={48} color={Colors.dark.textMuted} />
+                  <Text style={styles.emptyTitle}>Chưa có Album nào</Text>
+                  <Text style={styles.emptySub}>Các album anime mới sẽ được cập nhật sớm nhất.</Text>
+                </View>
+              ) : (
+                <View style={styles.albumGrid}>
+                  {albums.map((album) => (
+                    <TouchableOpacity
+                      key={album.id}
+                      style={styles.albumCard}
+                      onPress={() => router.push(`/album/${album.id}` as any)}
+                      activeOpacity={0.8}
+                    >
+                      <Image
+                        source={{ uri: album.coverUrl || "https://images.unsplash.com/photo-1578632767115-351597cf2477?w=400&q=80" }}
+                        style={styles.albumCover}
+                      />
+                      <Text style={styles.albumTitle} numberOfLines={1}>
+                        {album.title}
+                      </Text>
+                      <Text style={styles.albumArtist} numberOfLines={1}>
+                        {album.artist?.name || "Nhiều nghệ sĩ"}
+                      </Text>
+                      {album._count?.songs !== undefined && (
+                        <Text style={styles.albumSongCount}>
+                          💿 {album._count.songs} bài hát
+                        </Text>
+                      )}
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+            </View>
+          )}
+
+          {/* ═════════════════ TAB 3: NGHỆ SĨ ═════════════════ */}
+          {activeTab === "Nghệ sĩ" && (
+            <View>
+              <Text style={styles.sectionTitle}>NGHỆ SĨ & CA SĨ THẦN TƯỢNG ANIME 🎤✨</Text>
+              {artists.length === 0 ? (
+                <View style={styles.emptyCard}>
+                  <Ionicons name="people-outline" size={48} color={Colors.dark.textMuted} />
+                  <Text style={styles.emptyTitle}>Chưa có nghệ sĩ nào</Text>
+                  <Text style={styles.emptySub}>Theo dõi thêm nghệ sĩ anime để hiển thị tại đây.</Text>
+                </View>
+              ) : (
+                <View style={styles.artistList}>
+                  {artists.map((artist) => (
+                    <TouchableOpacity
+                      key={artist.id}
+                      style={styles.artistRow}
+                      onPress={() => router.push(`/artist/${artist.id}` as any)}
+                      activeOpacity={0.7}
+                    >
+                      <Image
+                        source={{ uri: artist.avatarUrl || "https://images.unsplash.com/photo-1534447677768-be436bb09401?w=400&q=80" }}
+                        style={styles.artistAvatar}
+                      />
+                      <View style={{ flex: 1 }}>
+                        <View style={{ flexDirection: "row", alignItems: "center", gap: 5 }}>
+                          <Text style={styles.artistName} numberOfLines={1}>
+                            {artist.name}
+                          </Text>
+                          {artist.verified && (
+                            <Ionicons name="checkmark-circle" size={14} color={Colors.dark.primaryLight} />
+                          )}
+                        </View>
+                        <Text style={styles.artistBio} numberOfLines={1}>
+                          {artist.bio || "Nghệ sĩ sáng tác anime & Vocaloid"}
+                        </Text>
+                      </View>
+                      <Ionicons name="chevron-forward" size={18} color={Colors.dark.textMuted} />
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              )}
+            </View>
+          )}
+
+          {/* ═════════════════ TAB 4: PLAYLIST ═════════════════ */}
+          {activeTab === "Playlist" && (
+            <View>
+              <TouchableOpacity
+                style={styles.createPlBanner}
+                onPress={() => setShowCreatePlaylistModal(true)}
+                activeOpacity={0.8}
+              >
+                <View style={styles.createPlIcon}>
+                  <Ionicons name="add" size={28} color="#fff" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.createPlTitle}>Tạo Danh Sách Phát Mới ➕</Text>
+                  <Text style={styles.createPlSub}>Sưu tập danh sách bài hát anime theo gu riêng của bạn</Text>
+                </View>
+              </TouchableOpacity>
+
+              <Text style={styles.sectionTitle}>PLAYLIST CỦA BẠN ({playlists.length})</Text>
 
               {playlists.length === 0 ? (
                 <View style={styles.emptyCard}>
-                  <Ionicons name="musical-notes-outline" size={36} color={Colors.dark.textMuted} />
-                  <Text style={styles.emptyCardText}>Bạn chưa tạo danh sách phát nào.</Text>
-                  <TouchableOpacity
-                    style={styles.miniCreateBtn}
-                    onPress={() => setShowCreatePlaylistModal(true)}
-                  >
-                    <Text style={styles.miniCreateBtnText}>Tạo Playlist đầu tiên</Text>
-                  </TouchableOpacity>
+                  <Ionicons name="folder-open-outline" size={48} color={Colors.dark.textMuted} />
+                  <Text style={styles.emptyTitle}>Chưa có playlist nào</Text>
+                  <Text style={styles.emptySub}>Bấm vào nút trên để tạo danh sách phát đầu tiên!</Text>
                 </View>
               ) : (
-                playlists.map((pl) => (
-                  <TouchableOpacity
-                    key={pl.id}
-                    style={styles.playlistRow}
-                    onPress={() => router.push(`/playlist/${pl.id}` as any)}
-                  >
-                    {pl.coverUrl ? (
-                      <Image source={{ uri: pl.coverUrl }} style={styles.playlistCover} />
-                    ) : (
-                      <View style={[styles.playlistCover, styles.playlistCoverFallback]}>
-                        <Ionicons name="disc" size={28} color={Colors.dark.primary} />
+                <View style={styles.plList}>
+                  {playlists.map((pl) => (
+                    <TouchableOpacity
+                      key={pl.id}
+                      style={styles.plCard}
+                      onPress={() => router.push(`/playlist/${pl.id}` as any)}
+                      activeOpacity={0.7}
+                    >
+                      {pl.coverUrl ? (
+                        <Image source={{ uri: pl.coverUrl }} style={styles.plThumb} />
+                      ) : (
+                        <View style={[styles.plThumb, styles.plThumbFallback]}>
+                          <Ionicons name="musical-notes" size={24} color={Colors.dark.primary} />
+                        </View>
+                      )}
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.plName} numberOfLines={1}>
+                          {pl.name}
+                        </Text>
+                        <Text style={styles.plDesc} numberOfLines={1}>
+                          {pl.description || "Danh sách phát cá nhân"}
+                        </Text>
+                        <Text style={styles.plMeta}>
+                          {pl.songCount !== undefined ? `${pl.songCount} bài hát` : "Playlist"} · {pl.isPublic ? "Công khai 🌐" : "Riêng tư 🔒"}
+                        </Text>
                       </View>
-                    )}
-                    <View style={styles.playlistInfo}>
-                      <Text style={styles.playlistName} numberOfLines={1}>
-                        {pl.name}
-                      </Text>
-                      <Text style={styles.playlistSub}>
-                        {pl.songCount ?? pl.songs?.length ?? 0} bài hát • {pl.isPublic ? "Công khai" : "Riêng tư"}
-                      </Text>
-                    </View>
-                    <Ionicons name="chevron-forward" size={20} color={Colors.dark.textMuted} />
-                  </TouchableOpacity>
-                ))
+                      <Ionicons name="chevron-forward" size={18} color={Colors.dark.textMuted} />
+                    </TouchableOpacity>
+                  ))}
+                </View>
               )}
             </View>
           )}
 
-          {/* Listening History Section (shown in "Tất cả" & "Lịch sử") */}
-          {(activeTab === "Tất cả" || activeTab === "Lịch sử") && (
-            <View style={styles.sectionContainer}>
-              <View style={styles.sectionHeaderRow}>
-                <Text style={styles.sectionTitle}>Lịch sử nghe gần đây ⏱️</Text>
+          {/* ═════════════════ TAB 5: BẢNG XẾP HẠNG QUÀ TẶNG ═════════════════ */}
+          {activeTab === "BXH Quà Tặng" && (
+            <View>
+              <View style={styles.leaderboardHeaderCard}>
+                <Text style={styles.lbHeaderTitle}>BẢNG VÀNG QUÀ TẶNG ANIME 🏆👑</Text>
+                <Text style={styles.lbHeaderSub}>
+                  Top các bài hát nhận được nhiều yêu thương & xu quà tặng nhất từ cộng đồng Waifu Player!
+                </Text>
               </View>
-              {historySongs.length === 0 ? (
+
+              {leaderboard.length === 0 ? (
                 <View style={styles.emptyCard}>
-                  <Ionicons name="time-outline" size={36} color={Colors.dark.textMuted} />
-                  <Text style={styles.emptyCardText}>Chưa có lịch sử phát nhạc.</Text>
+                  <Ionicons name="gift-outline" size={48} color="#f59e0b" />
+                  <Text style={styles.emptyTitle}>Chưa có dữ liệu bảng xếp hạng</Text>
+                  <Text style={styles.emptySub}>Hãy là người đầu tiên tặng quà cho bài hát bạn yêu thích!</Text>
                 </View>
               ) : (
-                historySongs.slice(0, 10).map((song, index) => (
-                  <SongRow
-                    key={`hist-${song.id}-${index}`}
-                    song={song}
-                    isPlaying={currentSong?.id === song.id && isPlaying}
-                    onPress={() => handlePlaySong(song, index, historySongs)}
-                  />
-                ))
+                <View style={{ gap: 10, marginTop: 12 }}>
+                  {leaderboard.map((item, idx) => {
+                    const rank = idx + 1;
+                    let rankBadge = `${rank}`;
+                    let rankColor: string = Colors.dark.textMuted;
+                    if (rank === 1) { rankBadge = "🥇 1"; rankColor = "#f59e0b"; }
+                    else if (rank === 2) { rankBadge = "🥈 2"; rankColor = "#94a3b8"; }
+                    else if (rank === 3) { rankBadge = "🥉 3"; rankColor = "#d97706"; }
+
+                    return (
+                      <View key={item.id || idx} style={styles.lbRow}>
+                        {/* Rank Badge */}
+                        <View style={[styles.rankBadgeBox, rank <= 3 && styles.rankBadgeTop]}>
+                          <Text style={[styles.rankBadgeText, { color: rankColor }]}>{rankBadge}</Text>
+                        </View>
+
+                        {/* Song Cover */}
+                        <TouchableOpacity
+                          onPress={() => {
+                            if (currentSong?.id === item.id) {
+                              if (!isPlaying) setPlaying(true);
+                            } else {
+                              setCurrentSong(item as Song);
+                            }
+                          }}
+                          style={{ flexDirection: "row", alignItems: "center", flex: 1, gap: 10 }}
+                        >
+                          <Image
+                            source={{ uri: item.coverUrl || "https://images.unsplash.com/photo-1578632767115-351597cf2477?w=400&q=80" }}
+                            style={styles.lbCover}
+                          />
+                          <View style={{ flex: 1 }}>
+                            <Text style={styles.lbSongTitle} numberOfLines={1}>
+                              {item.title}
+                            </Text>
+                            <Text style={styles.lbArtistName} numberOfLines={1}>
+                              {item.artists?.map((a: any) => a.name).join(", ") || "Nghệ sĩ Waifu"}
+                            </Text>
+                            <View style={styles.lbGiftBadgeRow}>
+                              <Text style={styles.lbGiftText}>🪙 {item.totalCoins ?? 0} Xu</Text>
+                              <Text style={styles.lbGiftSub}>· {item.giftCount ?? 0} phần quà</Text>
+                            </View>
+                          </View>
+                        </TouchableOpacity>
+
+                        {/* Gift Button */}
+                        <TouchableOpacity
+                          style={styles.lbGiftBtn}
+                          onPress={() => handleOpenGiftForSong(item as Song)}
+                          activeOpacity={0.8}
+                        >
+                          <Text style={{ fontSize: 16 }}>🎁</Text>
+                          <Text style={styles.lbGiftBtnText}>Tặng</Text>
+                        </TouchableOpacity>
+                      </View>
+                    );
+                  })}
+                </View>
               )}
             </View>
           )}
         </ScrollView>
       )}
 
-      {/* Modal: Create Playlist */}
+      {/* Modal Tạo Playlist */}
       <Modal
         visible={showCreatePlaylistModal}
         transparent={true}
         animationType="fade"
         onRequestClose={() => setShowCreatePlaylistModal(false)}
       >
-        <View style={styles.modalBg}>
+        <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Tạo Danh Sách Phát Mới 🎵</Text>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Tạo Danh Sách Phát Mới 🎵</Text>
+              <TouchableOpacity onPress={() => setShowCreatePlaylistModal(false)}>
+                <Ionicons name="close" size={22} color={Colors.dark.textMuted} />
+              </TouchableOpacity>
+            </View>
             <TextInput
-              style={styles.modalInput}
-              placeholder="Tên danh sách phát (VD: Best Vocaloid 2026)"
+              style={styles.inputField}
+              placeholder="Tên playlist (VD: Anime Chill Beats)..."
               placeholderTextColor={Colors.dark.textMuted}
               value={newPlaylistName}
               onChangeText={setNewPlaylistName}
             />
             <TextInput
-              style={[styles.modalInput, { height: 70, textAlignVertical: "top" }]}
-              placeholder="Mô tả (tùy chọn)"
+              style={[styles.inputField, { height: 80 }]}
+              placeholder="Mô tả danh sách phát..."
               placeholderTextColor={Colors.dark.textMuted}
               value={newPlaylistDesc}
               onChangeText={setNewPlaylistDesc}
@@ -432,20 +555,20 @@ export default function LibraryScreen() {
             />
             <View style={styles.modalActions}>
               <TouchableOpacity
-                style={styles.modalCancelBtn}
+                style={styles.cancelBtn}
                 onPress={() => setShowCreatePlaylistModal(false)}
               >
-                <Text style={styles.modalCancelText}>Hủy</Text>
+                <Text style={styles.cancelBtnText}>Hủy</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={styles.modalConfirmBtn}
+                style={styles.createBtn}
                 onPress={handleCreatePlaylist}
                 disabled={creatingPlaylist}
               >
                 {creatingPlaylist ? (
                   <ActivityIndicator color="#fff" size="small" />
                 ) : (
-                  <Text style={styles.modalConfirmText}>Tạo</Text>
+                  <Text style={styles.createBtnText}>Tạo Playlist ✨</Text>
                 )}
               </TouchableOpacity>
             </View>
@@ -453,48 +576,15 @@ export default function LibraryScreen() {
         </View>
       </Modal>
 
-      {/* Modal: Create Room */}
-      <Modal
-        visible={showCreateRoomModal}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setShowCreateRoomModal(false)}
-      >
-        <View style={styles.modalBg}>
-          <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Tạo Phòng Nghe Trực Tuyến 📡</Text>
-            <Text style={styles.modalSubtitle}>
-              Cùng nghe nhạc đồng bộ thời gian thực với bạn bè qua kết nối phòng!
-            </Text>
-            <TextInput
-              style={styles.modalInput}
-              placeholder="Tên phòng (VD: Miku Waifu Lounge)"
-              placeholderTextColor={Colors.dark.textMuted}
-              value={newRoomName}
-              onChangeText={setNewRoomName}
-            />
-            <View style={styles.modalActions}>
-              <TouchableOpacity
-                style={styles.modalCancelBtn}
-                onPress={() => setShowCreateRoomModal(false)}
-              >
-                <Text style={styles.modalCancelText}>Hủy</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.modalConfirmBtn}
-                onPress={handleCreateRoom}
-                disabled={creatingRoom}
-              >
-                {creatingRoom ? (
-                  <ActivityIndicator color="#fff" size="small" />
-                ) : (
-                  <Text style={styles.modalConfirmText}>Mở phòng</Text>
-                )}
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
+      {/* Anime Gift Modal for Songs */}
+      <GiftModal
+        visible={showGiftModal}
+        song={giftTargetSong}
+        onClose={() => setShowGiftModal(false)}
+        onGiftSuccess={() => {
+          loadData();
+        }}
+      />
     </SafeAreaView>
   );
 }
@@ -509,40 +599,41 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 8,
+    paddingTop: 10,
+    paddingBottom: 6,
   },
   title: {
-    fontSize: 26,
+    fontSize: 22,
     fontWeight: "800",
     color: Colors.dark.text,
+  },
+  subTitle: {
+    fontSize: 11,
+    color: Colors.dark.textMuted,
+    marginTop: 2,
   },
   headerActions: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 8,
   },
-  iconBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: Colors.dark.surface,
-    alignItems: "center",
-    justifyContent: "center",
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
+  headerBtn: {
+    padding: 6,
   },
   tabScroll: {
-    paddingHorizontal: 16,
     paddingVertical: 10,
     maxHeight: 52,
   },
-  tabChip: {
+  tabContent: {
     paddingHorizontal: 16,
-    paddingVertical: 6,
+    gap: 8,
+  },
+  tabChip: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 14,
+    paddingVertical: 8,
     borderRadius: 20,
     backgroundColor: Colors.dark.surface,
-    marginRight: 8,
     borderWidth: 1,
     borderColor: Colors.dark.border,
   },
@@ -553,222 +644,369 @@ const styles = StyleSheet.create({
   tabChipText: {
     color: Colors.dark.textMuted,
     fontSize: 13,
-    fontWeight: "600",
+    fontWeight: "700",
   },
   tabChipTextActive: {
     color: "#fff",
   },
+  loadingBox: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
   scrollContent: {
     padding: 16,
-    paddingBottom: 110,
+    paddingBottom: 120,
   },
-  loadingBox: {
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: 60,
-  },
-  likedBanner: {
+  heroCard: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: Colors.dark.surface,
+    backgroundColor: "rgba(236, 72, 153, 0.15)",
+    borderRadius: 20,
     padding: 16,
-    borderRadius: 16,
-    marginBottom: 20,
     borderWidth: 1,
-    borderColor: Colors.dark.border,
+    borderColor: "rgba(236, 72, 153, 0.35)",
+    marginBottom: 20,
+    gap: 14,
   },
-  likedIconBox: {
-    width: 56,
-    height: 56,
-    borderRadius: 12,
+  heroIconBox: {
+    width: 52,
+    height: 52,
+    borderRadius: 16,
     backgroundColor: Colors.dark.secondary,
     alignItems: "center",
     justifyContent: "center",
-    marginRight: 14,
   },
-  likedInfo: {
-    flex: 1,
-  },
-  likedTitle: {
+  heroTitle: {
     fontSize: 16,
-    fontWeight: "700",
-    color: Colors.dark.text,
-    marginBottom: 4,
+    fontWeight: "800",
+    color: "#fff",
   },
-  likedSub: {
-    fontSize: 13,
+  heroSub: {
+    fontSize: 12,
     color: Colors.dark.textMuted,
+    marginTop: 3,
   },
-  sectionContainer: {
+  sectionWrap: {
     marginBottom: 24,
   },
-  sectionHeaderRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 12,
-  },
   sectionTitle: {
-    fontSize: 17,
-    fontWeight: "700",
-    color: Colors.dark.text,
-  },
-  createLinkText: {
+    fontSize: 12,
+    fontWeight: "800",
     color: Colors.dark.primaryLight,
-    fontSize: 13,
-    fontWeight: "600",
+    letterSpacing: 1,
+    marginBottom: 12,
   },
   emptyCard: {
     backgroundColor: Colors.dark.surface,
-    borderRadius: 14,
-    padding: 24,
+    borderRadius: 20,
+    padding: 32,
     alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: Colors.dark.border,
+    marginVertical: 10,
+  },
+  emptyTitle: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: Colors.dark.text,
+    marginTop: 12,
+  },
+  emptySub: {
+    fontSize: 12,
+    color: Colors.dark.textMuted,
+    textAlign: "center",
+    marginTop: 4,
+    lineHeight: 18,
+  },
+  // Album Grid
+  albumGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  albumCard: {
+    width: "48%",
+    backgroundColor: Colors.dark.surface,
+    borderRadius: 16,
+    padding: 10,
     borderWidth: 1,
     borderColor: Colors.dark.border,
   },
-  emptyCardText: {
+  albumCover: {
+    width: "100%",
+    aspectRatio: 1,
+    borderRadius: 12,
+    marginBottom: 8,
+  },
+  albumTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: Colors.dark.text,
+  },
+  albumArtist: {
+    fontSize: 12,
     color: Colors.dark.textMuted,
-    fontSize: 13,
-    marginTop: 8,
+    marginTop: 2,
+  },
+  albumSongCount: {
+    fontSize: 11,
+    color: Colors.dark.primaryLight,
+    fontWeight: "700",
+    marginTop: 4,
+  },
+  // Artist List
+  artistList: {
+    gap: 10,
+  },
+  artistRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: Colors.dark.surface,
+    borderRadius: 16,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: Colors.dark.border,
+    gap: 12,
+  },
+  artistAvatar: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    borderWidth: 1,
+    borderColor: Colors.dark.primary,
+  },
+  artistName: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: Colors.dark.text,
+  },
+  artistBio: {
+    fontSize: 12,
+    color: Colors.dark.textMuted,
+    marginTop: 2,
+  },
+  // Playlist
+  createPlBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(168, 85, 247, 0.15)",
+    borderRadius: 16,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: "rgba(168, 85, 247, 0.35)",
+    gap: 12,
+    marginBottom: 16,
+  },
+  createPlIcon: {
+    width: 42,
+    height: 42,
+    borderRadius: 12,
+    backgroundColor: "#a855f7",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  createPlTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#fff",
+  },
+  createPlSub: {
+    fontSize: 11,
+    color: Colors.dark.textMuted,
+    marginTop: 2,
+  },
+  plList: {
+    gap: 10,
+  },
+  plCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: Colors.dark.surface,
+    borderRadius: 16,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: Colors.dark.border,
+    gap: 12,
+  },
+  plThumb: {
+    width: 50,
+    height: 50,
+    borderRadius: 10,
+  },
+  plThumbFallback: {
+    backgroundColor: Colors.dark.card,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  plName: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: Colors.dark.text,
+  },
+  plDesc: {
+    fontSize: 12,
+    color: Colors.dark.textMuted,
+    marginTop: 2,
+  },
+  plMeta: {
+    fontSize: 11,
+    color: Colors.dark.primaryLight,
+    marginTop: 4,
+  },
+  // Leaderboard
+  leaderboardHeaderCard: {
+    backgroundColor: "rgba(245, 158, 11, 0.12)",
+    borderRadius: 18,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: "rgba(245, 158, 11, 0.3)",
     marginBottom: 12,
   },
-  miniCreateBtn: {
-    backgroundColor: Colors.dark.primary,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
+  lbHeaderTitle: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: "#f59e0b",
+    letterSpacing: 0.5,
   },
-  miniCreateBtnText: {
-    color: "#fff",
-    fontSize: 13,
-    fontWeight: "600",
-  },
-  roomCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: Colors.dark.surface,
-    padding: 14,
-    borderRadius: 12,
-    marginBottom: 10,
-    borderWidth: 1,
-    borderColor: Colors.dark.border,
-  },
-  roomIconBox: {
-    width: 44,
-    height: 44,
-    borderRadius: 10,
-    backgroundColor: Colors.dark.card,
-    alignItems: "center",
-    justifyContent: "center",
-    marginRight: 12,
-  },
-  roomName: {
-    color: Colors.dark.text,
-    fontSize: 15,
-    fontWeight: "600",
-    marginBottom: 2,
-  },
-  roomSub: {
-    color: Colors.dark.textMuted,
+  lbHeaderSub: {
     fontSize: 12,
+    color: Colors.dark.textMuted,
+    marginTop: 4,
+    lineHeight: 18,
   },
-  playlistRow: {
+  lbRow: {
     flexDirection: "row",
     alignItems: "center",
     backgroundColor: Colors.dark.surface,
+    borderRadius: 16,
     padding: 12,
-    borderRadius: 12,
-    marginBottom: 10,
     borderWidth: 1,
     borderColor: Colors.dark.border,
+    gap: 10,
   },
-  playlistCover: {
-    width: 52,
-    height: 52,
-    borderRadius: 10,
-    marginRight: 14,
-  },
-  playlistCoverFallback: {
-    backgroundColor: Colors.dark.card,
+  rankBadgeBox: {
+    width: 38,
     alignItems: "center",
     justifyContent: "center",
   },
-  playlistInfo: {
-    flex: 1,
+  rankBadgeTop: {
+    backgroundColor: "rgba(255, 255, 255, 0.05)",
+    paddingVertical: 4,
+    borderRadius: 8,
   },
-  playlistName: {
+  rankBadgeText: {
     fontSize: 15,
-    fontWeight: "600",
-    color: Colors.dark.text,
-    marginBottom: 4,
+    fontWeight: "800",
   },
-  playlistSub: {
+  lbCover: {
+    width: 46,
+    height: 46,
+    borderRadius: 10,
+  },
+  lbSongTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: Colors.dark.text,
+  },
+  lbArtistName: {
     fontSize: 12,
     color: Colors.dark.textMuted,
+    marginTop: 2,
   },
-  modalBg: {
+  lbGiftBadgeRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 4,
+    gap: 4,
+  },
+  lbGiftText: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: "#f59e0b",
+  },
+  lbGiftSub: {
+    fontSize: 11,
+    color: Colors.dark.textMuted,
+  },
+  lbGiftBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(245, 158, 11, 0.15)",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: "rgba(245, 158, 11, 0.4)",
+    gap: 4,
+  },
+  lbGiftBtnText: {
+    fontSize: 12,
+    fontWeight: "800",
+    color: "#f59e0b",
+  },
+  // Modal
+  modalOverlay: {
     flex: 1,
     backgroundColor: "rgba(0,0,0,0.75)",
     justifyContent: "center",
-    alignItems: "center",
     padding: 20,
   },
   modalCard: {
     backgroundColor: Colors.dark.surface,
     borderRadius: 20,
-    padding: 24,
-    width: "100%",
-    maxWidth: 380,
+    padding: 20,
     borderWidth: 1,
-    borderColor: Colors.dark.border,
+    borderColor: "rgba(255,255,255,0.1)",
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 16,
   },
   modalTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
+    fontSize: 16,
+    fontWeight: "700",
     color: Colors.dark.text,
-    marginBottom: 8,
   },
-  modalSubtitle: {
-    fontSize: 13,
-    color: Colors.dark.textMuted,
-    marginBottom: 16,
-    lineHeight: 18,
-  },
-  modalInput: {
+  inputField: {
     backgroundColor: Colors.dark.card,
-    borderRadius: 10,
-    padding: 12,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
     color: Colors.dark.text,
     fontSize: 14,
     borderWidth: 1,
     borderColor: Colors.dark.border,
-    marginBottom: 14,
+    marginBottom: 12,
   },
   modalActions: {
     flexDirection: "row",
     justifyContent: "flex-end",
-    gap: 12,
+    gap: 10,
     marginTop: 8,
   },
-  modalCancelBtn: {
-    paddingVertical: 10,
+  cancelBtn: {
     paddingHorizontal: 16,
-    borderRadius: 8,
+    paddingVertical: 10,
+    borderRadius: 12,
+    backgroundColor: Colors.dark.card,
   },
-  modalCancelText: {
+  cancelBtnText: {
     color: Colors.dark.textMuted,
     fontWeight: "600",
   },
-  modalConfirmBtn: {
-    backgroundColor: Colors.dark.primary,
+  createBtn: {
+    paddingHorizontal: 18,
     paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderRadius: 8,
-    minWidth: 70,
-    alignItems: "center",
+    borderRadius: 12,
+    backgroundColor: Colors.dark.primary,
   },
-  modalConfirmText: {
+  createBtnText: {
     color: "#fff",
-    fontWeight: "600",
+    fontWeight: "700",
   },
 });
