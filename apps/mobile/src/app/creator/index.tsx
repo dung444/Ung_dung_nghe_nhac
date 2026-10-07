@@ -229,14 +229,26 @@ export default function CreatorStudioScreen() {
   const handleRequestPayout = async () => {
     const amount = Number(payoutAmount);
     if (!amount || amount < 10000) {
+      try {
+        const { useToastStore } = require("../../store/toastStore");
+        useToastStore.getState().showError("Lỗi số tiền", "Số tiền yêu cầu rút tối thiểu là 10.000 VNĐ.");
+      } catch {}
       Alert.alert("Lỗi", "Số tiền yêu cầu rút tối thiểu là 10.000 VNĐ");
       return;
     }
     if (!payoutAccountNo.trim()) {
+      try {
+        const { useToastStore } = require("../../store/toastStore");
+        useToastStore.getState().showWarning("Thiếu thông tin", "Vui lòng nhập số tài khoản nhận tiền.");
+      } catch {}
       Alert.alert("Lỗi", "Vui lòng nhập số tài khoản nhận tiền");
       return;
     }
     if (!payoutAccountName.trim()) {
+      try {
+        const { useToastStore } = require("../../store/toastStore");
+        useToastStore.getState().showWarning("Thiếu thông tin", "Vui lòng nhập tên chủ tài khoản.");
+      } catch {}
       Alert.alert("Lỗi", "Vui lòng nhập tên chủ tài khoản");
       return;
     }
@@ -253,6 +265,13 @@ export default function CreatorStudioScreen() {
       });
 
       if (res.data?.success) {
+        try {
+          const { useToastStore } = require("../../store/toastStore");
+          useToastStore.getState().showSuccess(
+            "Yêu cầu rút tiền thành công! 💳",
+            `Đã gửi yêu cầu rút ${amount.toLocaleString("vi-VN")} đ tới Quản trị viên duyệt và giải ngân.`
+          );
+        } catch {}
         Alert.alert(
           "Gửi yêu cầu thành công! 💸",
           res.data.data?.message || "Yêu cầu rút tiền của bạn đã được gửi tới Quản trị viên để xét duyệt và giải ngân!"
@@ -261,7 +280,12 @@ export default function CreatorStudioScreen() {
         fetchStudioData();
       }
     } catch (err: any) {
-      Alert.alert("Lỗi", err.response?.data?.error || "Không thể gửi yêu cầu rút tiền");
+      const errMsg = err.response?.data?.error || "Không thể gửi yêu cầu rút tiền";
+      try {
+        const { useToastStore } = require("../../store/toastStore");
+        useToastStore.getState().showError("Lỗi rút tiền", errMsg);
+      } catch {}
+      Alert.alert("Lỗi", errMsg);
     } finally {
       setSubmittingPayout(false);
     }

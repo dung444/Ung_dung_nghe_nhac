@@ -36,6 +36,25 @@ api.interceptors.response.use(
         return Promise.reject(error);
       }
     }
+
+    // Global Network & Server Error Notifications
+    if (!error.response && (error.message === "Network Error" || error.code === "ERR_NETWORK")) {
+      try {
+        const { useToastStore } = require("../store/toastStore");
+        useToastStore.getState().showError("Mất kết nối máy chủ", "Không thể liên lạc tới máy chủ. Vui lòng kiểm tra kết nối mạng.");
+      } catch {}
+    } else if (error.response?.status === 403) {
+      try {
+        const { useToastStore } = require("../store/toastStore");
+        useToastStore.getState().showWarning("Từ chối quyền hạn", "Bạn không có quyền thực hiện thao tác này.");
+      } catch {}
+    } else if (error.response?.status >= 500) {
+      try {
+        const { useToastStore } = require("../store/toastStore");
+        useToastStore.getState().showError("Lỗi hệ thống", "Máy chủ phản hồi sự cố 500. Vui lòng thử lại sau.");
+      } catch {}
+    }
+
     return Promise.reject(error);
   }
 );

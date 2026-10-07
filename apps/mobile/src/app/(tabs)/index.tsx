@@ -103,6 +103,8 @@ const FEATURED_ARTISTS = [
 ];
 
 import { useAuthStore } from "../../store/authStore";
+import { useToastStore } from "../../store/toastStore";
+import { NotificationModal } from "../../components/ui/NotificationModal";
 
 const CATEGORIES = [
   "Tất cả",
@@ -122,7 +124,9 @@ export default function HomeScreen() {
   const router = useRouter();
   const [activeCategory, setActiveCategory] = useState("Tất cả");
   const [songs, setSongs] = useState<Song[]>(SAMPLE_ANIME_SONGS);
-  const [queueToastSong, setQueueToastSong] = useState<string | null>(null);
+  const [showNotificationModal, setShowNotificationModal] = useState(false);
+  const { history } = useToastStore();
+  const unreadCount = history.filter((h) => !h.read).length;
   const { currentSong, isPlaying, setCurrentSong, setQueue, setPlaying, addToQueue } = usePlayerStore();
   const { user, preferredGenres, preferredArtists } = useAuthStore();
 
@@ -151,8 +155,6 @@ export default function HomeScreen() {
   const handleAddToPlayLater = (song: Song, e?: any) => {
     e?.stopPropagation?.();
     addToQueue(song);
-    setQueueToastSong(song.title);
-    setTimeout(() => setQueueToastSong(null), 2500);
   };
 
   const vietSongs = songs.filter((s) => {
@@ -254,6 +256,18 @@ export default function HomeScreen() {
             </Text>
           </View>
           <View style={styles.headerRightActions}>
+            <TouchableOpacity
+              style={styles.actionIconButton}
+              onPress={() => setShowNotificationModal(true)}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="notifications-outline" size={20} color={Colors.dark.primary} />
+              {unreadCount > 0 && (
+                <View style={styles.unreadBadge}>
+                  <Text style={styles.unreadBadgeText}>{unreadCount > 9 ? "9+" : unreadCount}</Text>
+                </View>
+              )}
+            </TouchableOpacity>
             <TouchableOpacity
               style={styles.actionIconButton}
               onPress={() => router.push("/room/r1" as any)}
@@ -570,15 +584,10 @@ export default function HomeScreen() {
         })}
       </ScrollView>
 
-      {/* Floating Toast Notification for Add to Queue */}
-      {queueToastSong && (
-        <View style={styles.floatingQueueToast}>
-          <Ionicons name="checkmark-circle" size={18} color="#10b981" />
-          <Text style={styles.floatingQueueToastText} numberOfLines={1}>
-            Đã thêm vào phát sau: {queueToastSong}
-          </Text>
-        </View>
-      )}
+      <NotificationModal
+        visible={showNotificationModal}
+        onClose={() => setShowNotificationModal(false)}
+      />
     </SafeAreaView>
   );
 }
@@ -636,6 +645,26 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     borderWidth: 1,
     borderColor: Colors.dark.border,
+    position: "relative",
+  },
+  unreadBadge: {
+    position: "absolute",
+    top: -2,
+    right: -2,
+    backgroundColor: "#ef4444",
+    borderRadius: 8,
+    minWidth: 16,
+    height: 16,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: 3,
+    borderWidth: 1.5,
+    borderColor: Colors.dark.background,
+  },
+  unreadBadgeText: {
+    color: "#fff",
+    fontSize: 9,
+    fontWeight: "800",
   },
   bannerCard: {
     backgroundColor: Colors.dark.card,

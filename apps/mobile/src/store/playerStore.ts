@@ -131,19 +131,31 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
       } catch {}
     },
 
-    addToQueue: (song) =>
+    addToQueue: (song) => {
       set((state) => {
         const newQueue = [...state.queue, song];
         try {
           const { api } = require("../services/api");
           api.post("/api/v1/queue/add", { songId: song.id }).catch(() => {});
         } catch {}
+        try {
+          const { useToastStore } = require("./toastStore");
+          useToastStore.getState().showSuccess("Đã thêm phát sau", `Đã thêm "${song.title}" vào danh sách phát sau ✨`);
+        } catch {}
+        if (!state.currentSong) {
+          return { queue: newQueue, currentSong: song };
+        }
         return { queue: newQueue };
-      }),
+      });
+    },
 
-    addPlayNext: (song) =>
+    addPlayNext: (song) => {
       set((state) => {
         if (!state.currentSong) {
+          try {
+            const { useToastStore } = require("./toastStore");
+            useToastStore.getState().showSuccess("Đang phát bài hát", `Bắt đầu phát "${song.title}" 🎶`);
+          } catch {}
           return { queue: [song], currentSong: song, isPlaying: true };
         }
         const idx = state.queue.findIndex((s) => s.id === state.currentSong?.id);
@@ -153,8 +165,13 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
         } else {
           newQueue.push(song);
         }
+        try {
+          const { useToastStore } = require("./toastStore");
+          useToastStore.getState().showSuccess("Phát kế tiếp 🎶", `Sẽ phát "${song.title}" ngay sau bài hát này.`);
+        } catch {}
         return { queue: newQueue };
-      }),
+      });
+    },
 
     setPlaying: (playing) => {
       set({ isPlaying: playing });
@@ -168,9 +185,28 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
       }
     },
 
-    setRepeatMode: (mode) => set({ repeatMode: mode }),
+    setRepeatMode: (mode) => {
+      set({ repeatMode: mode });
+      try {
+        const { useToastStore } = require("./toastStore");
+        const msg =
+          mode === "track"
+            ? "Lặp lại bài hát hiện tại 🔂"
+            : mode === "queue"
+            ? "Lặp lại toàn bộ danh sách phát 🔁"
+            : "Đã tắt chế độ lặp lại";
+        useToastStore.getState().showInfo("Chế độ lặp lại", msg);
+      } catch {}
+    },
 
-    toggleShuffle: () => set((state) => ({ shuffleEnabled: !state.shuffleEnabled })),
+    toggleShuffle: () => {
+      const next = !get().shuffleEnabled;
+      set({ shuffleEnabled: next });
+      try {
+        const { useToastStore } = require("./toastStore");
+        useToastStore.getState().showInfo("Phát ngẫu nhiên", next ? "Đã bật phát ngẫu nhiên 🔀" : "Đã tắt phát ngẫu nhiên");
+      } catch {}
+    },
 
     seekTo: (seconds) => {
       set({ position: seconds });
@@ -254,6 +290,15 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
     setRate: (rate) => {
       set({ playbackRate: rate });
       setPlaybackRate(rate).catch(() => {});
+      try {
+        const { useToastStore } = require("./toastStore");
+        useToastStore
+          .getState()
+          .showInfo(
+            "Tốc độ phát nhạc ⚡",
+            rate === 1.25 ? "Đã chuyển sang chế độ Nightcore (1.25x)" : `Đã chuyển sang tốc độ ${rate}x`
+          );
+      } catch {}
     },
 
     setSleepTimer: (minutes) => {
@@ -263,16 +308,32 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
       }
       if (minutes === null || minutes <= 0) {
         set({ sleepTimerMinutes: null, sleepTimerEndTime: null });
+        try {
+          const { useToastStore } = require("./toastStore");
+          useToastStore.getState().showInfo("Hẹn giờ tắt nhạc 🌙", "Đã hủy hẹn giờ tắt nhạc.");
+        } catch {}
         return;
       }
 
       const endTime = Date.now() + minutes * 60 * 1000;
       set({ sleepTimerMinutes: minutes, sleepTimerEndTime: endTime });
+      try {
+        const { useToastStore } = require("./toastStore");
+        useToastStore
+          .getState()
+          .showInfo("Hẹn giờ tắt nhạc 🌙", `Nhạc sẽ tự động dừng sau ${minutes} phút nữa.`);
+      } catch {}
 
       sleepTimerId = setTimeout(() => {
         get().setPlaying(false);
         set({ sleepTimerMinutes: null, sleepTimerEndTime: null });
         sleepTimerId = null;
+        try {
+          const { useToastStore } = require("./toastStore");
+          useToastStore
+            .getState()
+            .showInfo("Hẹn giờ hoàn tất 🌙", "Trình phát đã dừng nhạc theo thời gian hẹn giờ.");
+        } catch {}
       }, minutes * 60 * 1000);
     },
   };

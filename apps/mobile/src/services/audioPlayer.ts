@@ -128,11 +128,24 @@ export async function playSongOnPlayer(song: Song): Promise<void> {
       };
       webAudio.onerror = (e) => {
         console.warn("[WebAudio] Audio failed to load:", streamUrl, e);
+        try {
+          const { useToastStore } = require("../store/toastStore");
+          useToastStore.getState().showError(
+            "Lỗi tải bài hát",
+            `Không thể tải luồng phát cho bài hát "${song.title}". Vui lòng thử lại sau.`
+          );
+        } catch {}
       };
-      webAudio.play().catch((e) => console.warn("[WebAudio] Playback error (may require user interaction):", e));
+      webAudio.play().catch((e) => {
+        console.warn("[WebAudio] Playback error (may require user interaction):", e);
+      });
     }
-  } catch (error) {
+  } catch (error: any) {
     console.warn("[audioPlayer] playSong error:", error);
+    try {
+      const { useToastStore } = require("../store/toastStore");
+      useToastStore.getState().showError("Lỗi hệ thống âm thanh", error?.message || "Không thể phát bài hát.");
+    } catch {}
   }
 }
 

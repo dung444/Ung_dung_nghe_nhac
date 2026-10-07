@@ -2,11 +2,13 @@ import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import { Colors } from "../constants/colors";
+import { ToastNotification } from "../components/ui/ToastNotification";
 
 export default function RootLayout() {
   return (
     <SafeAreaProvider style={{ flex: 1, backgroundColor: Colors.dark.background }}>
       <StatusBar style="light" />
+      <ToastNotification />
       <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: Colors.dark.background } }}>
         <Stack.Screen name="(auth)" />
         <Stack.Screen name="(tabs)" />

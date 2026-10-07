@@ -223,11 +223,10 @@ export default function SongDetailScreen() {
     const { isAuthenticated } = useAuthStore.getState();
     if (!isAuthenticated) {
       const msg = "Vui lòng đăng nhập để lưu bài hát vào danh sách Yêu thích!";
-      if (Platform.OS === "web") {
-        alert(msg);
-      } else {
-        Alert.alert("Yêu cầu đăng nhập", msg);
-      }
+      try {
+        const { useToastStore } = require("../../store/toastStore");
+        useToastStore.getState().showWarning("Yêu cầu đăng nhập 🔒", msg);
+      } catch {}
       router.push("/(auth)/login" as any);
       return;
     }
@@ -243,15 +242,20 @@ export default function SongDetailScreen() {
         setIsLiked(actualLiked);
         setCurrentSong({ ...currentSong, isLiked: actualLiked });
       }
+      const { useToastStore } = require("../../store/toastStore");
+      if (newLiked) {
+        useToastStore.getState().showSuccess("Yêu thích 💖", `Đã thêm "${currentSong.title}" vào danh sách yêu thích.`);
+      } else {
+        useToastStore.getState().showInfo("Bỏ thích", `Đã xóa "${currentSong.title}" khỏi danh sách yêu thích.`);
+      }
     } catch (err: any) {
       setIsLiked(!newLiked);
       setCurrentSong({ ...currentSong, isLiked: !newLiked });
       const msg = err.response?.data?.error || err.response?.data?.message || "Không thể cập nhật bài hát yêu thích";
-      if (Platform.OS === "web") {
-        alert(msg);
-      } else {
-        Alert.alert("Thông báo", msg);
-      }
+      try {
+        const { useToastStore } = require("../../store/toastStore");
+        useToastStore.getState().showError("Lỗi yêu thích", msg);
+      } catch {}
     }
   };
 
@@ -261,18 +265,17 @@ export default function SongDetailScreen() {
       currentSong.artists?.map((a) => a.name).join(", ") || "Unknown"
     } trên Waifu Player!`;
     try {
-      const Sharing = await import("expo-sharing");
-      if (await Sharing.isAvailableAsync()) {
-        if (Platform.OS === "web" && typeof navigator !== "undefined" && navigator.share) {
-          await navigator.share({ title: currentSong.title, text: message });
-        } else {
-          Alert.alert("Chia sẻ bài hát", message);
-        }
+      if (Platform.OS === "web" && typeof navigator !== "undefined" && navigator.clipboard) {
+        await navigator.clipboard.writeText(message);
+        const { useToastStore } = require("../../store/toastStore");
+        useToastStore.getState().showSuccess("Chia sẻ bài hát 🔗", "Đã sao chép liên kết vào bộ nhớ tạm!");
       } else {
-        Alert.alert("Chia sẻ bài hát", message);
+        const { useToastStore } = require("../../store/toastStore");
+        useToastStore.getState().showSuccess("Chia sẻ bài hát 🔗", message);
       }
     } catch {
-      Alert.alert("Chia sẻ", message);
+      const { useToastStore } = require("../../store/toastStore");
+      useToastStore.getState().showInfo("Chia sẻ bài hát", message);
     }
   };
 
@@ -359,7 +362,10 @@ export default function SongDetailScreen() {
   const handleSaveEditAudio = async () => {
     if (!currentSong) return;
     if (!editAudioUrl.trim()) {
-      Alert.alert("Lỗi", "Vui lòng nhập đường dẫn URL âm thanh MP3 hoặc chọn preset.");
+      try {
+        const { useToastStore } = require("../../store/toastStore");
+        useToastStore.getState().showWarning("Thiếu thông tin", "Vui lòng nhập đường dẫn URL âm thanh MP3 hoặc chọn preset.");
+      } catch {}
       return;
     }
     setSubmittingEditAudio(true);
@@ -374,7 +380,10 @@ export default function SongDetailScreen() {
         setCurrentSong(updated);
         setLrcText(updated.lyrics || null);
         setShowEditAudioModal(false);
-        Alert.alert("Thành công", "Đã cập nhật bài hát và chuyển đổi file âm thanh thành công!");
+        try {
+          const { useToastStore } = require("../../store/toastStore");
+          useToastStore.getState().showSuccess("Cập nhật thành công 🎉", "Đã cập nhật bài hát và chuyển đổi file âm thanh!");
+        } catch {}
         if (isPlaying) {
           setPlaying(false);
           setTimeout(() => setPlaying(true), 400);
@@ -383,7 +392,10 @@ export default function SongDetailScreen() {
     } catch (err: any) {
       const msg =
         err.response?.data?.error || err.response?.data?.message || "Không thể cập nhật bài hát.";
-      Alert.alert("Lỗi", msg);
+      try {
+        const { useToastStore } = require("../../store/toastStore");
+        useToastStore.getState().showError("Lỗi cập nhật", msg);
+      } catch {}
     } finally {
       setSubmittingEditAudio(false);
     }
@@ -406,17 +418,26 @@ export default function SongDetailScreen() {
           });
           if (res.data?.success && res.data?.data?.fileUrl) {
             setEditAudioUrl(res.data.data.fileUrl);
-            Alert.alert("Tải lên thành công", "File âm thanh đã được tải lên máy chủ!");
+            try {
+              const { useToastStore } = require("../../store/toastStore");
+              useToastStore.getState().showSuccess("Tải lên thành công 🎧", "File âm thanh đã được tải lên máy chủ!");
+            } catch {}
           }
         } catch {
-          Alert.alert("Lỗi", "Không thể tải lên file âm thanh.");
+          try {
+            const { useToastStore } = require("../../store/toastStore");
+            useToastStore.getState().showError("Lỗi tải tệp", "Không thể tải lên file âm thanh. Vui lòng kiểm tra định dạng.");
+          } catch {}
         } finally {
           setUploadingFile(false);
         }
       };
       input.click();
     } else {
-      Alert.alert("Thông báo", "Vui lòng dán link file audio MP3 trực tiếp.");
+      try {
+        const { useToastStore } = require("../../store/toastStore");
+        useToastStore.getState().showInfo("Hướng dẫn", "Vui lòng dán trực tiếp link file audio MP3.");
+      } catch {}
     }
   };
 

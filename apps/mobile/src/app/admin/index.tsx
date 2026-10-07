@@ -481,13 +481,25 @@ export default function AdminPortalScreen() {
       });
 
       if (res.data?.success) {
+        try {
+          const { useToastStore } = require("../../store/toastStore");
+          useToastStore.getState().showSuccess(
+            "Cấu hình VietQR thành công 💳",
+            "Tài khoản ngân hàng và mã QR thanh toán đã được cập nhật trên toàn hệ thống."
+          );
+        } catch {}
         Alert.alert(
           "Cập nhật thành công! 💳",
           "Thông tin tài khoản ngân hàng & mã VietQR động đã được cập nhật trên toàn hệ thống Waifu Player."
         );
       }
     } catch (err: any) {
-      Alert.alert("Lỗi", err.response?.data?.error || "Không thể lưu cấu hình ngân hàng");
+      const errMsg = err.response?.data?.error || "Không thể lưu cấu hình ngân hàng";
+      try {
+        const { useToastStore } = require("../../store/toastStore");
+        useToastStore.getState().showError("Lỗi cấu hình", errMsg);
+      } catch {}
+      Alert.alert("Lỗi", errMsg);
     } finally {
       setSavingBankConfig(false);
     }
@@ -502,6 +514,13 @@ export default function AdminPortalScreen() {
         adminNote: payoutAdminNote.trim() || undefined,
       });
       if (res.data?.success) {
+        try {
+          const { useToastStore } = require("../../store/toastStore");
+          useToastStore.getState().showSuccess(
+            "Cập nhật rút tiền 💸",
+            `Yêu cầu rút tiền đã được cập nhật sang trạng thái: ${status === "COMPLETED" ? "Đã giải ngân" : status === "APPROVED" ? "Đã duyệt" : "Đã từ chối"}.`
+          );
+        } catch {}
         Alert.alert(
           "Thành công! 💸",
           res.data.message || "Đã cập nhật trạng thái yêu cầu rút tiền thành công!"
