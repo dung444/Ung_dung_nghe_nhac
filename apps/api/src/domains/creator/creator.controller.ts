@@ -84,3 +84,41 @@ export const uploadCoverFile = async (req: Request, res: Response, next: NextFun
     next(e);
   }
 };
+
+// Payout Handlers
+export const handleRequestPayout = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const result = await svc.requestPayout(req.user!.userId, req.body);
+    res.status(201).json({ success: true, data: result });
+  } catch (e) {
+    next(e);
+  }
+};
+
+export const handleGetPayoutHistory = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const data = await svc.getPayoutHistory(req.user!.userId);
+    res.json({ success: true, data });
+  } catch (e) {
+    next(e);
+  }
+};
+
+export const handleGetAllPayoutRequests = async (_req: Request, res: Response, next: NextFunction) => {
+  try {
+    const data = await svc.getAllPayoutRequests();
+    res.json({ success: true, data });
+  } catch (e) {
+    next(e);
+  }
+};
+
+export const handleReviewPayout = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const result = await svc.reviewPayoutRequest(req.params.id, req.body);
+    res.json(result);
+  } catch (e) {
+    next(e);
+  }
+};
+

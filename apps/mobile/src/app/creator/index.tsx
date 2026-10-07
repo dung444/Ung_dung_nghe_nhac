@@ -159,6 +159,51 @@ export default function CreatorStudioScreen() {
   const [artistBio, setArtistBio] = useState("");
   const [registering, setRegistering] = useState(false);
 
+  // Payout & Withdrawal States
+  const [showPayoutModal, setShowPayoutModal] = useState(false);
+  const [showPayoutHistoryModal, setShowPayoutHistoryModal] = useState(false);
+  const [payoutAmount, setPayoutAmount] = useState("50000");
+  const [payoutBankId, setPayoutBankId] = useState("MB");
+  const [payoutBankName, setPayoutBankName] = useState("MBBank (Ngân Hàng Quân Đội)");
+  const [payoutAccountNo, setPayoutAccountNo] = useState("");
+  const [payoutAccountName, setPayoutAccountName] = useState(user?.displayName?.toUpperCase() || "");
+  const [payoutNote, setPayoutNote] = useState("");
+  const [submittingPayout, setSubmittingPayout] = useState(false);
+  const [payoutInfo, setPayoutInfo] = useState<{
+    payouts: any[];
+    totalEarnings: number;
+    availableBalance: number;
+    totalCompleted: number;
+    totalPending: number;
+  }>({
+    payouts: [],
+    totalEarnings: 150000,
+    availableBalance: 150000,
+    totalCompleted: 0,
+    totalPending: 0,
+  });
+
+  const POPULAR_BANKS = [
+    { id: "MB", name: "MBBank (Quân Đội)", shortName: "MBBank" },
+    { id: "VCB", name: "Vietcombank (Ngoại Thương)", shortName: "Vietcombank" },
+    { id: "TCB", name: "Techcombank (Kỹ Thương)", shortName: "Techcombank" },
+    { id: "ICB", name: "VietinBank (Công Thương)", shortName: "VietinBank" },
+    { id: "BIDV", name: "BIDV (Đầu Tư & Phát Triển)", shortName: "BIDV" },
+    { id: "ACB", name: "ACB (Á Châu)", shortName: "ACB" },
+    { id: "VPB", name: "VPBank (Việt Nam Thịnh Vượng)", shortName: "VPBank" },
+    { id: "TPB", name: "TPBank (Tiên Phong)", shortName: "TPBank" },
+    { id: "MOMO", name: "Ví Điện Tử MoMo", shortName: "MoMo" },
+  ];
+
+  const fetchPayoutHistory = async () => {
+    try {
+      const res = await api.get("/api/v1/creator/payouts");
+      if (res.data?.success && res.data?.data) {
+        setPayoutInfo(res.data.data);
+      }
+    } catch {}
+  };
+
   const fetchStudioData = async () => {
     setLoading(true);
     try {
@@ -173,12 +218,55 @@ export default function CreatorStudioScreen() {
       if (songsRes?.data?.success && Array.isArray(songsRes.data.data)) {
         setSongs(songsRes.data.data);
       }
+      await fetchPayoutHistory();
     } catch {
       // Fallback
     } finally {
       setLoading(false);
     }
   };
+
+  const handleRequestPayout = async () => {
+    const amount = Number(payoutAmount);
+    if (!amount || amount < 10000) {
+      Alert.alert("Lỗi", "Số tiền yêu cầu rút tối thiểu là 10.000 VNĐ");
+      return;
+    }
+    if (!payoutAccountNo.trim()) {
+      Alert.alert("Lỗi", "Vui lòng nhập số tài khoản nhận tiền");
+      return;
+    }
+    if (!payoutAccountName.trim()) {
+      Alert.alert("Lỗi", "Vui lòng nhập tên chủ tài khoản");
+      return;
+    }
+
+    setSubmittingPayout(true);
+    try {
+      const res = await api.post("/api/v1/creator/payouts", {
+        amount,
+        bankId: payoutBankId,
+        bankName: payoutBankName,
+        accountNo: payoutAccountNo.trim(),
+        accountName: payoutAccountName.trim().toUpperCase(),
+        note: payoutNote.trim() || undefined,
+      });
+
+      if (res.data?.success) {
+        Alert.alert(
+          "Gửi yêu cầu thành công! 💸",
+          res.data.data?.message || "Yêu cầu rút tiền của bạn đã được gửi tới Quản trị viên để xét duyệt và giải ngân!"
+        );
+        setShowPayoutModal(false);
+        fetchStudioData();
+      }
+    } catch (err: any) {
+      Alert.alert("Lỗi", err.response?.data?.error || "Không thể gửi yêu cầu rút tiền");
+    } finally {
+      setSubmittingPayout(false);
+    }
+  };
+
 
   useEffect(() => {
     if (isAuthenticated) {
@@ -384,14 +472,23 @@ export default function CreatorStudioScreen() {
                 <Text style={styles.metricLabel}>Bài Hát Đã Đăng</Text>
               </View>
 
-              <View style={styles.metricCard}>
-                <View style={[styles.metricIconBg, { backgroundColor: "rgba(34, 197, 94, 0.15)" }]}>
-                  <Ionicons name="cash" size={20} color={Colors.dark.success} />
+              <View style={[styles.metricCard, { borderColor: "rgba(34, 197, 94, 0.4)", borderWidth: 1 }]}>
+                <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+                  <View style={[styles.metricIconBg, { backgroundColor: "rgba(34, 197, 94, 0.15)" }]}>
+                    <Ionicons name="cash" size={20} color={Colors.dark.success} />
+                  </View>
+                  <TouchableOpacity
+                    style={styles.metricWithdrawBtn}
+                    onPress={() => setShowPayoutModal(true)}
+                  >
+                    <Ionicons name="card" size={12} color="#fff" />
+                    <Text style={styles.metricWithdrawBtnText}>Rút Tiền</Text>
+                  </TouchableOpacity>
                 </View>
                 <Text style={[styles.metricValue, { color: Colors.dark.success }]}>
-                  {(studioStats?.estimatedEarnings || 0).toLocaleString()} ₫
+                  {payoutInfo.availableBalance.toLocaleString()} ₫
                 </Text>
-                <Text style={styles.metricLabel}>Doanh Thu Bản Quyền</Text>
+                <Text style={styles.metricLabel}>Khả Dụng ({payoutInfo.totalEarnings.toLocaleString()} ₫ tích lũy)</Text>
               </View>
             </View>
 
@@ -402,7 +499,7 @@ export default function CreatorStudioScreen() {
                 onPress={() => setShowPublishModal(true)}
                 activeOpacity={0.85}
               >
-                <Ionicons name="add-circle" size={20} color="#fff" />
+                <Ionicons name="add-circle" size={18} color="#fff" />
                 <Text style={styles.primaryActionText}>Phát Hành Bài Mới</Text>
               </TouchableOpacity>
 
@@ -411,10 +508,20 @@ export default function CreatorStudioScreen() {
                 onPress={() => setShowAlbumModal(true)}
                 activeOpacity={0.85}
               >
-                <Ionicons name="disc" size={20} color={Colors.dark.accent} />
-                <Text style={styles.secondaryActionText}>Tạo Album Mới</Text>
+                <Ionicons name="disc" size={18} color={Colors.dark.accent} />
+                <Text style={styles.secondaryActionText}>Tạo Album</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.payoutActionBtn}
+                onPress={() => setShowPayoutModal(true)}
+                activeOpacity={0.85}
+              >
+                <Ionicons name="cash-outline" size={18} color="#fff" />
+                <Text style={styles.payoutActionText}>Rút Doanh Thu</Text>
               </TouchableOpacity>
             </View>
+
 
             {/* Songs Management List */}
             <View style={styles.sectionHeader}>
@@ -765,9 +872,255 @@ export default function CreatorStudioScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* ─── MODAL 4: REQUEST CREATOR PAYOUT ───────────────────────────────── */}
+      <Modal visible={showPayoutModal} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { maxHeight: "90%" }]}>
+            <View style={styles.modalHeader}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <Ionicons name="cash" size={24} color={Colors.dark.success} />
+                <Text style={styles.modalTitle}>Yêu Cầu Rút Tiền Doanh Thu 💸</Text>
+              </View>
+              <TouchableOpacity onPress={() => setShowPayoutModal(false)}>
+                <Ionicons name="close" size={24} color={Colors.dark.text} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 16 }}>
+              {/* Available Balance Box */}
+              <View style={styles.payoutBalanceBox}>
+                <View style={styles.payoutBalanceHeader}>
+                  <Text style={styles.payoutBalanceLabel}>SỐ DƯ DOANH THU KHẢ DỤNG</Text>
+                  <TouchableOpacity
+                    style={styles.historyTriggerBtn}
+                    onPress={() => {
+                      setShowPayoutModal(false);
+                      setShowPayoutHistoryModal(true);
+                    }}
+                  >
+                    <Ionicons name="time-outline" size={14} color={Colors.dark.primaryLight} />
+                    <Text style={styles.historyTriggerText}>Xem Lịch Sử Rút</Text>
+                  </TouchableOpacity>
+                </View>
+                <Text style={styles.payoutBalanceValue}>
+                  {payoutInfo.availableBalance.toLocaleString()} ₫
+                </Text>
+                <Text style={styles.payoutBalanceSub}>
+                  Đã rút: {payoutInfo.totalCompleted.toLocaleString()} ₫ • Đang xử lý: {payoutInfo.totalPending.toLocaleString()} ₫
+                </Text>
+              </View>
+
+              {/* Amount Preset Chips */}
+              <Text style={styles.formSectionLabel}>Chọn số tiền cần rút:</Text>
+              <View style={styles.presetAmountsGrid}>
+                {["50000", "100000", "200000", "500000"].map((amt) => {
+                  const isSelected = payoutAmount === amt;
+                  return (
+                    <TouchableOpacity
+                      key={amt}
+                      style={[styles.presetAmountChip, isSelected && styles.presetAmountChipActive]}
+                      onPress={() => setPayoutAmount(amt)}
+                    >
+                      <Text style={[styles.presetAmountText, isSelected && { color: Colors.dark.success, fontWeight: "700" }]}>
+                        {Number(amt).toLocaleString()} ₫
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+                <TouchableOpacity
+                  style={[styles.presetAmountChip, payoutAmount === String(payoutInfo.availableBalance) && styles.presetAmountChipActive]}
+                  onPress={() => setPayoutAmount(String(payoutInfo.availableBalance || 50000))}
+                >
+                  <Text style={[styles.presetAmountText, { color: Colors.dark.primaryLight, fontWeight: "700" }]}>
+                    Rút Hết Số Dư
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text style={styles.formLabel}>Hoặc nhập số tiền tùy chọn (VNĐ) *</Text>
+                <TextInput
+                  style={styles.formInput}
+                  placeholder="Ví dụ: 75000"
+                  placeholderTextColor={Colors.dark.textMuted}
+                  value={payoutAmount}
+                  onChangeText={setPayoutAmount}
+                  keyboardType="numeric"
+                />
+              </View>
+
+              {/* Choose Receiving Bank */}
+              <Text style={styles.formSectionLabel}>Chọn ngân hàng thụ hưởng *</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.bankChipsScroll}>
+                {POPULAR_BANKS.map((b) => {
+                  const isSelected = payoutBankId === b.id;
+                  return (
+                    <TouchableOpacity
+                      key={b.id}
+                      style={[styles.bankChip, isSelected && styles.bankChipActive]}
+                      onPress={() => {
+                        setPayoutBankId(b.id);
+                        setPayoutBankName(b.name);
+                      }}
+                    >
+                      <Text style={[styles.bankChipText, isSelected && styles.bankChipTextActive]}>
+                        {b.shortName || b.id}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+
+              <View style={styles.formGroup}>
+                <Text style={styles.formLabel}>Số tài khoản ngân hàng của bạn *</Text>
+                <TextInput
+                  style={styles.formInput}
+                  placeholder="Ví dụ: 0987654321..."
+                  placeholderTextColor={Colors.dark.textMuted}
+                  value={payoutAccountNo}
+                  onChangeText={setPayoutAccountNo}
+                  keyboardType="numeric"
+                />
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text style={styles.formLabel}>Tên chủ tài khoản (In hoa không dấu) *</Text>
+                <TextInput
+                  style={styles.formInput}
+                  placeholder="Ví dụ: NGUYEN VAN NGHESI"
+                  placeholderTextColor={Colors.dark.textMuted}
+                  value={payoutAccountName}
+                  onChangeText={(val) => setPayoutAccountName(val.toUpperCase())}
+                  autoCapitalize="characters"
+                />
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text style={styles.formLabel}>Ghi chú cho Quản trị viên (Tùy chọn)</Text>
+                <TextInput
+                  style={styles.formInput}
+                  placeholder="Ví dụ: Rút tiền tác quyền bài hát tháng này..."
+                  placeholderTextColor={Colors.dark.textMuted}
+                  value={payoutNote}
+                  onChangeText={setPayoutNote}
+                />
+              </View>
+
+              {/* Instant VietQR Preview of Creator's Account */}
+              {payoutAccountNo.length > 3 && (
+                <View style={styles.payoutQrPreviewBox}>
+                  <Text style={styles.payoutQrPreviewTitle}>Mã VietQR Nhận Tiền Tự Động:</Text>
+                  <Image
+                    source={{
+                      uri: `https://img.vietqr.io/image/${payoutBankId}-${payoutAccountNo.trim()}-compact2.png?amount=${Number(payoutAmount) || 50000}&addInfo=PAYOUT%20WFP&accountName=${encodeURIComponent(payoutAccountName || "CREATOR")}`,
+                    }}
+                    style={styles.payoutQrImage}
+                    resizeMode="contain"
+                  />
+                  <Text style={styles.payoutQrSubText}>
+                    Admin sẽ quét mã QR trên để giải ngân chính xác {Number(payoutAmount || 0).toLocaleString()} VNĐ vào tài khoản của bạn.
+                  </Text>
+                </View>
+              )}
+
+              <TouchableOpacity
+                style={styles.submitPayoutBtn}
+                onPress={handleRequestPayout}
+                disabled={submittingPayout}
+                activeOpacity={0.85}
+              >
+                {submittingPayout ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <>
+                    <Ionicons name="paper-plane" size={18} color="#fff" />
+                    <Text style={styles.submitPayoutBtnText}>
+                      Xác Nhận Rút {Number(payoutAmount || 0).toLocaleString()} ₫
+                    </Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ─── MODAL 5: PAYOUT HISTORY ───────────────────────────────────────── */}
+      <Modal visible={showPayoutHistoryModal} animationType="slide" transparent>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { maxHeight: "85%" }]}>
+            <View style={styles.modalHeader}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <Ionicons name="receipt" size={24} color={Colors.dark.primary} />
+                <Text style={styles.modalTitle}>Lịch Sử Rút Tiền 📜</Text>
+              </View>
+              <TouchableOpacity onPress={() => setShowPayoutHistoryModal(false)}>
+                <Ionicons name="close" size={24} color={Colors.dark.text} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 20 }}>
+              {payoutInfo.payouts.length === 0 ? (
+                <View style={styles.emptyPayoutHistoryBox}>
+                  <Ionicons name="wallet-outline" size={48} color={Colors.dark.textMuted} />
+                  <Text style={styles.emptyPayoutHistoryTitle}>Chưa có yêu cầu rút tiền nào</Text>
+                  <Text style={styles.emptyPayoutHistorySub}>
+                    Các yêu cầu rút tiền bản quyền của bạn sẽ hiển thị tại đây để bạn tiện theo dõi tiến độ giải ngân.
+                  </Text>
+                </View>
+              ) : (
+                payoutInfo.payouts.map((p) => {
+                  const isPending = p.status === "PENDING";
+                  const isSuccess = p.status === "COMPLETED" || p.status === "APPROVED";
+                  return (
+                    <View key={p.id} style={styles.payoutHistoryItem}>
+                      <View style={styles.payoutHistoryIcon}>
+                        <Ionicons
+                          name={isSuccess ? "checkmark-circle" : isPending ? "time" : "close-circle"}
+                          size={22}
+                          color={isSuccess ? Colors.dark.success : isPending ? "#f59e0b" : "#ef4444"}
+                        />
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.payoutHistoryAmount}>
+                          +{Number(p.amount).toLocaleString()} ₫
+                        </Text>
+                        <Text style={styles.payoutHistoryBank}>
+                          {p.bankName} • {p.accountNo} ({p.accountName})
+                        </Text>
+                        <Text style={styles.payoutHistoryCode}>
+                          Mã GD: {p.txCode} • {new Date(p.createdAt).toLocaleString("vi-VN")}
+                        </Text>
+                        {p.adminNote && (
+                          <Text style={styles.payoutAdminNote}>
+                            Ghi chú Admin: {p.adminNote}
+                          </Text>
+                        )}
+                      </View>
+                      <View style={[
+                        styles.payoutStatusTag,
+                        isSuccess ? styles.statusTagSuccess : isPending ? styles.statusTagPending : styles.statusTagRejected
+                      ]}>
+                        <Text style={[
+                          styles.payoutStatusTagText,
+                          isSuccess ? { color: Colors.dark.success } : isPending ? { color: "#f59e0b" } : { color: "#ef4444" }
+                        ]}>
+                          {isSuccess ? "ĐÃ CHUYỂN" : isPending ? "CHỜ DUYỆT" : "TỪ CHỐI"}
+                        </Text>
+                      </View>
+                    </View>
+                  );
+                })
+              )}
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
+
 
 const styles = StyleSheet.create({
   container: {
@@ -1256,4 +1609,253 @@ const styles = StyleSheet.create({
     fontSize: 10,
     marginTop: 2,
   },
+  // Payout Styles
+  metricWithdrawBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: Colors.dark.success,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  metricWithdrawBtnText: {
+    color: "#fff",
+    fontSize: 10,
+    fontWeight: "800",
+  },
+  payoutActionBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    backgroundColor: "rgba(34, 197, 94, 0.18)",
+    borderWidth: 1,
+    borderColor: Colors.dark.success,
+    paddingVertical: 12,
+    borderRadius: 12,
+  },
+  payoutActionText: {
+    color: "#22c55e",
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  payoutBalanceBox: {
+    backgroundColor: "rgba(34, 197, 94, 0.1)",
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 1.5,
+    borderColor: "rgba(34, 197, 94, 0.35)",
+    marginBottom: 16,
+  },
+  payoutBalanceHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 4,
+  },
+  payoutBalanceLabel: {
+    color: "#22c55e",
+    fontSize: 10,
+    fontWeight: "800",
+    letterSpacing: 0.5,
+  },
+  historyTriggerBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  historyTriggerText: {
+    color: Colors.dark.primaryLight,
+    fontSize: 11,
+    fontWeight: "600",
+  },
+  payoutBalanceValue: {
+    fontSize: 24,
+    fontWeight: "900",
+    color: "#fff",
+    marginVertical: 2,
+  },
+  payoutBalanceSub: {
+    color: Colors.dark.textMuted,
+    fontSize: 11,
+  },
+  formSectionLabel: {
+    color: Colors.dark.text,
+    fontSize: 13,
+    fontWeight: "700",
+    marginBottom: 8,
+  },
+  presetAmountsGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    marginBottom: 12,
+  },
+  presetAmountChip: {
+    backgroundColor: Colors.dark.card,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderWidth: 1,
+    borderColor: Colors.dark.border,
+  },
+  presetAmountChipActive: {
+    borderColor: Colors.dark.success,
+    backgroundColor: "rgba(34, 197, 94, 0.15)",
+  },
+  presetAmountText: {
+    color: Colors.dark.textMuted,
+    fontSize: 12,
+  },
+  bankChipsScroll: {
+    gap: 8,
+    paddingVertical: 4,
+    marginBottom: 12,
+  },
+  bankChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 8,
+    backgroundColor: Colors.dark.card,
+    borderWidth: 1,
+    borderColor: Colors.dark.border,
+  },
+  bankChipActive: {
+    backgroundColor: Colors.dark.primary,
+    borderColor: Colors.dark.primaryLight,
+  },
+  bankChipText: {
+    fontSize: 12,
+    color: Colors.dark.textMuted,
+    fontWeight: "600",
+  },
+  bankChipTextActive: {
+    color: "#fff",
+    fontWeight: "700",
+  },
+  payoutQrPreviewBox: {
+    backgroundColor: "#fff",
+    borderRadius: 14,
+    padding: 12,
+    alignItems: "center",
+    marginVertical: 10,
+    borderWidth: 1.5,
+    borderColor: Colors.dark.success,
+  },
+  payoutQrPreviewTitle: {
+    color: "#059669",
+    fontSize: 12,
+    fontWeight: "700",
+    marginBottom: 6,
+  },
+  payoutQrImage: {
+    width: "100%",
+    height: 200,
+    maxWidth: 200,
+  },
+  payoutQrSubText: {
+    color: "#6b7280",
+    fontSize: 10,
+    textAlign: "center",
+    marginTop: 6,
+  },
+  submitPayoutBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: "#16a34a",
+    paddingVertical: 14,
+    borderRadius: 12,
+    marginTop: 10,
+    marginBottom: 20,
+    shadowColor: "#16a34a",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.35,
+    shadowRadius: 6,
+    elevation: 4,
+  },
+  submitPayoutBtnText: {
+    color: "#fff",
+    fontSize: 15,
+    fontWeight: "800",
+  },
+  emptyPayoutHistoryBox: {
+    paddingVertical: 40,
+    alignItems: "center",
+  },
+  emptyPayoutHistoryTitle: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: Colors.dark.text,
+    marginTop: 10,
+  },
+  emptyPayoutHistorySub: {
+    fontSize: 12,
+    color: Colors.dark.textMuted,
+    textAlign: "center",
+    marginTop: 4,
+    paddingHorizontal: 20,
+  },
+  payoutHistoryItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: Colors.dark.card,
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: Colors.dark.border,
+    gap: 10,
+  },
+  payoutHistoryIcon: {
+    width: 38,
+    height: 38,
+    borderRadius: 19,
+    backgroundColor: "rgba(255, 255, 255, 0.05)",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  payoutHistoryAmount: {
+    fontSize: 15,
+    fontWeight: "800",
+    color: Colors.dark.success,
+  },
+  payoutHistoryBank: {
+    fontSize: 12,
+    color: Colors.dark.text,
+    fontWeight: "600",
+    marginTop: 1,
+  },
+  payoutHistoryCode: {
+    fontSize: 10,
+    color: Colors.dark.textMuted,
+    marginTop: 2,
+  },
+  payoutAdminNote: {
+    fontSize: 11,
+    color: Colors.dark.primaryLight,
+    marginTop: 2,
+  },
+  payoutStatusTag: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  statusTagSuccess: {
+    backgroundColor: "rgba(34, 197, 94, 0.15)",
+  },
+  statusTagPending: {
+    backgroundColor: "rgba(245, 158, 11, 0.15)",
+  },
+  statusTagRejected: {
+    backgroundColor: "rgba(239, 68, 68, 0.15)",
+  },
+  payoutStatusTagText: {
+    fontSize: 9,
+    fontWeight: "800",
+  },
 });
+

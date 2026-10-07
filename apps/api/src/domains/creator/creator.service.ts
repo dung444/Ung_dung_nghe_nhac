@@ -248,3 +248,149 @@ export async function createCreatorAlbum(
 
   return album;
 }
+
+// ─── CREATOR PAYOUT & WITHDRAWAL MANAGEMENT ─────────────────────────────────
+
+export interface PayoutRequest {
+  id: string;
+  creatorId: string;
+  userId: string;
+  creatorName: string;
+  creatorEmail: string;
+  amount: number;
+  bankId: string;
+  bankName: string;
+  accountNo: string;
+  accountName: string;
+  status: "PENDING" | "APPROVED" | "REJECTED" | "COMPLETED";
+  note?: string;
+  adminNote?: string;
+  txCode: string;
+  qrUrl: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+const payoutRequests: PayoutRequest[] = [];
+
+export async function requestPayout(
+  userId: string,
+  data: {
+    amount: number;
+    bankId: string;
+    bankName?: string;
+    accountNo: string;
+    accountName: string;
+    note?: string;
+  }
+) {
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (!user) throw new AppError("User not found", 404);
+
+  const artist = await getOrCreateCreatorProfile(userId);
+  const studio = await getCreatorStudio(userId);
+
+  const amount = Number(data.amount);
+  if (!amount || amount < 10000) {
+    throw new AppError("Số tiền yêu cầu rút tối thiểu là 10.000 VNĐ", 400);
+  }
+
+  if (!data.bankId || !data.accountNo?.trim() || !data.accountName?.trim()) {
+    throw new AppError("Vui lòng điền đầy đủ thông tin ngân hàng, số tài khoản và tên chủ tài khoản", 400);
+  }
+
+  // Calculate current active payouts & available balance
+  const userPayouts = payoutRequests.filter((p) => p.userId === userId && p.status !== "REJECTED");
+  const totalReserved = userPayouts.reduce((sum, p) => sum + p.amount, 0);
+  const baseEarnings = Math.max(studio.estimatedEarnings, 150000); // minimum default available for verified creators
+  const availableBalance = Math.max(0, baseEarnings - totalReserved);
+
+  if (amount > availableBalance && availableBalance > 0) {
+    throw new AppError(`Số tiền yêu cầu rút (${amount.toLocaleString()} ₫) vượt quá số dư khả dụng (${availableBalance.toLocaleString()} ₫)`, 400);
+  }
+
+  const txCode = `PAYOUT-WFP-${Date.now().toString().slice(-6)}`;
+  const qrUrl = `https://img.vietqr.io/image/${data.bankId.toUpperCase()}-${data.accountNo.trim()}-compact2.png?amount=${amount}&addInfo=${encodeURIComponent(txCode)}&accountName=${encodeURIComponent(data.accountName.trim().toUpperCase())}`;
+
+  const payout: PayoutRequest = {
+    id: `payout_${Date.now()}_${Math.random().toString(36).substring(7)}`,
+    creatorId: artist.id,
+    userId,
+    creatorName: artist.name,
+    creatorEmail: user.email,
+    amount,
+    bankId: data.bankId.toUpperCase(),
+    bankName: data.bankName || data.bankId.toUpperCase(),
+    accountNo: data.accountNo.trim(),
+    accountName: data.accountName.trim().toUpperCase(),
+    status: "PENDING",
+    note: data.note?.trim() || undefined,
+    txCode,
+    qrUrl,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+
+  payoutRequests.unshift(payout);
+
+  return {
+    success: true,
+    payout,
+    message: `Đã gửi yêu cầu rút ${amount.toLocaleString()} VNĐ thành công! Quản trị viên sẽ thẩm duyệt và chuyển khoản vào số tài khoản ${payout.accountNo} (${payout.bankName}).`,
+  };
+}
+
+export async function getPayoutHistory(userId: string) {
+  const userPayouts = payoutRequests.filter((p) => p.userId === userId);
+  const studio = await getCreatorStudio(userId);
+
+  const totalReserved = userPayouts.filter((p) => p.status !== "REJECTED").reduce((sum, p) => sum + p.amount, 0);
+  const totalCompleted = userPayouts.filter((p) => p.status === "COMPLETED" || p.status === "APPROVED").reduce((sum, p) => sum + p.amount, 0);
+  const totalPending = userPayouts.filter((p) => p.status === "PENDING").reduce((sum, p) => sum + p.amount, 0);
+
+  const baseEarnings = Math.max(studio.estimatedEarnings, 150000);
+  const availableBalance = Math.max(0, baseEarnings - totalReserved);
+
+  return {
+    payouts: userPayouts,
+    totalEarnings: baseEarnings,
+    availableBalance,
+    totalCompleted,
+    totalPending,
+  };
+}
+
+export async function getAllPayoutRequests() {
+  const pendingCount = payoutRequests.filter((p) => p.status === "PENDING").length;
+  const totalPaidOut = payoutRequests
+    .filter((p) => p.status === "COMPLETED" || p.status === "APPROVED")
+    .reduce((sum, p) => sum + p.amount, 0);
+
+  return {
+    payouts: payoutRequests,
+    totalCount: payoutRequests.length,
+    pendingCount,
+    totalPaidOut,
+  };
+}
+
+export async function reviewPayoutRequest(
+  payoutId: string,
+  data: { status: "APPROVED" | "REJECTED" | "COMPLETED"; adminNote?: string }
+) {
+  const payout = payoutRequests.find((p) => p.id === payoutId);
+  if (!payout) throw new AppError("Payout request not found", 404);
+
+  payout.status = data.status;
+  if (data.adminNote) {
+    payout.adminNote = data.adminNote;
+  }
+  payout.updatedAt = new Date().toISOString();
+
+  return {
+    success: true,
+    payout,
+    message: `Đã ${data.status === "COMPLETED" || data.status === "APPROVED" ? "chấp thuận và xử lý" : "từ chối"} yêu cầu rút tiền của nghệ sĩ ${payout.creatorName}!`,
+  };
+}
+

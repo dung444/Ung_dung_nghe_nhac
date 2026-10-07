@@ -72,8 +72,17 @@ export default function AdminPortalScreen() {
   const [savingBankConfig, setSavingBankConfig] = useState(false);
   const [customSimAmount, setCustomSimAmount] = useState("49000");
 
+  // Creator Payout Management States (Admin)
+  const [adminPayouts, setAdminPayouts] = useState<any[]>([]);
+  const [adminPayoutPendingCount, setAdminPayoutPendingCount] = useState(0);
+  const [adminTotalPaidOut, setAdminTotalPaidOut] = useState(0);
+  const [selectedAdminPayout, setSelectedAdminPayout] = useState<any | null>(null);
+  const [showPayoutReviewModal, setShowPayoutReviewModal] = useState(false);
+  const [payoutAdminNote, setPayoutAdminNote] = useState("");
+  const [payoutReviewLoading, setPayoutReviewLoading] = useState(false);
 
   // Search queries
+
   const [songSearch, setSongSearch] = useState("");
   const [userSearch, setUserSearch] = useState("");
 
@@ -223,9 +232,10 @@ export default function AdminPortalScreen() {
         if (artistsRes.data?.success) setArtists(artistsRes.data.data);
         if (albumsRes.data?.success) setAlbums(albumsRes.data.data);
       } else if (activeTab === "banking") {
-        const [bankRes, txRes] = await Promise.all([
+        const [bankRes, txRes, payoutRes] = await Promise.all([
           api.get("/api/v1/payments/bank-config").catch(() => ({ data: null })),
           api.get("/api/v1/payments/admin/transactions").catch(() => ({ data: null })),
+          api.get("/api/v1/creator/admin/payouts").catch(() => ({ data: null })),
         ]);
         if (bankRes?.data?.data?.config) {
           const cfg = bankRes.data.data.config;
@@ -244,7 +254,13 @@ export default function AdminPortalScreen() {
           setAdminTransactions(txRes.data.data.transactions);
           setAdminTotalRevenue(txRes.data.data.totalRevenue || 0);
         }
+        if (payoutRes?.data?.success && payoutRes?.data?.data) {
+          setAdminPayouts(payoutRes.data.data.payouts || []);
+          setAdminPayoutPendingCount(payoutRes.data.data.pendingCount || 0);
+          setAdminTotalPaidOut(payoutRes.data.data.totalPaidOut || 0);
+        }
       }
+
 
     } catch {
       // Fallback dummy data for visual preview
@@ -477,7 +493,32 @@ export default function AdminPortalScreen() {
     }
   };
 
+  const handleReviewCreatorPayout = async (status: "APPROVED" | "REJECTED" | "COMPLETED") => {
+    if (!selectedAdminPayout) return;
+    setPayoutReviewLoading(true);
+    try {
+      const res = await api.patch(`/api/v1/creator/admin/payouts/${selectedAdminPayout.id}/review`, {
+        status,
+        adminNote: payoutAdminNote.trim() || undefined,
+      });
+      if (res.data?.success) {
+        Alert.alert(
+          "Thành công! 💸",
+          res.data.message || "Đã cập nhật trạng thái yêu cầu rút tiền thành công!"
+        );
+        setShowPayoutReviewModal(false);
+        setPayoutAdminNote("");
+        loadDashboardData();
+      }
+    } catch (err: any) {
+      Alert.alert("Lỗi", err.response?.data?.error || "Không thể xử lý yêu cầu rút tiền");
+    } finally {
+      setPayoutReviewLoading(false);
+    }
+  };
+
   // Auth Guard Screen
+
 
   if (!isAuthenticated || !isAdmin) {
     return (
@@ -1167,11 +1208,95 @@ export default function AdminPortalScreen() {
                     </View>
                   ))
                 )}
+
+                {/* ─── CREATOR PAYOUT REQUESTS SECTION ─────────────────────── */}
+                <View style={[styles.sectionHeaderRow, { marginTop: 28 }]}>
+                  <Text style={styles.sectionTitle}>
+                    Yêu Cầu Rút Tiền Nghệ Sĩ ({adminPayouts.length}) 🎙️
+                  </Text>
+                  <View style={[styles.revenueBadge, { backgroundColor: "rgba(245, 158, 11, 0.15)", borderColor: "rgba(245, 158, 11, 0.3)" }]}>
+                    <Ionicons name="time" size={16} color="#f59e0b" />
+                    <Text style={[styles.revenueBadgeText, { color: "#f59e0b" }]}>
+                      {adminPayoutPendingCount} chờ giải ngân
+                    </Text>
+                  </View>
+                </View>
+
+                {adminPayouts.length === 0 ? (
+                  <View style={styles.emptyStateBox}>
+                    <Ionicons name="cash-outline" size={48} color={Colors.dark.textMuted} />
+                    <Text style={styles.emptyStateText}>Chưa có yêu cầu rút tiền nào từ nghệ sĩ.</Text>
+                  </View>
+                ) : (
+                  adminPayouts.map((p) => {
+                    const isPending = p.status === "PENDING";
+                    const isSuccess = p.status === "COMPLETED" || p.status === "APPROVED";
+                    return (
+                      <View key={p.id} style={styles.adminPayoutCard}>
+                        <View style={styles.adminPayoutHeader}>
+                          <View style={{ flex: 1 }}>
+                            <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                              <Text style={styles.adminPayoutCreator}>{p.creatorName}</Text>
+                              <View style={styles.roleMiniBadge}>
+                                <Text style={styles.roleMiniBadgeText}>CREATOR</Text>
+                              </View>
+                            </View>
+                            <Text style={styles.adminPayoutMeta}>
+                              {p.creatorEmail} • {p.bankName} - STK: {p.accountNo} ({p.accountName})
+                            </Text>
+                            <Text style={styles.adminPayoutDate}>
+                              Mã GD: {p.txCode} • {new Date(p.createdAt).toLocaleString("vi-VN")}
+                            </Text>
+                            {p.note && (
+                              <Text style={styles.adminPayoutNote}>
+                                Ghi chú: {p.note}
+                              </Text>
+                            )}
+                          </View>
+
+                          <View style={{ alignItems: "flex-end" }}>
+                            <Text style={styles.adminPayoutAmount}>
+                              {Number(p.amount).toLocaleString()} ₫
+                            </Text>
+                            <View style={[
+                              styles.payoutStatusTag,
+                              isSuccess ? styles.statusTagSuccess : isPending ? styles.statusTagPending : styles.statusTagRejected
+                            ]}>
+                              <Text style={[
+                                styles.payoutStatusTagText,
+                                isSuccess ? { color: "#10b981" } : isPending ? { color: "#f59e0b" } : { color: "#ef4444" }
+                              ]}>
+                                {isSuccess ? "ĐÃ CHI TRẢ" : isPending ? "CHỜ DUYỆT" : "TỪ CHỐI"}
+                              </Text>
+                            </View>
+                          </View>
+                        </View>
+
+                        {isPending && (
+                          <TouchableOpacity
+                            style={styles.adminPayoutReviewBtn}
+                            onPress={() => {
+                              setSelectedAdminPayout(p);
+                              setPayoutAdminNote("");
+                              setShowPayoutReviewModal(true);
+                            }}
+                          >
+                            <Ionicons name="qr-code-outline" size={16} color="#fff" />
+                            <Text style={styles.adminPayoutReviewBtnText}>
+                              Xử Lý & Quét VietQR Chi Trả
+                            </Text>
+                          </TouchableOpacity>
+                        )}
+                      </View>
+                    );
+                  })
+                )}
               </View>
             )}
           </>
         )}
       </ScrollView>
+
 
 
       {/* ─── MODAL: EDIT USER ROLE & VIP ─────────────────────────────────── */}
@@ -1541,9 +1666,122 @@ export default function AdminPortalScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* ─── MODAL: REVIEW CREATOR PAYOUT & VIETQR TRANSFER ───────────────── */}
+      <Modal
+        visible={showPayoutReviewModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowPayoutReviewModal(false)}
+      >
+        <View style={styles.modalBgCenter}>
+          <View style={[styles.modalCardCenter, { maxWidth: 480, maxHeight: "90%" }]}>
+            <Text style={styles.modalDialogTitle}>Xử Lý Chi Trả Doanh Thu Nghệ Sĩ 💸</Text>
+            <Text style={styles.modalDialogSub}>
+              Yêu cầu của: <Text style={{ color: Colors.dark.accent, fontWeight: "700" }}>{selectedAdminPayout?.creatorName}</Text> ({selectedAdminPayout?.creatorEmail})
+            </Text>
+
+            <ScrollView showsVerticalScrollIndicator={false} style={{ width: "100%" }}>
+              {/* Creator Bank Information Details */}
+              <View style={styles.adminPayoutInfoBox}>
+                <View style={styles.adminPayoutInfoRow}>
+                  <Text style={styles.adminPayoutInfoKey}>Số tiền yêu cầu:</Text>
+                  <Text style={[styles.adminPayoutInfoVal, { color: "#10b981", fontSize: 16, fontWeight: "900" }]}>
+                    {Number(selectedAdminPayout?.amount || 0).toLocaleString()} VNĐ
+                  </Text>
+                </View>
+
+                <View style={styles.adminPayoutInfoRow}>
+                  <Text style={styles.adminPayoutInfoKey}>Ngân hàng thụ hưởng:</Text>
+                  <Text style={[styles.adminPayoutInfoVal, { color: "#fff", fontWeight: "700" }]}>
+                    {selectedAdminPayout?.bankName} ({selectedAdminPayout?.bankId})
+                  </Text>
+                </View>
+
+                <View style={styles.adminPayoutInfoRow}>
+                  <Text style={styles.adminPayoutInfoKey}>Số tài khoản:</Text>
+                  <Text style={[styles.adminPayoutInfoVal, { color: Colors.dark.accent, fontWeight: "800", fontSize: 14 }]}>
+                    {selectedAdminPayout?.accountNo}
+                  </Text>
+                </View>
+
+                <View style={styles.adminPayoutInfoRow}>
+                  <Text style={styles.adminPayoutInfoKey}>Chủ tài khoản:</Text>
+                  <Text style={[styles.adminPayoutInfoVal, { color: "#fff", fontWeight: "700" }]}>
+                    {selectedAdminPayout?.accountName}
+                  </Text>
+                </View>
+
+                <View style={[styles.adminPayoutInfoRow, { borderBottomWidth: 0 }]}>
+                  <Text style={styles.adminPayoutInfoKey}>Mã giao dịch:</Text>
+                  <Text style={[styles.adminPayoutInfoVal, { color: Colors.dark.primaryLight }]}>
+                    {selectedAdminPayout?.txCode}
+                  </Text>
+                </View>
+              </View>
+
+              {/* Dynamic VietQR for Instant Bank Transfer */}
+              {selectedAdminPayout?.qrUrl && (
+                <View style={styles.adminVietQrCard}>
+                  <Text style={styles.adminVietQrCardTitle}>Quét Mã VietQR Nhanh Để Chuyển Khoản:</Text>
+                  <Image
+                    source={{ uri: selectedAdminPayout.qrUrl }}
+                    style={styles.adminVietQrImage}
+                    resizeMode="contain"
+                  />
+                  <Text style={styles.adminVietQrSub}>
+                    Mã QR đã điền sẵn {Number(selectedAdminPayout?.amount || 0).toLocaleString()} VNĐ và nội dung "{selectedAdminPayout?.txCode}".
+                  </Text>
+                </View>
+              )}
+
+              {/* Admin Note Input */}
+              <Text style={[styles.inputFieldLabel, { marginTop: 10 }]}>Ghi chú xử lý của Quản trị viên (Tùy chọn)</Text>
+              <TextInput
+                style={styles.textArea}
+                placeholder="Nhập ghi chú chuyển khoản hoặc lý do nếu từ chối..."
+                placeholderTextColor={Colors.dark.textMuted}
+                value={payoutAdminNote}
+                onChangeText={setPayoutAdminNote}
+              />
+
+              {/* Action Buttons */}
+              {payoutReviewLoading ? (
+                <ActivityIndicator color={Colors.dark.primary} style={{ marginVertical: 14 }} />
+              ) : (
+                <View style={{ flexDirection: "row", gap: 10, marginTop: 10, marginBottom: 10 }}>
+                  <TouchableOpacity
+                    style={[styles.claimReviewBtn, { backgroundColor: "#16a34a" }]}
+                    onPress={() => handleReviewCreatorPayout("COMPLETED")}
+                  >
+                    <Ionicons name="checkmark-circle" size={16} color="#fff" />
+                    <Text style={styles.claimReviewBtnText}>Đã Chuyển Khoản • Hoàn Tất</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[styles.claimReviewBtn, { backgroundColor: "rgba(239, 68, 68, 0.15)", borderWidth: 1, borderColor: "#ef4444" }]}
+                    onPress={() => handleReviewCreatorPayout("REJECTED")}
+                  >
+                    <Ionicons name="close-circle" size={16} color="#ef4444" />
+                    <Text style={[styles.claimReviewBtnText, { color: "#ef4444" }]}>Từ Chối</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+
+              <TouchableOpacity
+                style={{ alignSelf: "center", paddingVertical: 8 }}
+                onPress={() => setShowPayoutReviewModal(false)}
+              >
+                <Text style={{ color: Colors.dark.textMuted }}>Đóng cửa sổ</Text>
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
+
 
 const styles = StyleSheet.create({
   container: {
@@ -2509,5 +2747,132 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontWeight: "700",
   },
+  // Admin Payout Styles
+  adminPayoutCard: {
+    backgroundColor: "#161622",
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: "#262638",
+    marginBottom: 12,
+  },
+  adminPayoutHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: 8,
+  },
+  adminPayoutCreator: {
+    fontSize: 15,
+    fontWeight: "700",
+    color: "#fff",
+  },
+  adminPayoutMeta: {
+    fontSize: 12,
+    color: Colors.dark.textMuted,
+    marginTop: 2,
+  },
+  adminPayoutDate: {
+    fontSize: 10,
+    color: Colors.dark.textMuted,
+    marginTop: 2,
+  },
+  adminPayoutNote: {
+    fontSize: 11,
+    color: Colors.dark.primaryLight,
+    marginTop: 3,
+    fontStyle: "italic",
+  },
+  adminPayoutAmount: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: "#10b981",
+    marginBottom: 4,
+  },
+  payoutStatusTag: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 4,
+  },
+  statusTagSuccess: {
+    backgroundColor: "rgba(16, 185, 129, 0.15)",
+  },
+  statusTagPending: {
+    backgroundColor: "rgba(245, 158, 11, 0.15)",
+  },
+  statusTagRejected: {
+    backgroundColor: "rgba(239, 68, 68, 0.15)",
+  },
+  payoutStatusTagText: {
+    fontSize: 10,
+    fontWeight: "800",
+  },
+  adminPayoutReviewBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    backgroundColor: Colors.dark.primary,
+    paddingVertical: 10,
+    borderRadius: 10,
+    marginTop: 6,
+  },
+  adminPayoutReviewBtnText: {
+    color: "#fff",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  adminPayoutInfoBox: {
+    backgroundColor: "#11111a",
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: "#262638",
+    gap: 8,
+    marginVertical: 10,
+  },
+  adminPayoutInfoRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 4,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255, 255, 255, 0.05)",
+  },
+  adminPayoutInfoKey: {
+    fontSize: 12,
+    color: Colors.dark.textMuted,
+  },
+  adminPayoutInfoVal: {
+    fontSize: 13,
+    color: "#fff",
+  },
+  adminVietQrCard: {
+    backgroundColor: "#fff",
+    borderRadius: 14,
+    padding: 12,
+    alignItems: "center",
+    marginVertical: 10,
+    borderWidth: 2,
+    borderColor: Colors.dark.accent,
+  },
+  adminVietQrCardTitle: {
+    color: "#0284c7",
+    fontSize: 12,
+    fontWeight: "800",
+    marginBottom: 6,
+  },
+  adminVietQrImage: {
+    width: "100%",
+    height: 240,
+    maxWidth: 240,
+  },
+  adminVietQrSub: {
+    color: "#4b5563",
+    fontSize: 11,
+    textAlign: "center",
+    marginTop: 6,
+  },
 });
+
 

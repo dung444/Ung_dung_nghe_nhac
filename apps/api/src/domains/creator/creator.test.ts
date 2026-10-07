@@ -121,4 +121,51 @@ describe("Creator Studio Endpoints", () => {
     expect(res.body.success).toBe(true);
     createdSongId = ""; // Marked deleted
   });
+
+  it("should allow creator to request a payout to their bank account", async () => {
+    const res = await request(app)
+      .post("/api/v1/creator/payouts")
+      .set("Authorization", `Bearer ${creatorToken}`)
+      .send({
+        amount: 50000,
+        bankId: "MB",
+        bankName: "MBBank",
+        accountNo: "0912345678",
+        accountName: "NGUYEN VAN CREATOR",
+        note: "Rút tiền tác quyền bài hát tháng này",
+      });
+
+    expect(res.status).toBe(201);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.payout.amount).toBe(50000);
+    expect(res.body.data.payout.status).toBe("PENDING");
+    expect(res.body.data.payout.qrUrl).toContain("https://img.vietqr.io/image/MB-0912345678");
+  });
+
+  it("should reject payout if amount is under minimum threshold", async () => {
+    const res = await request(app)
+      .post("/api/v1/creator/payouts")
+      .set("Authorization", `Bearer ${creatorToken}`)
+      .send({
+        amount: 5000,
+        bankId: "MB",
+        accountNo: "0912345678",
+        accountName: "NGUYEN VAN CREATOR",
+      });
+
+    expect(res.status).toBe(400);
+  });
+
+  it("should get payout history and balance for creator", async () => {
+    const res = await request(app)
+      .get("/api/v1/creator/payouts")
+      .set("Authorization", `Bearer ${creatorToken}`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(Array.isArray(res.body.data.payouts)).toBe(true);
+    expect(res.body.data.payouts.length).toBeGreaterThanOrEqual(1);
+    expect(res.body.data.totalPending).toBe(50000);
+  });
 });
+
