@@ -608,7 +608,12 @@ export interface PaymentOrder {
   coins?: number;
   currency: string;
   method: "VIETQR_BANKING" | "MOMO" | "ZALOPAY" | "VNPAY" | string;
-  status: "PENDING" | "SUCCESS" | "FAILED" | "CANCELLED" | "EXPIRED";
+  status: "PENDING" | "WAITING_APPROVAL" | "SUCCESS" | "FAILED" | "CANCELLED" | "EXPIRED" | "REJECTED";
+  proofImageUrl?: string;
+  userNote?: string;
+  adminNote?: string;
+  reviewedAt?: string;
+  reviewedBy?: string;
   qrUrl: string;
   bankInfo: {
     bankId: string;
@@ -834,5 +839,123 @@ export async function getUserOrders(userId: string) {
   return {
     orders: userOrders,
     totalCount: userOrders.length,
+  };
+}
+
+export async function submitPaymentProof(
+  orderId: string,
+  userId: string,
+  data: { proofImageUrl: string; note?: string }
+) {
+  const order = paymentOrders.get(orderId);
+  if (!order) throw new AppError("Đơn hàng không tồn tại", 404);
+
+  if (order.userId !== userId) {
+    throw new AppError("Không có quyền gửi biên lai cho đơn này", 403);
+  }
+
+  if (!data.proofImageUrl) {
+    throw new AppError("Vui lòng cung cấp ảnh biên lai chuyển khoản", 400);
+  }
+
+  order.proofImageUrl = data.proofImageUrl;
+  if (data.note) order.userNote = data.note.trim();
+  order.status = "WAITING_APPROVAL";
+
+  // Keep transaction record in sync
+  const tx = transactions.find((t) => t.id === `tx_${order.id}` || t.transactionCode === order.orderCode);
+  if (tx) {
+    tx.status = "PENDING";
+  }
+
+  return {
+    success: true,
+    order,
+    message: "Đã gửi ảnh biên lai chuyển khoản thành công! Đang chờ Admin duyệt.",
+  };
+}
+
+export async function adminReviewPaymentOrder(
+  orderId: string,
+  adminUserId: string,
+  data: { action: "APPROVE" | "REJECT"; adminNote?: string }
+) {
+  const order = paymentOrders.get(orderId);
+  if (!order) throw new AppError("Đơn hàng không tồn tại", 404);
+
+  if (data.action !== "APPROVE" && data.action !== "REJECT") {
+    throw new AppError("Hành động không hợp lệ", 400);
+  }
+
+  order.reviewedAt = new Date().toISOString();
+  order.reviewedBy = adminUserId;
+  if (data.adminNote) order.adminNote = data.adminNote.trim();
+
+  let newBalance = await getUserCoins(order.userId);
+
+  if (data.action === "APPROVE") {
+    order.status = "SUCCESS";
+    order.completedAt = new Date().toISOString();
+
+    if (order.type === "COIN_TOPUP" && order.coins) {
+      newBalance += order.coins;
+      userCoinBalances.set(order.userId, newBalance);
+    } else if (order.type === "BUY_VIP") {
+      await prisma.user.update({
+        where: { id: order.userId },
+        data: { isPremium: true },
+      });
+    }
+
+    const tx = transactions.find((t) => t.id === `tx_${order.id}` || t.transactionCode === order.orderCode);
+    if (tx) {
+      tx.status = "SUCCESS";
+    }
+
+    return {
+      success: true,
+      order,
+      balance: newBalance,
+      message:
+        order.type === "COIN_TOPUP"
+          ? `Đã duyệt đơn! Nạp thành công ${order.coins} Xu cho người dùng.`
+          : `Đã duyệt đơn! Kích hoạt thành công gói ${order.packageName}.`,
+    };
+  } else {
+    order.status = "REJECTED";
+
+    const tx = transactions.find((t) => t.id === `tx_${order.id}` || t.transactionCode === order.orderCode);
+    if (tx) {
+      tx.status = "FAILED";
+    }
+
+    return {
+      success: true,
+      order,
+      message: "Đã từ chối đơn thanh toán.",
+    };
+  }
+}
+
+export async function getAdminPaymentOrders(query?: { status?: string; type?: string }) {
+  let list = Array.from(paymentOrders.values());
+
+  if (query?.status) {
+    list = list.filter((o) => o.status === query.status);
+  }
+  if (query?.type) {
+    list = list.filter((o) => o.type === query.type);
+  }
+
+  list.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+  const pendingCount = Array.from(paymentOrders.values()).filter(
+    (o) => o.status === "WAITING_APPROVAL" || o.status === "PENDING"
+  ).length;
+
+  return {
+    orders: list,
+    pendingCount,
+    totalCount: list.length,
   };
 }

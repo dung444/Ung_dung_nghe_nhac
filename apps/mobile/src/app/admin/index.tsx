@@ -27,10 +27,11 @@ import type {
   Album,
   CopyrightClaim,
   Role,
+  PaymentOrder,
 } from "@waifu-player/types";
 import { formatDuration } from "@waifu-player/utils";
 
-type AdminTab = "dashboard" | "songs" | "users" | "copyright" | "artists_albums" | "banking";
+type AdminTab = "dashboard" | "banking" | "orders" | "songs" | "users" | "copyright" | "artists_albums";
 
 export default function AdminPortalScreen() {
   const router = useRouter();
@@ -80,6 +81,15 @@ export default function AdminPortalScreen() {
   const [showPayoutReviewModal, setShowPayoutReviewModal] = useState(false);
   const [payoutAdminNote, setPayoutAdminNote] = useState("");
   const [payoutReviewLoading, setPayoutReviewLoading] = useState(false);
+
+  // Payment Orders Review States (Admin duyệt nạp xu và mua VIP)
+  const [adminOrders, setAdminOrders] = useState<PaymentOrder[]>([]);
+  const [orderFilter, setOrderFilter] = useState<"ALL" | "WAITING_APPROVAL" | "SUCCESS" | "REJECTED">("ALL");
+  const [orderReviewLoading, setOrderReviewLoading] = useState(false);
+  const [selectedProofImgModal, setSelectedProofImgModal] = useState<string | null>(null);
+  const [showRejectModal, setShowRejectModal] = useState(false);
+  const [selectedOrderToReject, setSelectedOrderToReject] = useState<PaymentOrder | null>(null);
+  const [rejectReason, setRejectReason] = useState("");
 
   // Search queries
 
@@ -259,10 +269,12 @@ export default function AdminPortalScreen() {
           setAdminPayoutPendingCount(payoutRes.data.data.pendingCount || 0);
           setAdminTotalPaidOut(payoutRes.data.data.totalPaidOut || 0);
         }
+      } else if (activeTab === "orders") {
+        const res = await api.get("/api/v1/payments/admin/orders").catch(() => ({ data: null }));
+        if (res?.data?.success && Array.isArray(res.data.data?.orders)) {
+          setAdminOrders(res.data.data.orders);
+        }
       }
-
-
-    } catch {
       // Fallback dummy data for visual preview
       if (activeTab === "dashboard" && !stats) {
         setStats({
@@ -333,6 +345,69 @@ export default function AdminPortalScreen() {
         },
       ]
     );
+  };
+
+  // Actions: Payment Orders (Xu & VIP) Review
+  const handleApproveOrder = (order: PaymentOrder) => {
+    const actionDesc =
+      order.type === "COIN_TOPUP"
+        ? `Nạp +${order.coins} Xu Waifu`
+        : `Kích hoạt Gói VIP Pass (${order.packageName})`;
+
+    Alert.alert(
+      "Duyệt đơn thanh toán ✅",
+      `Bạn có chắc chắn muốn duyệt đơn ${order.orderCode} (${order.amount.toLocaleString()} ₫)?\nHệ thống sẽ tự động ${actionDesc} cho người dùng ngay lập tức.`,
+      [
+        { text: "Hủy", style: "cancel" },
+        {
+          text: "Duyệt & Kích Hoạt Ngay",
+          onPress: async () => {
+            setOrderReviewLoading(true);
+            try {
+              const res = await api.post(`/api/v1/payments/admin/orders/${order.id}/review`, {
+                action: "APPROVE",
+                adminNote: "Admin đã xác nhận ảnh chuyển khoản và phê duyệt thành công",
+              });
+              if (res.data?.success) {
+                Alert.alert("Thành công! 🎉", `Đã duyệt đơn ${order.orderCode} và cập nhật quyền lợi cho tài khoản.`);
+                loadDashboardData();
+              }
+            } catch (err: any) {
+              Alert.alert("Lỗi", err.response?.data?.error || "Không thể duyệt đơn");
+            } finally {
+              setOrderReviewLoading(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleOpenRejectModal = (order: PaymentOrder) => {
+    setSelectedOrderToReject(order);
+    setRejectReason("");
+    setShowRejectModal(true);
+  };
+
+  const handleConfirmRejectOrder = async () => {
+    if (!selectedOrderToReject) return;
+    setOrderReviewLoading(true);
+    try {
+      const res = await api.post(`/api/v1/payments/admin/orders/${selectedOrderToReject.id}/review`, {
+        action: "REJECT",
+        adminNote: rejectReason.trim() || "Biên lai thanh toán không hợp lệ hoặc chưa nhận được tiền.",
+      });
+      if (res.data?.success) {
+        Alert.alert("Đã từ chối đơn ❌", `Đơn hàng ${selectedOrderToReject.orderCode} đã chuyển sang trạng thái bị từ chối.`);
+        setShowRejectModal(false);
+        setSelectedOrderToReject(null);
+        loadDashboardData();
+      }
+    } catch (err: any) {
+      Alert.alert("Lỗi", err.response?.data?.error || "Không thể từ chối đơn");
+    } finally {
+      setOrderReviewLoading(false);
+    }
   };
 
   // Actions: Song Management
@@ -603,6 +678,7 @@ export default function AdminPortalScreen() {
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingHorizontal: 12, gap: 8 }}>
           {[
             { id: "dashboard", label: "Tổng quan", icon: "grid-outline" },
+            { id: "orders", label: "Duyệt Đơn (Xu & VIP) 📸", icon: "receipt-outline" },
             { id: "banking", label: "Cấu Hình VietQR & Ngân Hàng", icon: "qr-code-outline" },
             { id: "songs", label: "Bài hát", icon: "musical-notes-outline" },
             { id: "users", label: "Người dùng & Phân quyền", icon: "people-outline" },
@@ -980,6 +1056,275 @@ export default function AdminPortalScreen() {
                     </View>
                   ))}
                 </View>
+              </View>
+            )}
+
+            {/* ─── TAB: PAYMENT ORDERS (DUYỆT NẠP XU & MUA VIP) ─────────────── */}
+            {activeTab === "orders" && (
+              <View>
+                <View style={styles.sectionHeaderRow}>
+                  <View>
+                    <Text style={styles.sectionTitle}>
+                      Duyệt Biên Lai Chuyển Khoản (Nạp Xu & VIP) 📸 ({adminOrders.length})
+                    </Text>
+                    <Text style={{ color: Colors.dark.textMuted, fontSize: 12, marginTop: 2 }}>
+                      Kiểm tra ảnh chuyển khoản ngân hàng do người dùng gửi lên để cộng xu hoặc kích hoạt VIP
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    style={styles.refreshOrdersBtn}
+                    onPress={loadDashboardData}
+                    disabled={loading}
+                  >
+                    <Ionicons name="reload" size={16} color="#fff" />
+                    <Text style={styles.refreshOrdersBtnText}>Làm Mới</Text>
+                  </TouchableOpacity>
+                </View>
+
+                {/* Filter Tabs */}
+                <View style={styles.orderFilterRow}>
+                  {[
+                    { id: "ALL", label: `Tất cả (${adminOrders.length})` },
+                    {
+                      id: "WAITING_APPROVAL",
+                      label: `⏳ Chờ duyệt (${adminOrders.filter((o) => o.status === "WAITING_APPROVAL").length})`,
+                    },
+                    {
+                      id: "SUCCESS",
+                      label: `✅ Đã duyệt (${adminOrders.filter((o) => o.status === "SUCCESS").length})`,
+                    },
+                    {
+                      id: "REJECTED",
+                      label: `❌ Từ chối (${adminOrders.filter((o) => o.status === "REJECTED").length})`,
+                    },
+                  ].map((flt) => {
+                    const isSelected = orderFilter === flt.id;
+                    return (
+                      <TouchableOpacity
+                        key={flt.id}
+                        style={[styles.orderFilterChip, isSelected && styles.orderFilterChipActive]}
+                        onPress={() => setOrderFilter(flt.id as any)}
+                      >
+                        <Text
+                          style={[
+                            styles.orderFilterChipText,
+                            isSelected && styles.orderFilterChipTextActive,
+                          ]}
+                        >
+                          {flt.label}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+
+                {/* Orders List */}
+                {adminOrders
+                  .filter((o) => (orderFilter === "ALL" ? true : o.status === orderFilter))
+                  .length === 0 ? (
+                  <View style={styles.emptyOrderBox}>
+                    <Ionicons name="receipt-outline" size={48} color={Colors.dark.textMuted} />
+                    <Text style={styles.emptyOrderTitle}>Không có đơn hàng nào</Text>
+                    <Text style={styles.emptyOrderSub}>
+                      {orderFilter === "WAITING_APPROVAL"
+                        ? "Hiện không có đơn nào đang chờ duyệt ảnh chuyển khoản."
+                        : "Không tìm thấy giao dịch tương ứng với bộ lọc này."}
+                    </Text>
+                  </View>
+                ) : (
+                  adminOrders
+                    .filter((o) => (orderFilter === "ALL" ? true : o.status === orderFilter))
+                    .map((order) => {
+                      const isWaiting = order.status === "WAITING_APPROVAL";
+                      const isSuccess = order.status === "SUCCESS";
+                      const isRejected = order.status === "REJECTED";
+                      const isCoin = order.type === "COIN_TOPUP";
+
+                      return (
+                        <View key={order.id} style={styles.orderAdminCard}>
+                          {/* Card Header */}
+                          <View style={styles.orderAdminCardHeader}>
+                            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                              <View
+                                style={[
+                                  styles.orderTypeBadge,
+                                  isCoin ? styles.orderTypeCoin : styles.orderTypeVip,
+                                ]}
+                              >
+                                <Text style={styles.orderTypeBadgeText}>
+                                  {isCoin ? `🪙 NẠP +${order.coins} XU` : `💎 MUA VIP PASS`}
+                                </Text>
+                              </View>
+                              <Text style={styles.orderCodeText}>{order.orderCode}</Text>
+                            </View>
+
+                            {/* Status Badge */}
+                            <View
+                              style={[
+                                styles.orderStatusBadge,
+                                isWaiting
+                                  ? styles.orderStatusWaiting
+                                  : isSuccess
+                                  ? styles.orderStatusSuccess
+                                  : isRejected
+                                  ? styles.orderStatusRejected
+                                  : styles.orderStatusPending,
+                              ]}
+                            >
+                              <Text
+                                style={[
+                                  styles.orderStatusBadgeText,
+                                  isWaiting
+                                    ? { color: "#f59e0b" }
+                                    : isSuccess
+                                    ? { color: "#10b981" }
+                                    : isRejected
+                                    ? { color: "#ef4444" }
+                                    : { color: Colors.dark.textMuted },
+                                ]}
+                              >
+                                {isWaiting
+                                  ? "⏳ CHỜ DUYỆT"
+                                  : isSuccess
+                                  ? "✅ ĐÃ DUYỆT"
+                                  : isRejected
+                                  ? "❌ TỪ CHỐI"
+                                  : "⌛ CHƯA GỬI ẢNH"}
+                              </Text>
+                            </View>
+                          </View>
+
+                          {/* Order Details Grid */}
+                          <View style={styles.orderAdminDetailsGrid}>
+                            <View style={styles.orderDetailItem}>
+                              <Text style={styles.orderDetailItemKey}>Gói yêu cầu:</Text>
+                              <Text style={styles.orderDetailItemValBold}>
+                                {order.packageName || (isCoin ? `${order.coins} Xu` : "Gói VIP")}
+                              </Text>
+                            </View>
+                            <View style={styles.orderDetailItem}>
+                              <Text style={styles.orderDetailItemKey}>Số tiền thanh toán:</Text>
+                              <Text style={[styles.orderDetailItemValBold, { color: "#10b981" }]}>
+                                {order.amount.toLocaleString()} VNĐ
+                              </Text>
+                            </View>
+                            <View style={styles.orderDetailItem}>
+                              <Text style={styles.orderDetailItemKey}>Tài khoản người mua:</Text>
+                              <Text style={styles.orderDetailItemVal} numberOfLines={1}>
+                                {(order as any).user?.email || order.userId}
+                              </Text>
+                            </View>
+                            <View style={styles.orderDetailItem}>
+                              <Text style={styles.orderDetailItemKey}>Thời gian tạo:</Text>
+                              <Text style={styles.orderDetailItemVal}>
+                                {new Date(order.createdAt).toLocaleDateString("vi-VN")}{" "}
+                                {new Date(order.createdAt).toLocaleTimeString("vi-VN", {
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                })}
+                              </Text>
+                            </View>
+                          </View>
+
+                          {/* User Note */}
+                          {!!order.userNote && (
+                            <View style={styles.orderNoteBox}>
+                              <Ionicons name="chatbubble-ellipses-outline" size={14} color="#94a3b8" />
+                              <Text style={styles.orderNoteText}>
+                                <Text style={{ fontWeight: "700", color: "#e2e8f0" }}>Khách ghi chú: </Text>
+                                {order.userNote}
+                              </Text>
+                            </View>
+                          )}
+
+                          {/* Admin Note if already reviewed */}
+                          {!!order.adminNote && (
+                            <View
+                              style={[
+                                styles.orderNoteBox,
+                                {
+                                  backgroundColor: isRejected
+                                    ? "rgba(239, 68, 68, 0.1)"
+                                    : "rgba(16, 185, 129, 0.1)",
+                                },
+                              ]}
+                            >
+                              <Ionicons
+                                name="information-circle-outline"
+                                size={14}
+                                color={isRejected ? "#ef4444" : "#10b981"}
+                              />
+                              <Text
+                                style={[
+                                  styles.orderNoteText,
+                                  { color: isRejected ? "#fca5a5" : "#6ee7b7" },
+                                ]}
+                              >
+                                <Text style={{ fontWeight: "700" }}>Admin ghi chú: </Text>
+                                {order.adminNote}
+                              </Text>
+                            </View>
+                          )}
+
+                          {/* Proof Receipt Image Preview */}
+                          {order.proofImageUrl ? (
+                            <View style={styles.orderProofSection}>
+                              <Text style={styles.orderProofHeaderLabel}>
+                                Ảnh chụp màn hình chuyển khoản ngân hàng:
+                              </Text>
+                              <TouchableOpacity
+                                style={styles.orderProofThumbWrap}
+                                onPress={() => setSelectedProofImgModal(order.proofImageUrl || null)}
+                                activeOpacity={0.85}
+                              >
+                                <Image
+                                  source={{ uri: order.proofImageUrl }}
+                                  style={styles.orderProofThumbImg}
+                                  resizeMode="cover"
+                                />
+                                <View style={styles.orderProofZoomBadge}>
+                                  <Ionicons name="search" size={12} color="#fff" />
+                                  <Text style={styles.orderProofZoomText}>Phóng to ảnh</Text>
+                                </View>
+                              </TouchableOpacity>
+                            </View>
+                          ) : (
+                            <View style={styles.orderNoProofBox}>
+                              <Ionicons name="image-outline" size={16} color={Colors.dark.textMuted} />
+                              <Text style={styles.orderNoProofText}>
+                                Khách hàng chưa tải ảnh biên lai
+                              </Text>
+                            </View>
+                          )}
+
+                          {/* Action Buttons for Waiting Approval */}
+                          {isWaiting && (
+                            <View style={styles.orderActionRow}>
+                              <TouchableOpacity
+                                style={[styles.orderRejectBtn, orderReviewLoading && { opacity: 0.6 }]}
+                                onPress={() => handleOpenRejectModal(order)}
+                                disabled={orderReviewLoading}
+                              >
+                                <Ionicons name="close-circle-outline" size={16} color="#ef4444" />
+                                <Text style={styles.orderRejectBtnText}>Từ Chối Đơn</Text>
+                              </TouchableOpacity>
+
+                              <TouchableOpacity
+                                style={[styles.orderApproveBtn, orderReviewLoading && { opacity: 0.6 }]}
+                                onPress={() => handleApproveOrder(order)}
+                                disabled={orderReviewLoading}
+                              >
+                                <Ionicons name="checkmark-circle-outline" size={16} color="#fff" />
+                                <Text style={styles.orderApproveBtnText}>
+                                  Duyệt & {isCoin ? "Cộng Xu" : "Kích Hoạt VIP"} Ngay ✅
+                                </Text>
+                              </TouchableOpacity>
+                            </View>
+                          )}
+                        </View>
+                      );
+                    })
+                )}
               </View>
             )}
 
@@ -1794,6 +2139,100 @@ export default function AdminPortalScreen() {
                 <Text style={{ color: Colors.dark.textMuted }}>Đóng cửa sổ</Text>
               </TouchableOpacity>
             </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ─── MODAL: ZOOM PAYMENT PROOF IMAGE ─────────────────────────────── */}
+      <Modal
+        visible={!!selectedProofImgModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setSelectedProofImgModal(null)}
+      >
+        <View style={styles.modalProofZoomOverlay}>
+          <View style={styles.modalProofZoomCard}>
+            <View style={styles.modalProofZoomHeader}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                <Ionicons name="image" size={18} color="#ec4899" />
+                <Text style={styles.modalProofZoomTitle}>Chi Tiết Ảnh Biên Lai Chuyển Khoản</Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => setSelectedProofImgModal(null)}
+                style={styles.modalProofCloseIcon}
+              >
+                <Ionicons name="close" size={22} color="#fff" />
+              </TouchableOpacity>
+            </View>
+
+            {selectedProofImgModal && (
+              <Image
+                source={{ uri: selectedProofImgModal }}
+                style={styles.modalProofZoomImg}
+                resizeMode="contain"
+              />
+            )}
+
+            <TouchableOpacity
+              style={styles.modalProofCloseBtn}
+              onPress={() => setSelectedProofImgModal(null)}
+            >
+              <Text style={styles.modalProofCloseBtnText}>Đóng Lại</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ─── MODAL: REJECT PAYMENT ORDER ─────────────────────────────────── */}
+      <Modal
+        visible={showRejectModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowRejectModal(false)}
+      >
+        <View style={styles.modalBgCenter}>
+          <View style={[styles.modalCardCenter, { maxWidth: 460 }]}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 4 }}>
+              <Ionicons name="alert-circle" size={22} color="#ef4444" />
+              <Text style={styles.modalDialogTitle}>Từ Chối Đơn Thanh Toán</Text>
+            </View>
+            <Text style={styles.modalDialogSub}>
+              Đơn hàng: <Text style={{ color: "#fff", fontWeight: "700" }}>{selectedOrderToReject?.orderCode}</Text> ({Number(selectedOrderToReject?.amount || 0).toLocaleString()} VNĐ)
+            </Text>
+
+            <Text style={styles.inputFieldLabel}>Lý do từ chối (Gửi tới người dùng) *</Text>
+            <TextInput
+              style={styles.textArea}
+              placeholder="VD: Chưa nhận được tiền trong tài khoản MB, nội dung chuyển khoản không khớp, ..."
+              placeholderTextColor={Colors.dark.textMuted}
+              multiline
+              numberOfLines={3}
+              value={rejectReason}
+              onChangeText={setRejectReason}
+            />
+
+            <View style={styles.modalDialogActions}>
+              <TouchableOpacity
+                style={styles.modalCancelBtn}
+                onPress={() => {
+                  setShowRejectModal(false);
+                  setSelectedOrderToReject(null);
+                }}
+              >
+                <Text style={{ color: Colors.dark.textMuted }}>Hủy Bỏ</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalConfirmBtn, { backgroundColor: "#ef4444" }]}
+                onPress={handleConfirmRejectOrder}
+                disabled={orderReviewLoading}
+              >
+                {orderReviewLoading ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={{ color: "#fff", fontWeight: "700" }}>Xác Nhận Từ Chối</Text>
+                )}
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </Modal>
@@ -2891,6 +3330,318 @@ const styles = StyleSheet.create({
     fontSize: 11,
     textAlign: "center",
     marginTop: 6,
+  },
+
+  // Payment Orders (Duyệt nạp xu & VIP) Styles
+  refreshOrdersBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(255, 255, 255, 0.08)",
+    paddingHorizontal: 12,
+    paddingVertical: 7,
+    borderRadius: 8,
+    gap: 6,
+  },
+  refreshOrdersBtnText: {
+    color: "#fff",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  orderFilterRow: {
+    flexDirection: "row",
+    gap: 8,
+    marginBottom: 14,
+    flexWrap: "wrap",
+  },
+  orderFilterChip: {
+    backgroundColor: "rgba(255, 255, 255, 0.05)",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.08)",
+  },
+  orderFilterChipActive: {
+    backgroundColor: Colors.dark.primary,
+    borderColor: Colors.dark.primary,
+  },
+  orderFilterChipText: {
+    color: Colors.dark.textMuted,
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  orderFilterChipTextActive: {
+    color: "#fff",
+    fontWeight: "700",
+  },
+  emptyOrderBox: {
+    backgroundColor: "rgba(255, 255, 255, 0.03)",
+    borderRadius: 16,
+    padding: 36,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.06)",
+    marginVertical: 12,
+  },
+  emptyOrderTitle: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "800",
+    marginTop: 10,
+    marginBottom: 4,
+  },
+  emptyOrderSub: {
+    color: Colors.dark.textMuted,
+    fontSize: 12,
+    textAlign: "center",
+  },
+  orderAdminCard: {
+    backgroundColor: "rgba(255, 255, 255, 0.04)",
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.08)",
+  },
+  orderAdminCardHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  orderTypeBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  orderTypeCoin: {
+    backgroundColor: "rgba(245, 158, 11, 0.15)",
+    borderWidth: 1,
+    borderColor: "rgba(245, 158, 11, 0.3)",
+  },
+  orderTypeVip: {
+    backgroundColor: "rgba(236, 72, 153, 0.15)",
+    borderWidth: 1,
+    borderColor: "rgba(236, 72, 153, 0.3)",
+  },
+  orderTypeBadgeText: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: "#fff",
+  },
+  orderCodeText: {
+    color: Colors.dark.accent,
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  orderStatusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: 1,
+  },
+  orderStatusWaiting: {
+    backgroundColor: "rgba(245, 158, 11, 0.15)",
+    borderColor: "rgba(245, 158, 11, 0.4)",
+  },
+  orderStatusSuccess: {
+    backgroundColor: "rgba(16, 185, 129, 0.15)",
+    borderColor: "rgba(16, 185, 129, 0.4)",
+  },
+  orderStatusRejected: {
+    backgroundColor: "rgba(239, 68, 68, 0.15)",
+    borderColor: "rgba(239, 68, 68, 0.4)",
+  },
+  orderStatusPending: {
+    backgroundColor: "rgba(255, 255, 255, 0.06)",
+    borderColor: "rgba(255, 255, 255, 0.1)",
+  },
+  orderStatusBadgeText: {
+    fontSize: 10,
+    fontWeight: "800",
+  },
+  orderAdminDetailsGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    backgroundColor: "rgba(0, 0, 0, 0.25)",
+    borderRadius: 12,
+    padding: 10,
+    gap: 8,
+    marginBottom: 10,
+  },
+  orderDetailItem: {
+    width: "48%",
+  },
+  orderDetailItemKey: {
+    color: Colors.dark.textMuted,
+    fontSize: 11,
+    marginBottom: 2,
+  },
+  orderDetailItemValBold: {
+    color: "#fff",
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  orderDetailItemVal: {
+    color: "#cbd5e1",
+    fontSize: 12,
+  },
+  orderNoteBox: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    backgroundColor: "rgba(255, 255, 255, 0.04)",
+    borderRadius: 10,
+    padding: 10,
+    gap: 8,
+    marginBottom: 10,
+  },
+  orderNoteText: {
+    color: Colors.dark.textMuted,
+    fontSize: 12,
+    lineHeight: 16,
+    flex: 1,
+  },
+  orderProofSection: {
+    marginTop: 4,
+    marginBottom: 12,
+  },
+  orderProofHeaderLabel: {
+    color: "#e2e8f0",
+    fontSize: 11,
+    fontWeight: "700",
+    marginBottom: 6,
+  },
+  orderProofThumbWrap: {
+    position: "relative",
+    borderRadius: 10,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "rgba(236, 72, 153, 0.3)",
+    height: 140,
+    backgroundColor: "#000",
+  },
+  orderProofThumbImg: {
+    width: "100%",
+    height: "100%",
+  },
+  orderProofZoomBadge: {
+    position: "absolute",
+    bottom: 8,
+    right: 8,
+    backgroundColor: "rgba(0, 0, 0, 0.75)",
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    gap: 4,
+  },
+  orderProofZoomText: {
+    color: "#fff",
+    fontSize: 11,
+    fontWeight: "600",
+  },
+  orderNoProofBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingVertical: 6,
+    marginBottom: 8,
+  },
+  orderNoProofText: {
+    color: Colors.dark.textMuted,
+    fontSize: 11,
+  },
+  orderActionRow: {
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 6,
+  },
+  orderRejectBtn: {
+    flex: 1,
+    backgroundColor: "rgba(239, 68, 68, 0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(239, 68, 68, 0.35)",
+    paddingVertical: 10,
+    borderRadius: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+  },
+  orderRejectBtnText: {
+    color: "#ef4444",
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  orderApproveBtn: {
+    flex: 2,
+    backgroundColor: "#16a34a",
+    paddingVertical: 10,
+    borderRadius: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    shadowColor: "#16a34a",
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 2 },
+  },
+  orderApproveBtnText: {
+    color: "#fff",
+    fontSize: 13,
+    fontWeight: "800",
+  },
+
+  // Modal Zoom Proof Styles
+  modalProofZoomOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.85)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 16,
+  },
+  modalProofZoomCard: {
+    backgroundColor: "#161622",
+    borderRadius: 20,
+    padding: 16,
+    width: "100%",
+    maxWidth: 520,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.12)",
+  },
+  modalProofZoomHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 14,
+  },
+  modalProofZoomTitle: {
+    color: "#fff",
+    fontSize: 15,
+    fontWeight: "800",
+  },
+  modalProofCloseIcon: {
+    padding: 4,
+  },
+  modalProofZoomImg: {
+    width: "100%",
+    height: 380,
+    borderRadius: 12,
+    backgroundColor: "#000",
+  },
+  modalProofCloseBtn: {
+    marginTop: 14,
+    backgroundColor: "rgba(255, 255, 255, 0.1)",
+    paddingVertical: 11,
+    borderRadius: 10,
+    alignItems: "center",
+  },
+  modalProofCloseBtnText: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "700",
   },
 });
 

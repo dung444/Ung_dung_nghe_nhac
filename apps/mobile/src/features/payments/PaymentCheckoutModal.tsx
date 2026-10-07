@@ -71,6 +71,33 @@ const PAYMENT_METHODS = [
   { id: "VNPAY", name: "VNPay / Thẻ ATM", desc: "Cổng thanh toán quốc gia VNPay QR & Thẻ", icon: "card", badge: "AN TOÀN" },
 ];
 
+export const BANK_PROOF_PRESETS = [
+  {
+    id: "mb",
+    bankName: "MBBank",
+    thumb: "https://images.unsplash.com/photo-1559526324-4b87b5e36e44?w=500&auto=format&fit=crop&q=60",
+    label: "Biên lai MBBank 24/7",
+  },
+  {
+    id: "vcb",
+    bankName: "Vietcombank",
+    thumb: "https://images.unsplash.com/photo-1563013544-824ae1b704d3?w=500&auto=format&fit=crop&q=60",
+    label: "Biên lai VCB Digibank",
+  },
+  {
+    id: "momo",
+    bankName: "Ví MoMo",
+    thumb: "https://images.unsplash.com/photo-1616077168079-7e09a677fb2c?w=500&auto=format&fit=crop&q=60",
+    label: "Biên lai Ví MoMo",
+  },
+  {
+    id: "tcb",
+    bankName: "Techcombank",
+    thumb: "https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?w=500&auto=format&fit=crop&q=60",
+    label: "Biên lai Techcombank",
+  },
+];
+
 export function PaymentCheckoutModal({
   visible,
   type,
@@ -83,11 +110,16 @@ export function PaymentCheckoutModal({
   const { user, setUser } = useAuthStore();
   const { showSuccess, showError, showInfo } = useToastStore();
 
-  const [step, setStep] = useState<"SELECT_METHOD" | "PAYMENT_QR" | "SUCCESS">("SELECT_METHOD");
+  const [step, setStep] = useState<"SELECT_METHOD" | "PAYMENT_QR" | "WAITING_APPROVAL" | "SUCCESS">("SELECT_METHOD");
   const [selectedMethod, setSelectedMethod] = useState("VIETQR_BANKING");
   const [loading, setLoading] = useState(false);
   const [currentOrder, setCurrentOrder] = useState<PaymentOrder | null>(null);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
+
+  // Transfer Proof States (Gửi ảnh biên lai chuyển khoản để admin duyệt)
+  const [proofImageUrl, setProofImageUrl] = useState<string>("");
+  const [userNote, setUserNote] = useState<string>("");
+  const [submittingProof, setSubmittingProof] = useState<boolean>(false);
 
   // Coin selection states
   const [activeCoinPkg, setActiveCoinPkg] = useState<CoinPackage | null>(
@@ -123,6 +155,10 @@ export function PaymentCheckoutModal({
       if (selectedVipPackageId) {
         setActiveVipId(selectedVipPackageId);
       }
+
+      setProofImageUrl("");
+      setUserNote("");
+      setSubmittingProof(false);
     } else {
       if (timerRef.current) clearInterval(timerRef.current);
     }
@@ -227,6 +263,39 @@ export function PaymentCheckoutModal({
     }
   };
 
+  // Step 1.5: Gửi ảnh biên lai chuyển khoản để Admin duyệt (Xu hoặc VIP)
+  const handleSubmitProof = async () => {
+    if (!currentOrder) return;
+    const finalProofUrl = proofImageUrl.trim() || BANK_PROOF_PRESETS[0].thumb;
+    setSubmittingProof(true);
+    try {
+      const res = await api.post(ENDPOINTS.submitOrderProof(currentOrder.id), {
+        proofImageUrl: finalProofUrl,
+        userNote: userNote.trim() || `Đã chuyển khoản đơn hàng ${currentOrder.orderCode}`,
+      });
+      if (res.data?.success) {
+        const updatedOrder = res.data.data?.order || {
+          ...currentOrder,
+          status: "WAITING_APPROVAL",
+          proofImageUrl: finalProofUrl,
+          userNote: userNote.trim() || `Đã chuyển khoản đơn hàng ${currentOrder.orderCode}`,
+        };
+        setCurrentOrder(updatedOrder);
+        setStep("WAITING_APPROVAL");
+        showSuccess(
+          "Gửi biên lai thành công! 📤",
+          "Đơn hàng đang chờ Admin kiểm tra và duyệt " + (type === "COIN_TOPUP" ? "xu" : "VIP") + "."
+        );
+      } else {
+        throw new Error(res.data?.message || "Không thể gửi ảnh biên lai");
+      }
+    } catch (err: any) {
+      showError("Gửi biên lai thất bại", err.response?.data?.error || err.message || "Vui lòng thử lại!");
+    } finally {
+      setSubmittingProof(false);
+    }
+  };
+
   // Step 2: Confirm Payment Order
   const handleConfirmOrder = async () => {
     if (!currentOrder) return;
@@ -283,6 +352,8 @@ export function PaymentCheckoutModal({
               <Text style={styles.headerTitle}>
                 {step === "SUCCESS"
                   ? "Biên Lai Thanh Toán ✨"
+                  : step === "WAITING_APPROVAL"
+                  ? "Chờ Admin Duyệt Biên Lai ⏳"
                   : step === "PAYMENT_QR"
                   ? "Quét Mã Thanh Toán VietQR"
                   : type === "COIN_TOPUP"
@@ -639,24 +710,177 @@ export function PaymentCheckoutModal({
                   </Text>
                 </View>
 
-                {/* Confirm & Cancel Actions */}
-                <TouchableOpacity
-                  style={[styles.confirmBtn, loading && { opacity: 0.7 }]}
-                  onPress={handleConfirmOrder}
-                  disabled={loading}
-                >
-                  {loading ? (
-                    <ActivityIndicator color="#fff" />
-                  ) : (
-                    <>
-                      <Ionicons name="checkmark-done" size={20} color="#fff" />
-                      <Text style={styles.confirmBtnText}>Tôi Đã Chuyển Khoản • Hoàn Tất Đơn</Text>
-                    </>
-                  )}
-                </TouchableOpacity>
+                {/* ─── PHẦN GỬI ẢNH BIÊN LAI ĐỂ ADMIN DUYỆT XU & VIP ─── */}
+                <View style={styles.proofSection}>
+                  <View style={styles.proofHeaderRow}>
+                    <Ionicons name="camera" size={18} color="#ec4899" />
+                    <Text style={styles.proofSectionTitle}>
+                      GỬI ẢNH BIÊN LAI ĐỂ ADMIN DUYỆT ({type === "COIN_TOPUP" ? "XU" : "VIP"}) 📸
+                    </Text>
+                  </View>
+                  <Text style={styles.proofSectionSub}>
+                    Chuyển khoản xong? Bạn có thể gửi ảnh chụp màn hình biên lai để Admin duyệt và kích hoạt {type === "COIN_TOPUP" ? "xu" : "VIP"} cho bạn ngay.
+                  </Text>
 
-                <TouchableOpacity style={styles.cancelBtn} onPress={handleCancelOrder}>
-                  <Text style={styles.cancelBtnText}>Hủy giao dịch này</Text>
+                  {/* 1. Chọn nhanh ảnh mẫu thực tế */}
+                  <Text style={styles.proofSubLabel}>1. Chọn nhanh mẫu ngân hàng (MB, VCB, MoMo, Tech):</Text>
+                  <View style={styles.presetProofRow}>
+                    {BANK_PROOF_PRESETS.map((preset) => {
+                      const isChosen = proofImageUrl === preset.thumb;
+                      return (
+                        <TouchableOpacity
+                          key={preset.id}
+                          style={[styles.presetCard, isChosen && styles.presetCardActive]}
+                          onPress={() => setProofImageUrl(preset.thumb)}
+                          activeOpacity={0.8}
+                        >
+                          <Image source={{ uri: preset.thumb }} style={styles.presetImg} />
+                          <Text style={[styles.presetName, isChosen && { color: "#ec4899", fontWeight: "700" }]}>
+                            {preset.bankName}
+                          </Text>
+                          {isChosen && (
+                            <View style={styles.presetCheck}>
+                              <Ionicons name="checkmark-circle" size={14} color="#ec4899" />
+                            </View>
+                          )}
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+
+                  {/* 2. Dán link ảnh chụp màn hình */}
+                  <Text style={styles.proofSubLabel}>2. Hoặc dán đường dẫn (URL) ảnh biên lai của bạn:</Text>
+                  <TextInput
+                    style={styles.proofInput}
+                    placeholder="https://i.imgur.com/... hoặc link ảnh biên lai..."
+                    placeholderTextColor={Colors.dark.textMuted}
+                    value={proofImageUrl}
+                    onChangeText={setProofImageUrl}
+                    autoCapitalize="none"
+                  />
+
+                  {/* 3. Lời nhắn / ghi chú */}
+                  <Text style={styles.proofSubLabel}>3. Ghi chú chuyển khoản (tùy chọn):</Text>
+                  <TextInput
+                    style={[styles.proofInput, { height: 42 }]}
+                    placeholder="VD: Em đã chuyển 50k từ app ngân hàng lúc 20:30..."
+                    placeholderTextColor={Colors.dark.textMuted}
+                    value={userNote}
+                    onChangeText={setUserNote}
+                  />
+
+                  {/* Xem trước ảnh nếu có */}
+                  {!!proofImageUrl && (
+                    <View style={styles.proofPreviewBox}>
+                      <Text style={styles.proofPreviewLabel}>Ảnh biên lai đính kèm:</Text>
+                      <Image source={{ uri: proofImageUrl }} style={styles.proofPreviewImg} resizeMode="cover" />
+                    </View>
+                  )}
+
+                  {/* Nút gửi biên lai cho Admin */}
+                  <TouchableOpacity
+                    style={[styles.submitProofBtn, submittingProof && { opacity: 0.7 }]}
+                    onPress={handleSubmitProof}
+                    disabled={submittingProof}
+                  >
+                    {submittingProof ? (
+                      <ActivityIndicator color="#fff" />
+                    ) : (
+                      <>
+                        <Ionicons name="cloud-upload" size={18} color="#fff" />
+                        <Text style={styles.submitProofBtnText}>
+                          Gửi Ảnh Biên Lai Chờ Admin Duyệt {type === "COIN_TOPUP" ? "Xu" : "VIP"} 📤
+                        </Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                </View>
+
+                {/* Hoặc Tự động xác nhận ngay */}
+                <View style={{ marginTop: 14 }}>
+                  <TouchableOpacity
+                    style={[styles.confirmBtn, loading && { opacity: 0.7 }]}
+                    onPress={handleConfirmOrder}
+                    disabled={loading}
+                  >
+                    {loading ? (
+                      <ActivityIndicator color="#fff" />
+                    ) : (
+                      <>
+                        <Ionicons name="flash" size={18} color="#10b981" />
+                        <Text style={styles.confirmBtnText}>Đã Chuyển Tiền • Kiểm Tra Tự Động Ngay</Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+
+                  <TouchableOpacity style={styles.cancelBtn} onPress={handleCancelOrder}>
+                    <Text style={styles.cancelBtnText}>Hủy giao dịch này</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
+
+            {/* ──────── STEP 2.5: ĐANG CHỜ ADMIN DUYỆT BIÊN LAI ──────── */}
+            {step === "WAITING_APPROVAL" && currentOrder && (
+              <View style={styles.waitingBox}>
+                <View style={styles.waitingIconCircle}>
+                  <Ionicons name="time" size={60} color="#f59e0b" />
+                </View>
+                <Text style={styles.waitingTitle}>Đã Gửi Biên Lai • Chờ Admin Duyệt! ⏳</Text>
+                <Text style={styles.waitingSub}>
+                  {type === "COIN_TOPUP"
+                    ? `Yêu cầu nạp ${currentOrder.coins || 0} Xu Waifu đã được chuyển tới Admin để đối soát.`
+                    : `Yêu cầu kích hoạt Gói Hội Viên ${currentOrder.packageName} đã được gửi tới Admin.`}
+                </Text>
+
+                <View style={styles.receiptCard}>
+                  <View style={styles.receiptRow}>
+                    <Text style={styles.receiptLabel}>Mã đơn hàng:</Text>
+                    <Text style={[styles.receiptVal, { color: "#f59e0b", fontWeight: "700" }]}>{currentOrder.orderCode}</Text>
+                  </View>
+                  <View style={styles.receiptRow}>
+                    <Text style={styles.receiptLabel}>Mục thanh toán:</Text>
+                    <Text style={styles.receiptVal}>{currentOrder.packageName}</Text>
+                  </View>
+                  <View style={styles.receiptRow}>
+                    <Text style={styles.receiptLabel}>Số tiền:</Text>
+                    <Text style={[styles.receiptVal, { color: "#10b981", fontWeight: "700" }]}>
+                      {currentOrder.amount.toLocaleString()} VNĐ
+                    </Text>
+                  </View>
+                  <View style={styles.receiptRow}>
+                    <Text style={styles.receiptLabel}>Trạng thái đơn:</Text>
+                    <View style={styles.waitingBadge}>
+                      <Text style={styles.waitingBadgeText}>⏳ ĐANG CHỜ DUYỆT</Text>
+                    </View>
+                  </View>
+                  {!!currentOrder.userNote && (
+                    <View style={[styles.receiptRow, { flexDirection: "column", alignItems: "flex-start", gap: 4 }]}>
+                      <Text style={styles.receiptLabel}>Lời nhắn của bạn:</Text>
+                      <Text style={[styles.receiptVal, { color: "#cbd5e1" }]}>{currentOrder.userNote}</Text>
+                    </View>
+                  )}
+                  {!!currentOrder.proofImageUrl && (
+                    <View style={{ marginTop: 10 }}>
+                      <Text style={styles.receiptLabel}>Ảnh biên lai đã đính kèm:</Text>
+                      <Image
+                        source={{ uri: currentOrder.proofImageUrl }}
+                        style={styles.proofSubmittedImg}
+                        resizeMode="cover"
+                      />
+                    </View>
+                  )}
+                </View>
+
+                <View style={styles.waitingNotice}>
+                  <Ionicons name="information-circle-outline" size={18} color="#f59e0b" />
+                  <Text style={styles.waitingNoticeText}>
+                    Admin sẽ kiểm tra giao dịch và phê duyệt trong 1 - 5 phút. Khi duyệt xong, hệ thống sẽ tự động cộng xu / kích hoạt VIP cho bạn.
+                  </Text>
+                </View>
+
+                <TouchableOpacity style={styles.finishBtn} onPress={onClose}>
+                  <Text style={styles.finishBtnText}>Tôi Đã Hiểu • Đóng Cửa Sổ</Text>
                 </TouchableOpacity>
               </View>
             )}
@@ -1298,5 +1522,186 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 15,
     fontWeight: "800",
+  },
+
+  // Proof Upload Section Styles
+  proofSection: {
+    marginTop: 18,
+    backgroundColor: "rgba(236, 72, 153, 0.08)",
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: "rgba(236, 72, 153, 0.25)",
+  },
+  proofHeaderRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 4,
+  },
+  proofSectionTitle: {
+    color: "#ec4899",
+    fontSize: 13,
+    fontWeight: "800",
+    letterSpacing: 0.5,
+  },
+  proofSectionSub: {
+    color: Colors.dark.textMuted,
+    fontSize: 12,
+    lineHeight: 16,
+    marginBottom: 12,
+  },
+  proofSubLabel: {
+    color: "#e2e8f0",
+    fontSize: 12,
+    fontWeight: "700",
+    marginTop: 8,
+    marginBottom: 6,
+  },
+  presetProofRow: {
+    flexDirection: "row",
+    gap: 8,
+    marginBottom: 8,
+  },
+  presetCard: {
+    flex: 1,
+    backgroundColor: "rgba(255,255,255,0.04)",
+    borderRadius: 10,
+    padding: 6,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+    position: "relative",
+  },
+  presetCardActive: {
+    borderColor: "#ec4899",
+    backgroundColor: "rgba(236, 72, 153, 0.15)",
+  },
+  presetImg: {
+    width: "100%",
+    height: 38,
+    borderRadius: 6,
+    marginBottom: 4,
+  },
+  presetName: {
+    color: Colors.dark.textMuted,
+    fontSize: 10,
+    fontWeight: "600",
+  },
+  presetCheck: {
+    position: "absolute",
+    top: 4,
+    right: 4,
+    backgroundColor: "#000",
+    borderRadius: 10,
+  },
+  proofInput: {
+    backgroundColor: "rgba(0,0,0,0.3)",
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.12)",
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    color: "#fff",
+    fontSize: 12,
+  },
+  proofPreviewBox: {
+    marginTop: 10,
+    backgroundColor: "rgba(0,0,0,0.2)",
+    borderRadius: 10,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+  },
+  proofPreviewLabel: {
+    color: Colors.dark.textMuted,
+    fontSize: 11,
+    marginBottom: 6,
+  },
+  proofPreviewImg: {
+    width: "100%",
+    height: 120,
+    borderRadius: 8,
+  },
+  submitProofBtn: {
+    marginTop: 14,
+    backgroundColor: "#ec4899",
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 13,
+    borderRadius: 12,
+    gap: 8,
+    shadowColor: "#ec4899",
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    shadowOffset: { width: 0, height: 3 },
+  },
+  submitProofBtnText: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "800",
+  },
+
+  // Waiting Approval Step Styles
+  waitingBox: {
+    alignItems: "center",
+    paddingVertical: 20,
+  },
+  waitingIconCircle: {
+    marginBottom: 12,
+  },
+  waitingTitle: {
+    color: "#f59e0b",
+    fontSize: 20,
+    fontWeight: "900",
+    marginBottom: 6,
+    textAlign: "center",
+  },
+  waitingSub: {
+    color: Colors.dark.textMuted,
+    fontSize: 13,
+    textAlign: "center",
+    paddingHorizontal: 16,
+    marginBottom: 20,
+    lineHeight: 18,
+  },
+  waitingBadge: {
+    backgroundColor: "rgba(245, 158, 11, 0.15)",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "rgba(245, 158, 11, 0.3)",
+  },
+  waitingBadgeText: {
+    color: "#f59e0b",
+    fontSize: 11,
+    fontWeight: "800",
+  },
+  proofSubmittedImg: {
+    width: "100%",
+    height: 150,
+    borderRadius: 10,
+    marginTop: 6,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.15)",
+  },
+  waitingNotice: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    backgroundColor: "rgba(245, 158, 11, 0.08)",
+    borderWidth: 1,
+    borderColor: "rgba(245, 158, 11, 0.2)",
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 20,
+    gap: 8,
+  },
+  waitingNoticeText: {
+    flex: 1,
+    color: "#fbbf24",
+    fontSize: 12,
+    lineHeight: 17,
   },
 });

@@ -359,7 +359,12 @@ export interface PaymentOrder {
   coins?: number;
   currency: string;
   method: "VIETQR_BANKING" | "MOMO" | "ZALOPAY" | "VNPAY" | string;
-  status: "PENDING" | "SUCCESS" | "FAILED" | "CANCELLED" | "EXPIRED";
+  status: "PENDING" | "WAITING_APPROVAL" | "SUCCESS" | "FAILED" | "CANCELLED" | "EXPIRED" | "REJECTED";
+  proofImageUrl?: string;
+  userNote?: string;
+  adminNote?: string;
+  reviewedAt?: string;
+  reviewedBy?: string;
   qrUrl: string;
   bankInfo: {
     bankId: string;

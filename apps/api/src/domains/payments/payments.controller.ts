@@ -179,3 +179,33 @@ export const handleGetUserOrders = async (req: Request, res: Response, next: Nex
   }
 };
 
+export const handleSubmitPaymentProof = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const result = await svc.submitPaymentProof(req.params.orderId, req.user!.userId, req.body);
+    res.json({ ...result, data: result });
+  } catch (e) {
+    next(e);
+  }
+};
+
+export const handleGetAdminPaymentOrders = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const result = await svc.getAdminPaymentOrders({
+      status: req.query.status as string,
+      type: req.query.type as string,
+    });
+    res.json({ success: true, data: result });
+  } catch (e) {
+    next(e);
+  }
+};
+
+export const handleAdminReviewPaymentOrder = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const result = await svc.adminReviewPaymentOrder(req.params.orderId, req.user!.userId, req.body);
+    res.json({ ...result, data: result });
+  } catch (e) {
+    next(e);
+  }
+};
+

@@ -80,6 +80,9 @@ export const ENDPOINTS = {
   orderDetail:        (id: string) => `${API_V1}/payments/orders/${id}`,
   confirmOrder:       (id: string) => `${API_V1}/payments/orders/${id}/confirm`,
   cancelOrder:        (id: string) => `${API_V1}/payments/orders/${id}/cancel`,
+  submitOrderProof:   (id: string) => `${API_V1}/payments/orders/${id}/submit-proof`,
+  adminOrders:        `${API_V1}/payments/admin/orders`,
+  adminReviewOrder:   (id: string) => `${API_V1}/payments/admin/orders/${id}/review`,
 } as const;
 
 

@@ -27,7 +27,11 @@ paymentsRouter.get("/orders/:orderId", authenticate, ctrl.handleGetPaymentOrder)
 paymentsRouter.post("/orders/:orderId/confirm", authenticate, ctrl.handleConfirmPaymentOrder);
 paymentsRouter.post("/orders/:orderId/cancel", authenticate, ctrl.handleCancelPaymentOrder);
 
+paymentsRouter.post("/orders/:orderId/submit-proof", authenticate, ctrl.handleSubmitPaymentProof);
+
 // Admin-only routes
 paymentsRouter.put("/bank-config", authenticate, requireAdmin, ctrl.handleUpdateBankConfig);
 paymentsRouter.get("/admin/transactions", authenticate, requireAdmin, ctrl.handleGetAllTransactions);
+paymentsRouter.get("/admin/orders", authenticate, requireAdmin, ctrl.handleGetAdminPaymentOrders);
+paymentsRouter.post("/admin/orders/:orderId/review", authenticate, requireAdmin, ctrl.handleAdminReviewPaymentOrder);
 

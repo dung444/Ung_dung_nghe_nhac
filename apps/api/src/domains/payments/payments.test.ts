@@ -324,5 +324,149 @@ describe("Payments & VIP Subscription Endpoints", () => {
     expect(cancelRes.body.success).toBe(true);
     expect(cancelRes.body.data.order.status).toBe("CANCELLED");
   });
+
+  it("should allow user to submit transfer proof image for coin topup and set status to WAITING_APPROVAL", async () => {
+    // 1. Create order
+    const createRes = await request(app)
+      .post("/api/v1/payments/orders/create")
+      .set("Authorization", `Bearer ${userToken}`)
+      .send({
+        type: "COIN_TOPUP",
+        packageId: "COIN_120",
+        method: "VIETQR_BANKING",
+      });
+    const orderId = createRes.body.data.order.id;
+
+    // 2. Submit proof image
+    const proofRes = await request(app)
+      .post(`/api/v1/payments/orders/${orderId}/submit-proof`)
+      .set("Authorization", `Bearer ${userToken}`)
+      .send({
+        proofImageUrl: "https://example.com/receipts/bank_transfer_120_coins.png",
+        note: "Đã chuyển khoản 20k từ MBBank lúc 22:30",
+      });
+
+    expect(proofRes.status).toBe(200);
+    expect(proofRes.body.success).toBe(true);
+    expect(proofRes.body.data.order.status).toBe("WAITING_APPROVAL");
+    expect(proofRes.body.data.order.proofImageUrl).toBe("https://example.com/receipts/bank_transfer_120_coins.png");
+    expect(proofRes.body.data.order.userNote).toContain("Đã chuyển khoản");
+  });
+
+  it("should allow user to submit transfer proof image for VIP purchase and set status to WAITING_APPROVAL", async () => {
+    // 1. Create VIP order
+    const createRes = await request(app)
+      .post("/api/v1/payments/orders/create")
+      .set("Authorization", `Bearer ${userToken}`)
+      .send({
+        type: "BUY_VIP",
+        packageId: "VIP_1_MONTH",
+        method: "VIETQR_BANKING",
+      });
+    const orderId = createRes.body.data.order.id;
+
+    // 2. Submit proof image
+    const proofRes = await request(app)
+      .post(`/api/v1/payments/orders/${orderId}/submit-proof`)
+      .set("Authorization", `Bearer ${userToken}`)
+      .send({
+        proofImageUrl: "https://example.com/receipts/vip_1_month_receipt.jpg",
+        note: "Thanh toán gói Waifu VIP 1 Tháng 49.000đ",
+      });
+
+    expect(proofRes.status).toBe(200);
+    expect(proofRes.body.success).toBe(true);
+    expect(proofRes.body.data.order.status).toBe("WAITING_APPROVAL");
+    expect(proofRes.body.data.order.type).toBe("BUY_VIP");
+  });
+
+  it("should allow admin to list pending payment orders with proof images", async () => {
+    const listRes = await request(app)
+      .get("/api/v1/payments/admin/orders")
+      .set("Authorization", `Bearer ${adminToken}`);
+
+    expect(listRes.status).toBe(200);
+    expect(listRes.body.success).toBe(true);
+    expect(Array.isArray(listRes.body.data.orders)).toBe(true);
+    expect(listRes.body.data.pendingCount).toBeGreaterThanOrEqual(2);
+  });
+
+  it("should allow admin to approve a pending coin topup order with proof and credit coins", async () => {
+    // 1. Create and submit proof for 800 coins
+    const initCoinsRes = await request(app)
+      .get("/api/v1/payments/coins/balance")
+      .set("Authorization", `Bearer ${userToken}`);
+    const beforeCoins = initCoinsRes.body.data.coins;
+
+    const createRes = await request(app)
+      .post("/api/v1/payments/orders/create")
+      .set("Authorization", `Bearer ${userToken}`)
+      .send({
+        type: "COIN_TOPUP",
+        packageId: "COIN_800",
+        method: "VIETQR_BANKING",
+      });
+    const orderId = createRes.body.data.order.id;
+
+    await request(app)
+      .post(`/api/v1/payments/orders/${orderId}/submit-proof`)
+      .set("Authorization", `Bearer ${userToken}`)
+      .send({
+        proofImageUrl: "https://example.com/receipts/bank_transfer_800.png",
+      });
+
+    // 2. Admin approves
+    const reviewRes = await request(app)
+      .post(`/api/v1/payments/admin/orders/${orderId}/review`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({
+        action: "APPROVE",
+        adminNote: "Đã nhận đủ 100.000 VNĐ qua MBBank",
+      });
+
+    expect(reviewRes.status).toBe(200);
+    expect(reviewRes.body.success).toBe(true);
+    expect(reviewRes.body.data.order.status).toBe("SUCCESS");
+
+    // 3. User balance has increased by 800 coins
+    const afterCoinsRes = await request(app)
+      .get("/api/v1/payments/coins/balance")
+      .set("Authorization", `Bearer ${userToken}`);
+    expect(afterCoinsRes.body.data.coins).toBe(beforeCoins + 800);
+  });
+
+  it("should allow admin to reject a pending payment order with reason", async () => {
+    // 1. Create and submit proof
+    const createRes = await request(app)
+      .post("/api/v1/payments/orders/create")
+      .set("Authorization", `Bearer ${userToken}`)
+      .send({
+        type: "COIN_TOPUP",
+        packageId: "COIN_50",
+        method: "VIETQR_BANKING",
+      });
+    const orderId = createRes.body.data.order.id;
+
+    await request(app)
+      .post(`/api/v1/payments/orders/${orderId}/submit-proof`)
+      .set("Authorization", `Bearer ${userToken}`)
+      .send({
+        proofImageUrl: "https://example.com/fake_receipt.png",
+      });
+
+    // 2. Admin rejects
+    const reviewRes = await request(app)
+      .post(`/api/v1/payments/admin/orders/${orderId}/review`)
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({
+        action: "REJECT",
+        adminNote: "Biên lai không hợp lệ, chưa nhận được tiền trên sao kê",
+      });
+
+    expect(reviewRes.status).toBe(200);
+    expect(reviewRes.body.success).toBe(true);
+    expect(reviewRes.body.data.order.status).toBe("REJECTED");
+    expect(reviewRes.body.data.order.adminNote).toContain("Biên lai không hợp lệ");
+  });
 });
 
