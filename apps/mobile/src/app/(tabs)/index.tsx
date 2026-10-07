@@ -105,9 +105,12 @@ const FEATURED_ARTISTS = [
 import { useAuthStore } from "../../store/authStore";
 import { useToastStore } from "../../store/toastStore";
 import { NotificationModal } from "../../components/ui/NotificationModal";
+import { ENDPOINTS } from "../../constants/api";
+import { GiftModal } from "../../features/gifts/GiftModal";
 
 const CATEGORIES = [
   "Tất cả",
+  "BXH Quà Tặng 🎁",
   "Có Lời 🎤",
   "Không Lời 🎵",
   "Tuyển Chọn 🇻🇳",
@@ -130,6 +133,23 @@ export default function HomeScreen() {
   const { currentSong, isPlaying, setCurrentSong, setQueue, setPlaying, addToQueue } = usePlayerStore();
   const { user, preferredGenres, preferredArtists } = useAuthStore();
 
+  // Gift Leaderboard States
+  const [giftLeaderboard, setGiftLeaderboard] = useState<any[]>([]);
+  const [leaderboardTab, setLeaderboardTab] = useState<"plays" | "gifts">("plays");
+  const [selectedGiftSong, setSelectedGiftSong] = useState<Song | null>(null);
+  const [showGiftModal, setShowGiftModal] = useState(false);
+
+  const loadGiftLeaderboardData = () => {
+    api
+      .get(ENDPOINTS.giftLeaderboard)
+      .then((res) => {
+        if (res.data?.success && Array.isArray(res.data.data?.leaderboard)) {
+          setGiftLeaderboard(res.data.data.leaderboard);
+        }
+      })
+      .catch(() => {});
+  };
+
   useEffect(() => {
     api
       .get("/api/v1/songs?limit=100")
@@ -141,6 +161,8 @@ export default function HomeScreen() {
       .catch(() => {
         // Fallback to rich sample data
       });
+
+    loadGiftLeaderboardData();
   }, []);
 
   const handlePlaySong = (song: Song, index: number) => {
@@ -480,11 +502,30 @@ export default function HomeScreen() {
             return (
               <TouchableOpacity
                 key={cat}
-                style={[styles.categoryChip, isSelected && styles.categoryChipActive]}
-                onPress={() => setActiveCategory(cat)}
+                style={[
+                  styles.categoryChip,
+                  isSelected && styles.categoryChipActive,
+                  cat === "BXH Quà Tặng 🎁" && styles.giftCategoryChip,
+                  cat === "BXH Quà Tặng 🎁" && isSelected && styles.giftCategoryChipActive,
+                ]}
+                onPress={() => {
+                  setActiveCategory(cat);
+                  if (cat === "BXH Quà Tặng 🎁") {
+                    setLeaderboardTab("gifts");
+                  } else {
+                    setLeaderboardTab("plays");
+                  }
+                }}
                 activeOpacity={0.8}
               >
-                <Text style={[styles.categoryText, isSelected && styles.categoryTextActive]}>
+                <Text
+                  style={[
+                    styles.categoryText,
+                    isSelected && styles.categoryTextActive,
+                    cat === "BXH Quà Tặng 🎁" && { color: "#ec4899", fontWeight: "700" },
+                    cat === "BXH Quà Tặng 🎁" && isSelected && { color: "#fff", fontWeight: "800" },
+                  ]}
+                >
                   {cat}
                 </Text>
               </TouchableOpacity>
@@ -492,101 +533,372 @@ export default function HomeScreen() {
           })}
         </ScrollView>
 
-        {/* Trending Section */}
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Bảng Xếp Hạng & Bài Hát 🔥</Text>
-          <Text style={styles.songCountText}>{filteredSongs.length} bài hát</Text>
+        {/* ─── SHOWCASE TOP 3 QUÀ TẶNG (PODIUM) ─────────────────────────── */}
+        {giftLeaderboard.length >= 3 && (leaderboardTab === "gifts" || activeCategory === "BXH Quà Tặng 🎁") && (
+          <View style={styles.podiumContainer}>
+            <View style={styles.podiumHeader}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                <Ionicons name="trophy" size={18} color="#f59e0b" />
+                <Text style={styles.podiumHeaderTitle}>TOP 3 BÀI HÁT NHẬN NHIỀU QUÀ NHẤT 👑</Text>
+              </View>
+              <Text style={styles.podiumHeaderSub}>Vinh danh bởi người nghe</Text>
+            </View>
+
+            <View style={styles.podiumCardsRow}>
+              {/* Rank 2 (Á Quân) */}
+              {giftLeaderboard[1] && (
+                <TouchableOpacity
+                  style={[styles.podiumCard, styles.podiumCardRank2]}
+                  onPress={() => handlePlaySong(giftLeaderboard[1], 0)}
+                  activeOpacity={0.85}
+                >
+                  <View style={styles.podiumRankBadgeSilver}>
+                    <Text style={styles.podiumRankText}>🥈 TOP 2</Text>
+                  </View>
+                  <Image source={{ uri: giftLeaderboard[1].coverUrl }} style={styles.podiumImg} />
+                  <Text style={styles.podiumSongTitle} numberOfLines={1}>{giftLeaderboard[1].title}</Text>
+                  <Text style={styles.podiumArtist} numberOfLines={1}>
+                    {giftLeaderboard[1].artists?.map((a: any) => a.name).join(", ") || "Artist"}
+                  </Text>
+                  <View style={styles.podiumCoinBadge}>
+                    <Text style={styles.podiumCoinText}>🪙 {giftLeaderboard[1].totalCoins?.toLocaleString()} Xu</Text>
+                  </View>
+                  <TouchableOpacity
+                    style={styles.podiumGiftBtnMini}
+                    onPress={(e) => {
+                      e.stopPropagation();
+                      setSelectedGiftSong(giftLeaderboard[1]);
+                      setShowGiftModal(true);
+                    }}
+                  >
+                    <Ionicons name="gift" size={12} color="#fff" />
+                    <Text style={styles.podiumGiftBtnMiniText}>Tặng Quà</Text>
+                  </TouchableOpacity>
+                </TouchableOpacity>
+              )}
+
+              {/* Rank 1 (Quán Quân - Chính giữa & Nổi bật nhất) */}
+              {giftLeaderboard[0] && (
+                <TouchableOpacity
+                  style={[styles.podiumCard, styles.podiumCardRank1]}
+                  onPress={() => handlePlaySong(giftLeaderboard[0], 0)}
+                  activeOpacity={0.85}
+                >
+                  <View style={styles.podiumCrownBadge}>
+                    <Ionicons name="sparkles" size={12} color="#fff" />
+                    <Text style={styles.podiumCrownText}>👑 QUÁN QUÂN</Text>
+                  </View>
+                  <Image source={{ uri: giftLeaderboard[0].coverUrl }} style={[styles.podiumImg, styles.podiumImgRank1]} />
+                  <Text style={[styles.podiumSongTitle, { color: "#f59e0b", fontWeight: "900" }]} numberOfLines={1}>
+                    {giftLeaderboard[0].title}
+                  </Text>
+                  <Text style={styles.podiumArtist} numberOfLines={1}>
+                    {giftLeaderboard[0].artists?.map((a: any) => a.name).join(", ") || "Artist"}
+                  </Text>
+                  <View style={[styles.podiumCoinBadge, { backgroundColor: "rgba(245, 158, 11, 0.25)", borderColor: "#f59e0b" }]}>
+                    <Text style={[styles.podiumCoinText, { color: "#f59e0b", fontWeight: "900" }]}>
+                      🪙 {giftLeaderboard[0].totalCoins?.toLocaleString()} Xu
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    style={[styles.podiumGiftBtnMini, { backgroundColor: "#ec4899" }]}
+                    onPress={(e) => {
+                      e.stopPropagation();
+                      setSelectedGiftSong(giftLeaderboard[0]);
+                      setShowGiftModal(true);
+                    }}
+                  >
+                    <Ionicons name="gift" size={12} color="#fff" />
+                    <Text style={styles.podiumGiftBtnMiniText}>Tặng Quà 🎁</Text>
+                  </TouchableOpacity>
+                </TouchableOpacity>
+              )}
+
+              {/* Rank 3 (Quý Quân) */}
+              {giftLeaderboard[2] && (
+                <TouchableOpacity
+                  style={[styles.podiumCard, styles.podiumCardRank3]}
+                  onPress={() => handlePlaySong(giftLeaderboard[2], 0)}
+                  activeOpacity={0.85}
+                >
+                  <View style={styles.podiumRankBadgeBronze}>
+                    <Text style={styles.podiumRankText}>🥉 TOP 3</Text>
+                  </View>
+                  <Image source={{ uri: giftLeaderboard[2].coverUrl }} style={styles.podiumImg} />
+                  <Text style={styles.podiumSongTitle} numberOfLines={1}>{giftLeaderboard[2].title}</Text>
+                  <Text style={styles.podiumArtist} numberOfLines={1}>
+                    {giftLeaderboard[2].artists?.map((a: any) => a.name).join(", ") || "Artist"}
+                  </Text>
+                  <View style={styles.podiumCoinBadge}>
+                    <Text style={styles.podiumCoinText}>🪙 {giftLeaderboard[2].totalCoins?.toLocaleString()} Xu</Text>
+                  </View>
+                  <TouchableOpacity
+                    style={styles.podiumGiftBtnMini}
+                    onPress={(e) => {
+                      e.stopPropagation();
+                      setSelectedGiftSong(giftLeaderboard[2]);
+                      setShowGiftModal(true);
+                    }}
+                  >
+                    <Ionicons name="gift" size={12} color="#fff" />
+                    <Text style={styles.podiumGiftBtnMiniText}>Tặng Quà</Text>
+                  </TouchableOpacity>
+                </TouchableOpacity>
+              )}
+            </View>
+          </View>
+        )}
+
+        {/* ─── LEADERBOARD SECTION HEADER & TAB SWITCHER ───────────────── */}
+        <View style={styles.leaderboardSectionHeader}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>
+              {leaderboardTab === "gifts" ? "Bảng Xếp Hạng Quà Tặng 🎁" : "Bảng Xếp Hạng & Bài Hát 🔥"}
+            </Text>
+            <Text style={styles.songCountText}>
+              {leaderboardTab === "gifts" ? `${giftLeaderboard.length} bài hát` : `${filteredSongs.length} bài hát`}
+            </Text>
+          </View>
+
+          {/* Switcher Buttons: Lượt Nghe vs Quà Tặng */}
+          <View style={styles.leaderboardTabSwitcher}>
+            <TouchableOpacity
+              style={[styles.lbTabBtn, leaderboardTab === "plays" && styles.lbTabBtnActivePlays]}
+              onPress={() => setLeaderboardTab("plays")}
+              activeOpacity={0.8}
+            >
+              <Ionicons
+                name="flame"
+                size={14}
+                color={leaderboardTab === "plays" ? "#fff" : "#f59e0b"}
+              />
+              <Text style={[styles.lbTabText, leaderboardTab === "plays" && styles.lbTabTextActive]}>
+                BXH Lượt Nghe 🔥
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.lbTabBtn, leaderboardTab === "gifts" && styles.lbTabBtnActiveGifts]}
+              onPress={() => setLeaderboardTab("gifts")}
+              activeOpacity={0.8}
+            >
+              <Ionicons
+                name="gift"
+                size={14}
+                color={leaderboardTab === "gifts" ? "#fff" : "#ec4899"}
+              />
+              <Text style={[styles.lbTabText, leaderboardTab === "gifts" && styles.lbTabTextActive]}>
+                BXH Quà Tặng 🎁
+              </Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
-        {filteredSongs.map((song, index) => {
-          const isCurrent = currentSong?.id === song.id;
-          const artistName = song.artists?.map((a) => a.name).join(", ") || "Unknown Artist";
-          const rankInfo = getRankBadge(index);
-          const hasLyrics = !!song.lyrics && song.lyrics.trim().length > 0;
+        {/* ─── RENDER DANH SÁCH BÀI HÁT THEO TAB ──────────────────────── */}
+        {leaderboardTab === "gifts" ? (
+          /* Danh Sách BXH Quà Tặng */
+          giftLeaderboard.map((song, index) => {
+            const isCurrent = currentSong?.id === song.id;
+            const artistName = song.artists?.map((a: any) => a.name).join(", ") || "Unknown Artist";
+            const rankInfo = getRankBadge(index);
 
-          return (
-            <TouchableOpacity
-              key={song.id}
-              style={[styles.songCard, isCurrent && styles.songCardActive]}
-              onPress={() => handlePlaySong(song, index)}
-              activeOpacity={0.82}
-            >
-              <View style={[styles.rankBox, { backgroundColor: rankInfo.bg }]}>
-                <Text style={[styles.rankIndex, { color: rankInfo.color }]}>
-                  {rankInfo.label}
-                </Text>
-              </View>
+            return (
+              <TouchableOpacity
+                key={song.id}
+                style={[styles.songCard, isCurrent && styles.songCardActive, styles.songCardGiftRank]}
+                onPress={() => handlePlaySong(song, index)}
+                activeOpacity={0.82}
+              >
+                {/* Rank Badge */}
+                <View style={[styles.rankBox, { backgroundColor: rankInfo.bg }]}>
+                  <Text style={[styles.rankIndex, { color: rankInfo.color }]}>
+                    {rankInfo.label}
+                  </Text>
+                </View>
 
-              <Image
-                source={{
-                  uri:
-                    song.coverUrl ??
-                    "https://images.unsplash.com/photo-1578632767115-351597cf2477?w=400&q=80",
-                }}
-                style={styles.songThumb}
-              />
+                {/* Song Cover */}
+                <Image
+                  source={{
+                    uri: song.coverUrl ?? "https://images.unsplash.com/photo-1578632767115-351597cf2477?w=400&q=80",
+                  }}
+                  style={styles.songThumb}
+                />
 
-              <View style={styles.songInfo}>
-                <View style={styles.songTitleRow}>
-                  <Text
-                    style={[styles.songTitle, isCurrent && { color: Colors.dark.primaryLight }]}
-                    numberOfLines={1}
+                {/* Song Information */}
+                <View style={styles.songInfo}>
+                  <View style={styles.songTitleRow}>
+                    <Text
+                      style={[styles.songTitle, isCurrent && { color: Colors.dark.primaryLight }]}
+                      numberOfLines={1}
+                    >
+                      {song.title}
+                    </Text>
+                    {isCurrent && isPlaying && (
+                      <View style={styles.nowPlayingTag}>
+                        <Ionicons name="musical-notes" size={11} color={Colors.dark.accent} />
+                      </View>
+                    )}
+                  </View>
+
+                  {/* Gift Stats & Artist */}
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 3 }}>
+                    <View style={styles.giftBadgeMini}>
+                      <Text style={styles.giftBadgeMiniText}>🪙 +{song.totalCoins || 0} Xu</Text>
+                    </View>
+                    <View style={styles.giftCountMini}>
+                      <Text style={styles.giftCountMiniText}>🎁 {song.giftCount || 0} quà</Text>
+                    </View>
+                    <Text style={styles.songArtist} numberOfLines={1}>
+                      • {artistName}
+                    </Text>
+                  </View>
+                </View>
+
+                {/* Right Action Buttons */}
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                  {/* Button Tặng Quà Nhanh */}
+                  <TouchableOpacity
+                    style={styles.giftSendQuickBtn}
+                    onPress={(e) => {
+                      e.stopPropagation();
+                      setSelectedGiftSong(song);
+                      setShowGiftModal(true);
+                    }}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                   >
-                    {song.title}
-                  </Text>
-                  {isCurrent && isPlaying && (
-                    <View style={styles.nowPlayingTag}>
-                      <Ionicons name="musical-notes" size={11} color={Colors.dark.accent} />
-                    </View>
-                  )}
-                </View>
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 3 }}>
-                  {hasLyrics ? (
-                    <View style={styles.lyricsTagMini}>
-                      <Ionicons name="mic" size={9} color={Colors.dark.primaryLight} />
-                      <Text style={styles.lyricsTagMiniText}>Có Lời</Text>
-                    </View>
-                  ) : (
-                    <View style={[styles.lyricsTagMini, styles.instrumentalTagMini]}>
-                      <Ionicons name="musical-notes" size={9} color="#22d3ee" />
-                      <Text style={[styles.lyricsTagMiniText, { color: "#22d3ee" }]}>Không Lời</Text>
-                    </View>
-                  )}
-                  <Text style={styles.songArtist} numberOfLines={1}>
-                    {artistName} • {formatDuration(song.duration)}
-                  </Text>
-                </View>
-              </View>
+                    <Ionicons name="gift" size={14} color="#ec4899" />
+                    <Text style={styles.giftSendQuickBtnText}>Tặng</Text>
+                  </TouchableOpacity>
 
-              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-                <TouchableOpacity
-                  style={styles.actionQueueBtn}
-                  onPress={(e) => handleAddToPlayLater(song, e)}
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                  accessibilityLabel="Thêm vào danh sách phát sau"
-                >
-                  <Ionicons name="time-outline" size={22} color={Colors.dark.textMuted} />
-                </TouchableOpacity>
+                  {/* Play Button */}
+                  <TouchableOpacity
+                    style={styles.playIconBtn}
+                    onPress={() => handlePlaySong(song, index)}
+                  >
+                    <Ionicons
+                      name={isCurrent && isPlaying ? "pause-circle" : "play-circle"}
+                      size={36}
+                      color={isCurrent ? Colors.dark.primaryLight : Colors.dark.accent}
+                    />
+                  </TouchableOpacity>
+                </View>
+              </TouchableOpacity>
+            );
+          })
+        ) : (
+          /* Danh Sách BXH Lượt Nghe (Thông thường) */
+          filteredSongs.map((song, index) => {
+            const isCurrent = currentSong?.id === song.id;
+            const artistName = song.artists?.map((a) => a.name).join(", ") || "Unknown Artist";
+            const rankInfo = getRankBadge(index);
+            const hasLyrics = !!song.lyrics && song.lyrics.trim().length > 0;
 
-                <TouchableOpacity
-                  style={styles.playIconBtn}
-                  onPress={() => handlePlaySong(song, index)}
-                >
-                  <Ionicons
-                    name={isCurrent && isPlaying ? "pause-circle" : "play-circle"}
-                    size={36}
-                    color={isCurrent ? Colors.dark.primaryLight : Colors.dark.accent}
-                  />
-                </TouchableOpacity>
-              </View>
-            </TouchableOpacity>
-          );
-        })}
+            return (
+              <TouchableOpacity
+                key={song.id}
+                style={[styles.songCard, isCurrent && styles.songCardActive]}
+                onPress={() => handlePlaySong(song, index)}
+                activeOpacity={0.82}
+              >
+                <View style={[styles.rankBox, { backgroundColor: rankInfo.bg }]}>
+                  <Text style={[styles.rankIndex, { color: rankInfo.color }]}>
+                    {rankInfo.label}
+                  </Text>
+                </View>
+
+                <Image
+                  source={{
+                    uri:
+                      song.coverUrl ??
+                      "https://images.unsplash.com/photo-1578632767115-351597cf2477?w=400&q=80",
+                  }}
+                  style={styles.songThumb}
+                />
+
+                <View style={styles.songInfo}>
+                  <View style={styles.songTitleRow}>
+                    <Text
+                      style={[styles.songTitle, isCurrent && { color: Colors.dark.primaryLight }]}
+                      numberOfLines={1}
+                    >
+                      {song.title}
+                    </Text>
+                    {isCurrent && isPlaying && (
+                      <View style={styles.nowPlayingTag}>
+                        <Ionicons name="musical-notes" size={11} color={Colors.dark.accent} />
+                      </View>
+                    )}
+                  </View>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 3 }}>
+                    {hasLyrics ? (
+                      <View style={styles.lyricsTagMini}>
+                        <Ionicons name="mic" size={9} color={Colors.dark.primaryLight} />
+                        <Text style={styles.lyricsTagMiniText}>Có Lời</Text>
+                      </View>
+                    ) : (
+                      <View style={[styles.lyricsTagMini, styles.instrumentalTagMini]}>
+                        <Ionicons name="musical-notes" size={9} color="#22d3ee" />
+                        <Text style={[styles.lyricsTagMiniText, { color: "#22d3ee" }]}>Không Lời</Text>
+                      </View>
+                    )}
+                    <Text style={styles.songArtist} numberOfLines={1}>
+                      {artistName} • {formatDuration(song.duration)}
+                    </Text>
+                  </View>
+                </View>
+
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                  {/* Quick Gift Button */}
+                  <TouchableOpacity
+                    style={styles.quickGiftBtnMiniCircle}
+                    onPress={(e) => {
+                      e.stopPropagation();
+                      setSelectedGiftSong(song);
+                      setShowGiftModal(true);
+                    }}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                  >
+                    <Ionicons name="gift-outline" size={18} color="#ec4899" />
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.actionQueueBtn}
+                    onPress={(e) => handleAddToPlayLater(song, e)}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    accessibilityLabel="Thêm vào danh sách phát sau"
+                  >
+                    <Ionicons name="time-outline" size={22} color={Colors.dark.textMuted} />
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={styles.playIconBtn}
+                    onPress={() => handlePlaySong(song, index)}
+                  >
+                    <Ionicons
+                      name={isCurrent && isPlaying ? "pause-circle" : "play-circle"}
+                      size={36}
+                      color={isCurrent ? Colors.dark.primaryLight : Colors.dark.accent}
+                    />
+                  </TouchableOpacity>
+                </View>
+              </TouchableOpacity>
+            );
+          })
+        )}
       </ScrollView>
 
       <NotificationModal
         visible={showNotificationModal}
         onClose={() => setShowNotificationModal(false)}
+      />
+
+      <GiftModal
+        visible={showGiftModal}
+        song={selectedGiftSong}
+        onClose={() => setShowGiftModal(false)}
+        onGiftSuccess={() => {
+          loadGiftLeaderboardData();
+        }}
       />
     </SafeAreaView>
   );
@@ -1077,5 +1389,255 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: "600",
     flex: 1,
+  },
+
+  // Gift Category & Leaderboard Styles
+  giftCategoryChip: {
+    borderColor: "rgba(236, 72, 153, 0.4)",
+    backgroundColor: "rgba(236, 72, 153, 0.08)",
+  },
+  giftCategoryChipActive: {
+    backgroundColor: "#ec4899",
+    borderColor: "#ec4899",
+  },
+  leaderboardSectionHeader: {
+    marginBottom: 10,
+  },
+  leaderboardTabSwitcher: {
+    flexDirection: "row",
+    backgroundColor: "rgba(255, 255, 255, 0.05)",
+    borderRadius: 12,
+    padding: 4,
+    gap: 6,
+    marginTop: 8,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.08)",
+  },
+  lbTabBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 8,
+    borderRadius: 9,
+    gap: 6,
+  },
+  lbTabBtnActivePlays: {
+    backgroundColor: "#d97706",
+  },
+  lbTabBtnActiveGifts: {
+    backgroundColor: "#ec4899",
+  },
+  lbTabText: {
+    color: Colors.dark.textMuted,
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  lbTabTextActive: {
+    color: "#fff",
+    fontWeight: "800",
+  },
+
+  // Podium Showcase Styles
+  podiumContainer: {
+    backgroundColor: "rgba(255, 255, 255, 0.03)",
+    borderRadius: 20,
+    padding: 14,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: "rgba(245, 158, 11, 0.25)",
+  },
+  podiumHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 14,
+  },
+  podiumHeaderTitle: {
+    color: "#f59e0b",
+    fontSize: 12,
+    fontWeight: "800",
+    letterSpacing: 0.5,
+  },
+  podiumHeaderSub: {
+    color: Colors.dark.textMuted,
+    fontSize: 11,
+  },
+  podiumCardsRow: {
+    flexDirection: "row",
+    alignItems: "flex-end",
+    gap: 8,
+  },
+  podiumCard: {
+    flex: 1,
+    backgroundColor: "rgba(255, 255, 255, 0.04)",
+    borderRadius: 14,
+    padding: 10,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.08)",
+    position: "relative",
+  },
+  podiumCardRank1: {
+    borderColor: "rgba(245, 158, 11, 0.6)",
+    backgroundColor: "rgba(245, 158, 11, 0.08)",
+    paddingTop: 14,
+    paddingBottom: 12,
+  },
+  podiumCardRank2: {
+    borderColor: "rgba(203, 213, 225, 0.3)",
+  },
+  podiumCardRank3: {
+    borderColor: "rgba(217, 119, 6, 0.3)",
+  },
+  podiumCrownBadge: {
+    position: "absolute",
+    top: -10,
+    backgroundColor: "#d97706",
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+    gap: 3,
+  },
+  podiumCrownText: {
+    color: "#fff",
+    fontSize: 9,
+    fontWeight: "900",
+  },
+  podiumRankBadgeSilver: {
+    position: "absolute",
+    top: -9,
+    backgroundColor: "#64748b",
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  podiumRankBadgeBronze: {
+    position: "absolute",
+    top: -9,
+    backgroundColor: "#78350f",
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  podiumRankText: {
+    color: "#fff",
+    fontSize: 9,
+    fontWeight: "800",
+  },
+  podiumImg: {
+    width: 60,
+    height: 60,
+    borderRadius: 10,
+    marginTop: 6,
+    marginBottom: 6,
+  },
+  podiumImgRank1: {
+    width: 72,
+    height: 72,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: "#f59e0b",
+  },
+  podiumSongTitle: {
+    color: "#fff",
+    fontSize: 12,
+    fontWeight: "800",
+    textAlign: "center",
+    marginBottom: 2,
+  },
+  podiumArtist: {
+    color: Colors.dark.textMuted,
+    fontSize: 10,
+    textAlign: "center",
+    marginBottom: 6,
+  },
+  podiumCoinBadge: {
+    backgroundColor: "rgba(255, 255, 255, 0.06)",
+    paddingHorizontal: 6,
+    paddingVertical: 2.5,
+    borderRadius: 6,
+    marginBottom: 8,
+    borderWidth: 0.5,
+    borderColor: "rgba(255, 255, 255, 0.1)",
+  },
+  podiumCoinText: {
+    color: "#f59e0b",
+    fontSize: 10,
+    fontWeight: "700",
+  },
+  podiumGiftBtnMini: {
+    backgroundColor: Colors.dark.primary,
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    gap: 4,
+  },
+  podiumGiftBtnMiniText: {
+    color: "#fff",
+    fontSize: 10,
+    fontWeight: "800",
+  },
+
+  // Song Row Gift Badges Styles
+  songCardGiftRank: {
+    borderColor: "rgba(236, 72, 153, 0.2)",
+  },
+  giftBadgeMini: {
+    backgroundColor: "rgba(245, 158, 11, 0.15)",
+    paddingHorizontal: 5,
+    paddingVertical: 1.5,
+    borderRadius: 4,
+    borderWidth: 0.5,
+    borderColor: "rgba(245, 158, 11, 0.35)",
+  },
+  giftBadgeMiniText: {
+    color: "#f59e0b",
+    fontSize: 9,
+    fontWeight: "800",
+  },
+  giftCountMini: {
+    backgroundColor: "rgba(236, 72, 153, 0.15)",
+    paddingHorizontal: 5,
+    paddingVertical: 1.5,
+    borderRadius: 4,
+    borderWidth: 0.5,
+    borderColor: "rgba(236, 72, 153, 0.35)",
+  },
+  giftCountMiniText: {
+    color: "#ec4899",
+    fontSize: 9,
+    fontWeight: "800",
+  },
+  giftSendQuickBtn: {
+    backgroundColor: "rgba(236, 72, 153, 0.15)",
+    borderWidth: 1,
+    borderColor: "rgba(236, 72, 153, 0.4)",
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 8,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  giftSendQuickBtnText: {
+    color: "#ec4899",
+    fontSize: 11,
+    fontWeight: "800",
+  },
+  quickGiftBtnMiniCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: "rgba(236, 72, 153, 0.1)",
+    borderWidth: 1,
+    borderColor: "rgba(236, 72, 153, 0.3)",
+    alignItems: "center",
+    justifyContent: "center",
   },
 });
