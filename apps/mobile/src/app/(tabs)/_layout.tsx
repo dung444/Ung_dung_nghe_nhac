@@ -35,16 +35,16 @@ export default function TabsLayout() {
           options={{
             title: "Trang chủ",
             tabBarIcon: ({ color, focused }) => (
-              <Ionicons name={focused ? "sparkles" : "sparkles-outline"} size={22} color={color} />
+              <Ionicons name={focused ? "home" : "home-outline"} size={21} color={color} />
             ),
           }}
         />
         <Tabs.Screen
-          name="search"
+          name="recommend"
           options={{
-            title: "Khám phá",
+            title: "Đề xuất",
             tabBarIcon: ({ color, focused }) => (
-              <Ionicons name={focused ? "planet" : "planet-outline"} size={22} color={color} />
+              <Ionicons name={focused ? "bulb" : "bulb-outline"} size={22} color={color} />
             ),
           }}
         />
@@ -53,7 +53,16 @@ export default function TabsLayout() {
           options={{
             title: "Thư viện",
             tabBarIcon: ({ color, focused }) => (
-              <Ionicons name={focused ? "albums" : "albums-outline"} size={22} color={color} />
+              <Ionicons name={focused ? "library" : "library-outline"} size={22} color={color} />
+            ),
+          }}
+        />
+        <Tabs.Screen
+          name="search"
+          options={{
+            title: "Khám phá",
+            tabBarIcon: ({ color, focused }) => (
+              <Ionicons name={focused ? "compass" : "compass-outline"} size={22} color={color} />
             ),
           }}
         />

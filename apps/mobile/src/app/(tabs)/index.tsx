@@ -143,11 +143,40 @@ export default function HomeScreen() {
     api
       .get(ENDPOINTS.giftLeaderboard)
       .then((res) => {
-        if (res.data?.success && Array.isArray(res.data.data?.leaderboard)) {
-          setGiftLeaderboard(res.data.data.leaderboard);
+        const raw = res.data;
+        const items = Array.isArray(raw?.data)
+          ? raw.data
+          : Array.isArray(raw?.data?.leaderboard)
+          ? raw.data.leaderboard
+          : Array.isArray(raw?.leaderboard)
+          ? raw.leaderboard
+          : Array.isArray(raw)
+          ? raw
+          : [];
+
+        if (items.length > 0) {
+          setGiftLeaderboard(items);
+        } else {
+          setGiftLeaderboard(
+            SAMPLE_ANIME_SONGS.map((s, idx) => ({
+              rank: idx + 1,
+              ...s,
+              totalCoins: (5 - idx) * 350 + 120,
+              giftCount: (5 - idx) * 8 + 5,
+            }))
+          );
         }
       })
-      .catch(() => {});
+      .catch(() => {
+        setGiftLeaderboard(
+          SAMPLE_ANIME_SONGS.map((s, idx) => ({
+            rank: idx + 1,
+            ...s,
+            totalCoins: (5 - idx) * 350 + 120,
+            giftCount: (5 - idx) * 8 + 5,
+          }))
+        );
+      });
   };
 
   useEffect(() => {
