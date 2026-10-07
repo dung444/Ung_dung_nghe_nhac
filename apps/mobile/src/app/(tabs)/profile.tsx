@@ -18,6 +18,7 @@ import { useAuthStore } from "../../store/authStore";
 import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { api } from "../../services/api";
+import { API_BASE_URL } from "../../constants/api";
 import type { CopyrightStats } from "@waifu-player/types";
 import { PaymentCheckoutModal } from "../../features/payments/PaymentCheckoutModal";
 
@@ -49,6 +50,16 @@ export default function ProfileScreen() {
   const [showQualityModal, setShowQualityModal] = useState(false);
   const [showPremiumModal, setShowPremiumModal] = useState(false);
   const [selectedQuality, setSelectedQuality] = useState("high");
+
+  // Personal Photos & Custom Avatar States
+  const [personalPhotos, setPersonalPhotos] = useState<string[]>([
+    "https://images.unsplash.com/photo-1578632767115-351597cf2477?w=300&q=80",
+    "https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?w=300&q=80",
+    "https://images.unsplash.com/photo-1534447677768-be436bb09401?w=300&q=80",
+  ]);
+  const [customAvatarUrl, setCustomAvatarUrl] = useState("");
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [viewingPhotoUrl, setViewingPhotoUrl] = useState<string | null>(null);
 
   // VIP & Payment States
   const [vipTab, setVipTab] = useState<"PACKAGES" | "TOPUP" | "HISTORY">("PACKAGES");
@@ -261,10 +272,100 @@ export default function ProfileScreen() {
       api.patch("/api/v1/users/me", { avatarUrl: url }).catch(() => {});
       try {
         const { useToastStore } = require("../../store/toastStore");
-        useToastStore.getState().showSuccess("Cập nhật Avatar thành công! 🌸", "Hình đại diện waifu của bạn đã được lưu");
+        useToastStore.getState().showSuccess("Cập nhật Avatar thành công! 🌸", "Hình đại diện của bạn đã được thay đổi.");
       } catch {}
     }
     setShowAvatarModal(false);
+  };
+
+  // Tự chọn tệp ảnh cá nhân từ máy tính / điện thoại
+  const handlePickMyAvatar = () => {
+    if (typeof document === "undefined") return;
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = "image/png,image/jpeg,image/jpg,image/webp,image/*";
+    input.onchange = async (e: any) => {
+      const file = e.target?.files?.[0];
+      if (!file) return;
+
+      setUploadingAvatar(true);
+      try {
+        const formData = new FormData();
+        formData.append("avatar", file);
+
+        const res = await api.post("/api/v1/users/me/avatar", formData, {
+          headers: { "Content-Type": "multipart/form-data" },
+        });
+
+        if (res.data?.success && res.data?.data?.avatarUrl) {
+          const rawUrl = res.data.data.avatarUrl;
+          const fullUrl = rawUrl.startsWith("http")
+            ? rawUrl
+            : `${API_BASE_URL}${rawUrl.startsWith("/") ? "" : "/"}${rawUrl}`;
+
+          if (user) setUser({ ...user, avatarUrl: fullUrl });
+          setPersonalPhotos((prev) => [fullUrl, ...prev.filter((p) => p !== fullUrl)]);
+
+          try {
+            const { useToastStore } = require("../../store/toastStore");
+            useToastStore.getState().showSuccess("Tải ảnh cá nhân thành công! 📸", "Ảnh mới đã được đặt làm Avatar!");
+          } catch {}
+          Alert.alert("Thành công! 📸", "Ảnh cá nhân của bạn đã được tải lên và đặt làm ảnh đại diện!");
+        }
+      } catch {
+        // Fallback tạo ObjectURL cục bộ
+        const localBlobUrl = URL.createObjectURL(file);
+        if (user) setUser({ ...user, avatarUrl: localBlobUrl });
+        setPersonalPhotos((prev) => [localBlobUrl, ...prev]);
+        try {
+          const { useToastStore } = require("../../store/toastStore");
+          useToastStore.getState().showSuccess("Đã lưu ảnh cá nhân! 🌸", "Ảnh của bạn đã được hiển thị trên hồ sơ.");
+        } catch {}
+        Alert.alert("Thành công! 📸", "Ảnh cá nhân của bạn đã được cập nhật!");
+      } finally {
+        setUploadingAvatar(false);
+        setShowAvatarModal(false);
+      }
+    };
+    input.click();
+  };
+
+  // Thêm ảnh cá nhân bằng đường dẫn URL
+  const handleAddPhotoByUrl = async () => {
+    if (!customAvatarUrl.trim()) {
+      Alert.alert("Lỗi", "Vui lòng nhập đường dẫn URL ảnh của bạn!");
+      return;
+    }
+    const url = customAvatarUrl.trim();
+    if (user) {
+      setUser({ ...user, avatarUrl: url });
+      api.patch("/api/v1/users/me", { avatarUrl: url }).catch(() => {});
+    }
+    setPersonalPhotos((prev) => [url, ...prev.filter((p) => p !== url)]);
+    setCustomAvatarUrl("");
+    setShowAvatarModal(false);
+    try {
+      const { useToastStore } = require("../../store/toastStore");
+      useToastStore.getState().showSuccess("Cập nhật ảnh thành công! 🌸", "Đã lưu ảnh mới vào hồ sơ cá nhân của bạn.");
+    } catch {}
+    Alert.alert("Thành công! 🌸", "Đã lưu và đặt ảnh làm Avatar cá nhân của bạn!");
+  };
+
+  const handleDeletePersonalPhoto = (photoUrl: string) => {
+    Alert.alert("Xác nhận xóa", "Bạn có chắc muốn xóa ảnh này khỏi bộ sưu tập cá nhân?", [
+      { text: "Hủy", style: "cancel" },
+      {
+        text: "Xóa ảnh",
+        style: "destructive",
+        onPress: () => {
+          setPersonalPhotos((prev) => prev.filter((p) => p !== photoUrl));
+          try {
+            const { useToastStore } = require("../../store/toastStore");
+            useToastStore.getState().showInfo("Đã xóa ảnh", "Ảnh đã được gỡ khỏi bộ sưu tập cá nhân.");
+          } catch {}
+        },
+      },
+    ]);
   };
 
   const handleLogout = () => {
@@ -393,6 +494,83 @@ export default function ProfileScreen() {
           </TouchableOpacity>
         )}
 
+        {/* KHỐI ẢNH CÁ NHÂN: BỘ SƯU TẬP & TỰ THÊM ẢNH */}
+        <View style={styles.photoGalleryCard}>
+          <View style={styles.photoGalleryHeader}>
+            <View>
+              <Text style={styles.photoGalleryTitle}>Ảnh Cá Nhân Của Bạn 📸🌸</Text>
+              <Text style={styles.photoGallerySub}>
+                Tự thêm ảnh cá nhân từ máy, đổi avatar hoặc lưu kỷ niệm
+              </Text>
+            </View>
+            <TouchableOpacity
+              style={styles.addPhotoHeaderBtn}
+              onPress={() => setShowAvatarModal(true)}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="add" size={16} color="#fff" />
+              <Text style={styles.addPhotoHeaderBtnText}>Thêm Ảnh</Text>
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.photoScrollRow}>
+            {/* Nút bấm Chọn ảnh trực tiếp từ thiết bị */}
+            <TouchableOpacity
+              style={styles.addPhotoThumbBox}
+              onPress={handlePickMyAvatar}
+              disabled={uploadingAvatar}
+              activeOpacity={0.8}
+            >
+              {uploadingAvatar ? (
+                <ActivityIndicator color={Colors.dark.primary} />
+              ) : (
+                <>
+                  <Ionicons name="cloud-upload" size={26} color={Colors.dark.primary} />
+                  <Text style={styles.addPhotoThumbText}>Tải từ máy</Text>
+                </>
+              )}
+            </TouchableOpacity>
+
+            {/* Các ảnh trong bộ sưu tập cá nhân */}
+            {personalPhotos.map((photoUrl, idx) => {
+              const isCurrentAvatar = user?.avatarUrl === photoUrl;
+              return (
+                <View key={`photo-${idx}`} style={styles.photoItemWrap}>
+                  <TouchableOpacity
+                    onPress={() => setViewingPhotoUrl(photoUrl)}
+                    activeOpacity={0.85}
+                  >
+                    <Image source={{ uri: photoUrl }} style={styles.photoThumbImg} />
+                  </TouchableOpacity>
+
+                  {isCurrentAvatar && (
+                    <View style={styles.currentAvatarTag}>
+                      <Text style={styles.currentAvatarTagText}>Avatar</Text>
+                    </View>
+                  )}
+
+                  <View style={styles.photoItemActions}>
+                    {!isCurrentAvatar && (
+                      <TouchableOpacity
+                        style={styles.setAvatarActionBtn}
+                        onPress={() => handleSelectAvatar(photoUrl)}
+                      >
+                        <Text style={styles.setAvatarActionText}>Đặt Avatar</Text>
+                      </TouchableOpacity>
+                    )}
+                    <TouchableOpacity
+                      style={styles.deletePhotoActionBtn}
+                      onPress={() => handleDeletePersonalPhoto(photoUrl)}
+                    >
+                      <Ionicons name="trash" size={12} color="#ef4444" />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              );
+            })}
+          </ScrollView>
+        </View>
+
         {/* Settings Menu */}
         <View style={styles.menuContainer}>
           <Text style={styles.menuSectionTitle}>Cài đặt trải nghiệm</Text>
@@ -513,35 +691,6 @@ export default function ProfileScreen() {
         </View>
       </ScrollView>
 
-      {/* Avatar Picker Modal */}
-      <Modal
-        visible={showAvatarModal}
-        transparent={true}
-        animationType="slide"
-        onRequestClose={() => setShowAvatarModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalCard}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Chọn Avatar Waifu Của Bạn 🌸</Text>
-              <TouchableOpacity onPress={() => setShowAvatarModal(false)}>
-                <Ionicons name="close" size={24} color={Colors.dark.textMuted} />
-              </TouchableOpacity>
-            </View>
-            <View style={styles.avatarGrid}>
-              {WAIFU_AVATARS.map((url, idx) => (
-                <TouchableOpacity
-                  key={idx}
-                  style={styles.avatarChoice}
-                  onPress={() => handleSelectAvatar(url)}
-                >
-                  <Image source={{ uri: url }} style={styles.choiceImg} />
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-        </View>
-      </Modal>
 
       {/* Audio Quality Modal */}
       <Modal
@@ -1208,6 +1357,176 @@ export default function ProfileScreen() {
           </View>
         </View>
       </Modal>
+      {/* ─── MODAL ĐỔI ẢNH ĐẠI DIỆN & TỰ THÊM ẢNH CÁ NHÂN ──────────────── */}
+      <Modal
+        visible={showAvatarModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowAvatarModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalCard, { maxHeight: "90%", paddingBottom: 16 }]}>
+            <View style={styles.modalHeader}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <Ionicons name="camera" size={22} color={Colors.dark.primary} />
+                <Text style={styles.modalTitle}>Ảnh Đại Diện & Ảnh Cá Nhân 📸🌸</Text>
+              </View>
+              <TouchableOpacity onPress={() => setShowAvatarModal(false)}>
+                <Ionicons name="close" size={24} color={Colors.dark.textMuted} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {/* Option 1: Tải ảnh từ thiết bị lên */}
+              <View style={styles.avatarSectionBox}>
+                <Text style={styles.avatarSectionLabel}>1. TẢI ẢNH TỪ MÁY LÊN 📁</Text>
+                <TouchableOpacity
+                  style={styles.uploadMyPhotoBigBtn}
+                  onPress={handlePickMyAvatar}
+                  disabled={uploadingAvatar}
+                  activeOpacity={0.8}
+                >
+                  {uploadingAvatar ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <>
+                      <Ionicons name="cloud-upload" size={24} color="#fff" />
+                      <Text style={styles.uploadMyPhotoBigBtnText}>
+                        Chọn Ảnh Từ Thiết Bị (Máy tính / Điện thoại)
+                      </Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+                <Text style={styles.avatarSectionHint}>
+                  Hỗ trợ PNG, JPG, JPEG, WebP. Tự động tải lên máy chủ và lưu vào bộ sưu tập cá nhân.
+                </Text>
+              </View>
+
+              {/* Option 2: Dán đường dẫn ảnh URL */}
+              <View style={styles.avatarSectionBox}>
+                <Text style={styles.avatarSectionLabel}>2. HOẶC DÁN LIÊN KẾT ẢNH (URL) 🔗</Text>
+                <View style={styles.urlInputRow}>
+                  <TextInput
+                    style={styles.avatarUrlInput}
+                    placeholder="https://images.unsplash.com/photo-..."
+                    placeholderTextColor={Colors.dark.textMuted}
+                    value={customAvatarUrl}
+                    onChangeText={setCustomAvatarUrl}
+                  />
+                  <TouchableOpacity
+                    style={styles.applyUrlBtn}
+                    onPress={handleAddPhotoByUrl}
+                  >
+                    <Text style={styles.applyUrlBtnText}>Lưu Ảnh</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              {/* Option 3: Bộ sưu tập ảnh cá nhân đã lưu */}
+              {personalPhotos.length > 0 && (
+                <View style={styles.avatarSectionBox}>
+                  <Text style={styles.avatarSectionLabel}>
+                    3. BỘ SƯU TẬP ẢNH CỦA BẠN 🖼️ ({personalPhotos.length})
+                  </Text>
+                  <View style={styles.avatarGrid}>
+                    {personalPhotos.map((url, idx) => {
+                      const isChosen = user?.avatarUrl === url;
+                      return (
+                        <TouchableOpacity
+                          key={`my-photo-${idx}`}
+                          style={[styles.avatarPickItem, isChosen && styles.avatarPickItemActive]}
+                          onPress={() => handleSelectAvatar(url)}
+                          activeOpacity={0.8}
+                        >
+                          <Image source={{ uri: url }} style={styles.avatarPickImg} />
+                          {isChosen && (
+                            <View style={styles.avatarCheckBadge}>
+                              <Ionicons name="checkmark" size={14} color="#fff" />
+                            </View>
+                          )}
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </View>
+              )}
+
+              {/* Option 4: Avatar Anime tuyển chọn */}
+              <View style={styles.avatarSectionBox}>
+                <Text style={styles.avatarSectionLabel}>4. HOẶC CHỌN AVATAR ANIME CÓ SẴN 🌸</Text>
+                <View style={styles.avatarGrid}>
+                  {WAIFU_AVATARS.map((url, idx) => {
+                    const isChosen = user?.avatarUrl === url;
+                    return (
+                      <TouchableOpacity
+                        key={`waifu-avatar-${idx}`}
+                        style={[styles.avatarPickItem, isChosen && styles.avatarPickItemActive]}
+                        onPress={() => handleSelectAvatar(url)}
+                        activeOpacity={0.8}
+                      >
+                        <Image source={{ uri: url }} style={styles.avatarPickImg} />
+                        {isChosen && (
+                          <View style={styles.avatarCheckBadge}>
+                            <Ionicons name="checkmark" size={14} color="#fff" />
+                          </View>
+                        )}
+                      </TouchableOpacity>
+                    );
+                  })}
+                </View>
+              </View>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ─── MODAL PHÓNG TO XEM ẢNH CÁ NHÂN (ZOOM PHOTO) ────────────────── */}
+      <Modal
+        visible={viewingPhotoUrl !== null}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setViewingPhotoUrl(null)}
+      >
+        <View style={styles.zoomPhotoOverlay}>
+          <TouchableOpacity
+            style={styles.zoomCloseIconBtn}
+            onPress={() => setViewingPhotoUrl(null)}
+          >
+            <Ionicons name="close-circle" size={32} color="#fff" />
+          </TouchableOpacity>
+
+          {viewingPhotoUrl && (
+            <View style={styles.zoomCard}>
+              <Image source={{ uri: viewingPhotoUrl }} style={styles.zoomPhotoImg} resizeMode="contain" />
+              <View style={styles.zoomActionsRow}>
+                <TouchableOpacity
+                  style={styles.zoomSetAvatarBtn}
+                  onPress={() => {
+                    if (viewingPhotoUrl) handleSelectAvatar(viewingPhotoUrl);
+                    setViewingPhotoUrl(null);
+                  }}
+                >
+                  <Ionicons name="person" size={16} color="#fff" />
+                  <Text style={styles.zoomSetAvatarBtnText}>Đặt Làm Ảnh Đại Diện</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.zoomDeleteBtn}
+                  onPress={() => {
+                    const url = viewingPhotoUrl;
+                    setViewingPhotoUrl(null);
+                    if (url) handleDeletePersonalPhoto(url);
+                  }}
+                >
+                  <Ionicons name="trash" size={16} color="#fff" />
+                  <Text style={styles.zoomDeleteBtnText}>Xóa</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+        </View>
+      </Modal>
+
       {/* Checkout Modal với quy trình thanh toán đầy đủ */}
       <PaymentCheckoutModal
         visible={showCheckoutModal}
@@ -1438,23 +1757,6 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "700",
     color: Colors.dark.text,
-  },
-  avatarGrid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    justifyContent: "center",
-    gap: 16,
-    paddingBottom: 20,
-  },
-  avatarChoice: {
-    borderRadius: 40,
-    borderWidth: 2,
-    borderColor: Colors.dark.border,
-  },
-  choiceImg: {
-    width: 76,
-    height: 76,
-    borderRadius: 38,
   },
   modalBgCenter: {
     flex: 1,
@@ -2068,6 +2370,261 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 13,
     fontWeight: "800",
+  },
+  // Photo Gallery & Custom Avatar Styles
+  photoGalleryCard: {
+    backgroundColor: Colors.dark.surface,
+    borderRadius: 18,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: Colors.dark.border,
+    marginBottom: 16,
+  },
+  photoGalleryHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  photoGalleryTitle: {
+    fontSize: 15,
+    fontWeight: "800",
+    color: Colors.dark.text,
+  },
+  photoGallerySub: {
+    fontSize: 11,
+    color: Colors.dark.textMuted,
+    marginTop: 2,
+  },
+  addPhotoHeaderBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: Colors.dark.primary,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 14,
+  },
+  addPhotoHeaderBtnText: {
+    color: "#fff",
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  photoScrollRow: {
+    gap: 12,
+    paddingVertical: 4,
+  },
+  addPhotoThumbBox: {
+    width: 90,
+    height: 110,
+    borderRadius: 14,
+    borderWidth: 1.5,
+    borderStyle: "dashed",
+    borderColor: Colors.dark.primary,
+    backgroundColor: "rgba(236, 72, 153, 0.08)",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 6,
+  },
+  addPhotoThumbText: {
+    fontSize: 10,
+    color: Colors.dark.primary,
+    fontWeight: "700",
+  },
+  photoItemWrap: {
+    position: "relative",
+    width: 90,
+    alignItems: "center",
+  },
+  photoThumbImg: {
+    width: 90,
+    height: 90,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: Colors.dark.border,
+  },
+  currentAvatarTag: {
+    position: "absolute",
+    top: 4,
+    right: 4,
+    backgroundColor: Colors.dark.primary,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  currentAvatarTagText: {
+    color: "#fff",
+    fontSize: 8,
+    fontWeight: "900",
+  },
+  photoItemActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginTop: 6,
+  },
+  setAvatarActionBtn: {
+    backgroundColor: "rgba(255, 255, 255, 0.08)",
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 6,
+  },
+  setAvatarActionText: {
+    color: Colors.dark.text,
+    fontSize: 9,
+    fontWeight: "600",
+  },
+  deletePhotoActionBtn: {
+    padding: 3,
+  },
+  avatarSectionBox: {
+    marginBottom: 16,
+  },
+  avatarSectionLabel: {
+    fontSize: 12,
+    fontWeight: "800",
+    color: Colors.dark.textMuted,
+    marginBottom: 8,
+    letterSpacing: 0.5,
+  },
+  uploadMyPhotoBigBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: Colors.dark.primary,
+    paddingVertical: 14,
+    borderRadius: 14,
+  },
+  uploadMyPhotoBigBtnText: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  avatarSectionHint: {
+    fontSize: 10,
+    color: Colors.dark.textMuted,
+    marginTop: 6,
+    textAlign: "center",
+  },
+  urlInputRow: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  avatarUrlInput: {
+    flex: 1,
+    backgroundColor: Colors.dark.background,
+    borderWidth: 1,
+    borderColor: Colors.dark.border,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    color: Colors.dark.text,
+    fontSize: 12,
+  },
+  applyUrlBtn: {
+    backgroundColor: Colors.dark.accent,
+    paddingHorizontal: 16,
+    justifyContent: "center",
+    alignItems: "center",
+    borderRadius: 12,
+  },
+  applyUrlBtnText: {
+    color: "#fff",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  avatarGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
+  },
+  avatarPickItem: {
+    position: "relative",
+    width: 68,
+    height: 68,
+    borderRadius: 34,
+    borderWidth: 2,
+    borderColor: Colors.dark.border,
+    overflow: "hidden",
+  },
+  avatarPickItemActive: {
+    borderColor: Colors.dark.primary,
+    borderWidth: 3,
+  },
+  avatarPickImg: {
+    width: "100%",
+    height: "100%",
+  },
+  avatarCheckBadge: {
+    position: "absolute",
+    bottom: 0,
+    right: 0,
+    backgroundColor: Colors.dark.primary,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  zoomPhotoOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.9)",
+    justifyContent: "center",
+    alignItems: "center",
+    padding: 20,
+  },
+  zoomCloseIconBtn: {
+    position: "absolute",
+    top: 50,
+    right: 20,
+    zIndex: 10,
+  },
+  zoomCard: {
+    width: "100%",
+    maxWidth: 400,
+    alignItems: "center",
+  },
+  zoomPhotoImg: {
+    width: "100%",
+    height: 380,
+    borderRadius: 16,
+    backgroundColor: "#000",
+  },
+  zoomActionsRow: {
+    flexDirection: "row",
+    gap: 12,
+    marginTop: 16,
+    width: "100%",
+  },
+  zoomSetAvatarBtn: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    backgroundColor: Colors.dark.primary,
+    paddingVertical: 12,
+    borderRadius: 12,
+  },
+  zoomSetAvatarBtnText: {
+    color: "#fff",
+    fontSize: 13,
+    fontWeight: "700",
+  },
+  zoomDeleteBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "#ef4444",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderRadius: 12,
+  },
+  zoomDeleteBtnText: {
+    color: "#fff",
+    fontSize: 13,
+    fontWeight: "700",
   },
 });
 

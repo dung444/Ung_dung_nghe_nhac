@@ -49,3 +49,17 @@ export const updateMe = async (req: Request, res: Response, next: NextFunction) 
     next(e);
   }
 };
+
+export const uploadAvatar = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    if (!req.file) {
+      res.status(400).json({ success: false, error: "Chưa chọn tệp ảnh để tải lên" });
+      return;
+    }
+    const avatarUrl = `/uploads/covers/${req.file.filename}`;
+    const user = await svc.updateProfile(uid(req), { avatarUrl });
+    res.json({ success: true, data: { avatarUrl, user } });
+  } catch (e) {
+    next(e);
+  }
+};
