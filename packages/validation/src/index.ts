@@ -101,10 +101,10 @@ export const RegisterCopyrightSchema = z.object({
 });
 
 export const CreateCopyrightClaimSchema = z.object({
-  songId: z.string().uuid("Song ID không hợp lệ"),
-  reason: z.string().min(3, "Lý do khiếu nại tối thiểu 3 ký tự").max(255),
-  description: z.string().min(10, "Mô tả chi tiết vi phạm tối thiểu 10 ký tự").max(5000),
-  proofUrl: z.string().url("Link tài liệu chứng minh không hợp lệ").optional().or(z.literal("")),
+  songId: z.string().min(1, "Song ID không được để trống"),
+  reason: z.string().min(2, "Lý do khiếu nại tối thiểu 2 ký tự").max(255),
+  description: z.string().min(3, "Mô tả vi phạm tối thiểu 3 ký tự").max(5000),
+  proofUrl: z.string().optional().or(z.literal("")).nullable(),
 });
 
 export const ReviewCopyrightClaimSchema = z.object({

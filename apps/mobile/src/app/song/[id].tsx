@@ -17,6 +17,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { Colors } from "../../constants/colors";
 import { usePlayerStore } from "../../store/playerStore";
+import { useAuthStore } from "../../store/authStore";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ProgressBar } from "../../features/player/components/ProgressBar";
 import { WaveformVisualizer } from "../../features/player/components/WaveformVisualizer";
@@ -73,6 +74,7 @@ function parseLyrics(lyricsText: string | null | undefined, songDuration: number
 export default function SongDetailScreen() {
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
+  const { isAuthenticated, user } = useAuthStore();
   const [showQueue, setShowQueue] = useState(false);
   const [showLyrics, setShowLyrics] = useState(false);
   const [showWaveform, setShowWaveform] = useState(true);
@@ -310,42 +312,90 @@ export default function SongDetailScreen() {
 
   const handleSubmitClaim = async () => {
     if (!currentSong) return;
+
+    if (!isAuthenticated) {
+      Alert.alert(
+        "Yêu cầu đăng nhập 🔒",
+        "Bạn cần đăng nhập tài khoản để gửi đơn khiếu nại bản quyền và theo dõi tiến độ xử lý của Ban quản trị.",
+        [
+          {
+            text: "Đăng nhập ngay",
+            onPress: () => {
+              setShowClaimModal(false);
+              router.push("/(auth)/login");
+            },
+          },
+          { text: "Để sau", style: "cancel" },
+        ]
+      );
+      try {
+        const { useToastStore } = require("../../store/toastStore");
+        useToastStore.getState().showWarning("Cần đăng nhập", "Vui lòng đăng nhập để gửi khiếu nại bản quyền.");
+      } catch {}
+      return;
+    }
+
     const reasonText = claimReason.trim() || `Khiếu nại bản quyền: ${claimType}`;
-    if (reasonText.length < 3) {
-      Alert.alert("Lỗi", "Vui lòng nhập lý do khiếu nại (tối thiểu 3 ký tự).");
+    if (reasonText.length < 2) {
+      Alert.alert("Lỗi", "Vui lòng nhập lý do khiếu nại.");
       return;
     }
     const descText = claimDescription.trim();
-    if (descText.length < 10) {
-      Alert.alert("Lỗi", "Vui lòng mô tả chi tiết vi phạm (tối thiểu 10 ký tự).");
+    if (descText.length < 3) {
+      Alert.alert("Lỗi", "Vui lòng mô tả chi tiết vi phạm (tối thiểu 3 ký tự).");
       return;
     }
 
     setSubmittingClaim(true);
     try {
+      let proof = claimEvidence.trim();
+      if (proof && !proof.startsWith("http://") && !proof.startsWith("https://")) {
+        proof = "https://" + proof;
+      }
+
       const payload: { songId: string; reason: string; description: string; proofUrl?: string } = {
         songId: currentSong.id,
         reason: reasonText,
         description: descText,
       };
-      if (claimEvidence.trim().startsWith("http")) {
-        payload.proofUrl = claimEvidence.trim();
+      if (proof) {
+        payload.proofUrl = proof;
       }
 
       const res = await api.post("/api/v1/copyright/claims", payload);
 
       if (res.data?.success) {
-        Alert.alert("Thành công", "Đơn khiếu nại bản quyền đã được gửi thành công. Ban quản trị sẽ thẩm định trong vòng 24h.");
+        try {
+          const { useToastStore } = require("../../store/toastStore");
+          useToastStore.getState().showSuccess("Gửi khiếu nại thành công! ⚖️", "Ban quản trị Waifu Player sẽ thẩm định đơn trong vòng 24h.");
+        } catch {}
+        Alert.alert(
+          "Gửi khiếu nại thành công! ⚖️",
+          "Đơn khiếu nại bản quyền của bạn đã được ghi nhận. Ban quản trị sẽ thẩm định trong vòng 24h."
+        );
         setShowClaimModal(false);
         setClaimReason("");
         setClaimDescription("");
         setClaimEvidence("");
       } else {
-        Alert.alert("Thông báo", res.data?.message || "Không thể gửi khiếu nại.");
+        const errorMsg = res.data?.message || res.data?.error || "Không thể gửi khiếu nại.";
+        Alert.alert("Thông báo", errorMsg);
+        try {
+          const { useToastStore } = require("../../store/toastStore");
+          useToastStore.getState().showError("Gửi khiếu nại thất bại", errorMsg);
+        } catch {}
       }
     } catch (err: any) {
-      const msg = err.response?.data?.message || "Đã xảy ra lỗi khi gửi khiếu nại bản quyền.";
-      Alert.alert("Lỗi", msg);
+      const msg =
+        err.response?.data?.error ||
+        err.response?.data?.message ||
+        err.message ||
+        "Đã xảy ra lỗi khi gửi khiếu nại bản quyền.";
+      Alert.alert("Lỗi gửi khiếu nại", msg);
+      try {
+        const { useToastStore } = require("../../store/toastStore");
+        useToastStore.getState().showError("Lỗi gửi khiếu nại ⚠️", msg);
+      } catch {}
     } finally {
       setSubmittingClaim(false);
     }
@@ -1141,6 +1191,23 @@ export default function SongDetailScreen() {
             </View>
 
             <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 24 }}>
+              {!isAuthenticated && (
+                <View style={styles.authWarningBox}>
+                  <Ionicons name="warning-outline" size={18} color="#f59e0b" />
+                  <Text style={styles.authWarningText}>
+                    Bạn đang ở chế độ Khách. Vui lòng đăng nhập để gửi đơn khiếu nại chính thức.
+                  </Text>
+                  <TouchableOpacity
+                    style={styles.authWarningBtn}
+                    onPress={() => {
+                      setShowClaimModal(false);
+                      router.push("/(auth)/login");
+                    }}
+                  >
+                    <Text style={styles.authWarningBtnText}>Đăng nhập</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
               <Text style={styles.claimInstruction}>
                 Nếu bạn là chủ sở hữu tác phẩm hoặc đại diện pháp lý nhận thấy bài hát <Text style={{ color: Colors.dark.primary, fontWeight: "700" }}>"{currentSong.title}"</Text> vi phạm bản quyền, hãy cung cấp thông tin bên dưới:
               </Text>
@@ -1986,6 +2053,35 @@ const styles = StyleSheet.create({
     textAlign: "center",
     marginTop: 8,
     opacity: 0.85,
+  },
+  authWarningBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(245, 158, 11, 0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(245, 158, 11, 0.35)",
+    padding: 12,
+    borderRadius: 10,
+    marginBottom: 14,
+    gap: 8,
+    flexWrap: "wrap",
+  },
+  authWarningText: {
+    color: "#f59e0b",
+    fontSize: 12,
+    flex: 1,
+    fontWeight: "500",
+  },
+  authWarningBtn: {
+    backgroundColor: "#f59e0b",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 6,
+  },
+  authWarningBtnText: {
+    color: "#000",
+    fontSize: 11,
+    fontWeight: "700",
   },
 });
 
