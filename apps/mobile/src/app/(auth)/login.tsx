@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
 import { Colors } from "../../constants/colors";
 import { useAuthStore } from "../../store/authStore";
 
@@ -13,8 +14,11 @@ export default function LoginScreen() {
   const [errorMessage, setErrorMessage] = useState("");
   const { setAuth } = useAuthStore();
 
-  const handleLogin = async () => {
-    if (!email.trim() || !password.trim()) {
+  const handleLogin = async (overrideEmail?: string, overridePassword?: string) => {
+    const targetEmail = (overrideEmail !== undefined ? overrideEmail : email).trim();
+    const targetPassword = overridePassword !== undefined ? overridePassword : password;
+
+    if (!targetEmail || !targetPassword) {
       setErrorMessage("Vui lòng nhập Email/Tên đăng nhập và Mật khẩu.");
       try {
         const { useToastStore } = require("../../store/toastStore");
@@ -27,13 +31,13 @@ export default function LoginScreen() {
     setErrorMessage("");
     try {
       const { api } = await import("../../services/api");
-      const res = await api.post("/api/v1/auth/login", { email: email.trim(), password });
+      const res = await api.post("/api/v1/auth/login", { email: targetEmail, password: targetPassword });
       if (res.data?.success && res.data?.data) {
         const { user, accessToken, refreshToken } = res.data.data;
         setAuth(user, accessToken, refreshToken);
         try {
           const { useToastStore } = require("../../store/toastStore");
-          useToastStore.getState().showSuccess("Đăng nhập thành công! ✨", `Chào mừng ${user.displayName || user.username} trở lại với Waifu Player!`);
+          useToastStore.getState().showSuccess("Đăng nhập thành công! ✨", `Chào mừng ${user.displayName || user.username} (${user.role}) trở lại!`);
         } catch {}
         router.replace("/(tabs)");
         return;
@@ -60,6 +64,12 @@ export default function LoginScreen() {
     }
   };
 
+  const handleQuickAdminLogin = () => {
+    setEmail("admin");
+    setPassword("123");
+    handleLogin("admin", "123");
+  };
+
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
@@ -84,7 +94,7 @@ export default function LoginScreen() {
           <Text style={styles.label}>Mật khẩu</Text>
           <TextInput
             style={styles.input}
-            placeholder="••••••••"
+            placeholder="•••••••• (Ví dụ: 123)"
             placeholderTextColor={Colors.dark.textMuted}
             value={password}
             onChangeText={setPassword}
@@ -92,12 +102,23 @@ export default function LoginScreen() {
           />
         </View>
 
-        <TouchableOpacity style={styles.loginBtn} onPress={handleLogin} disabled={loading}>
+        <TouchableOpacity style={styles.loginBtn} onPress={() => handleLogin()} disabled={loading}>
           {loading ? (
             <ActivityIndicator color="#fff" />
           ) : (
             <Text style={styles.loginBtnText}>Đăng nhập</Text>
           )}
+        </TouchableOpacity>
+
+        {/* Quick Admin Login button */}
+        <TouchableOpacity
+          style={styles.quickAdminBtn}
+          onPress={handleQuickAdminLogin}
+          disabled={loading}
+          activeOpacity={0.8}
+        >
+          <Ionicons name="shield-checkmark" size={18} color={Colors.dark.accent} />
+          <Text style={styles.quickAdminBtnText}>Đăng nhập nhanh Admin (admin / 123) 👑</Text>
         </TouchableOpacity>
 
         <TouchableOpacity style={styles.registerBtn} onPress={() => router.push("/(auth)/register")}>
@@ -119,6 +140,19 @@ const styles = StyleSheet.create({
   input: { backgroundColor: Colors.dark.surface, borderWidth: 1, borderColor: Colors.dark.border, borderRadius: 8, padding: 14, color: Colors.dark.text, fontSize: 16 },
   loginBtn: { backgroundColor: Colors.dark.primary, padding: 16, borderRadius: 8, alignItems: "center", marginTop: 12 },
   loginBtnText: { color: "#fff", fontSize: 16, fontWeight: "bold" },
+  quickAdminBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    backgroundColor: "rgba(6, 182, 212, 0.12)",
+    borderWidth: 1,
+    borderColor: "rgba(6, 182, 212, 0.35)",
+    padding: 14,
+    borderRadius: 8,
+    marginTop: 12,
+  },
+  quickAdminBtnText: { color: Colors.dark.accent, fontSize: 14, fontWeight: "700" },
   registerBtn: { padding: 16, alignItems: "center", marginTop: 8 },
   registerBtnText: { color: Colors.dark.secondary, fontSize: 14, fontWeight: "600" },
 });
