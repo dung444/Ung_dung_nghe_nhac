@@ -52,6 +52,19 @@ export async function createSong(req: Request, res: Response, next: NextFunction
   } catch (err) { next(err); }
 }
 
+export async function updateSong(req: Request, res: Response, next: NextFunction) {
+  try {
+    const fileUrl = req.file ? `/uploads/audio/${req.file.filename}` : req.body.fileUrl;
+    const duration = req.body.duration !== undefined ? Number(req.body.duration) : undefined;
+    const updateData: any = { ...req.body };
+    if (fileUrl) updateData.fileUrl = fileUrl;
+    if (duration !== undefined) updateData.duration = duration;
+
+    const updated = await songsService.updateSong(req.params.id, updateData);
+    res.json({ success: true, data: updated });
+  } catch (err) { next(err); }
+}
+
 export async function deleteSong(req: Request, res: Response, next: NextFunction) {
   try {
     await songsService.deleteSong(req.params.id);

@@ -106,6 +106,14 @@ export default function SongDetailScreen() {
   const [claimType, setClaimType] = useState<string>("UNAUTHORIZED_REPOST");
   const [submittingClaim, setSubmittingClaim] = useState(false);
 
+  // Edit Audio Modal States
+  const [showEditAudioModal, setShowEditAudioModal] = useState(false);
+  const [editAudioUrl, setEditAudioUrl] = useState("");
+  const [editTitle, setEditTitle] = useState("");
+  const [editLyricsText, setEditLyricsText] = useState("");
+  const [submittingEditAudio, setSubmittingEditAudio] = useState(false);
+  const [uploadingFile, setUploadingFile] = useState(false);
+
   const {
     currentSong,
     queue,
@@ -360,6 +368,78 @@ export default function SongDetailScreen() {
       Alert.alert("Lỗi", msg);
     } finally {
       setSubmittingClaim(false);
+    }
+  };
+
+  const handleOpenEditAudioModal = () => {
+    if (!currentSong) return;
+    setEditAudioUrl(currentSong.fileUrl || "");
+    setEditTitle(currentSong.title || "");
+    setEditLyricsText(currentSong.lyrics || lrcText || "");
+    setShowEditAudioModal(true);
+  };
+
+  const handleSaveEditAudio = async () => {
+    if (!currentSong) return;
+    if (!editAudioUrl.trim()) {
+      Alert.alert("Lỗi", "Vui lòng nhập đường dẫn URL âm thanh MP3 hoặc chọn preset.");
+      return;
+    }
+    setSubmittingEditAudio(true);
+    try {
+      const res = await api.patch(`/api/v1/songs/${currentSong.id}`, {
+        title: editTitle.trim() || currentSong.title,
+        fileUrl: editAudioUrl.trim(),
+        lyrics: editLyricsText.trim() || undefined,
+      });
+      if (res.data?.success && res.data?.data) {
+        const updated = res.data.data;
+        setCurrentSong(updated);
+        setLrcText(updated.lyrics || null);
+        setShowEditAudioModal(false);
+        Alert.alert("Thành công", "Đã cập nhật bài hát và chuyển đổi file âm thanh thành công!");
+        if (isPlaying) {
+          setPlaying(false);
+          setTimeout(() => setPlaying(true), 400);
+        }
+      }
+    } catch (err: any) {
+      const msg =
+        err.response?.data?.error || err.response?.data?.message || "Không thể cập nhật bài hát.";
+      Alert.alert("Lỗi", msg);
+    } finally {
+      setSubmittingEditAudio(false);
+    }
+  };
+
+  const handlePickAndUploadAudio = () => {
+    if (Platform.OS === "web") {
+      const input = document.createElement("input");
+      input.type = "file";
+      input.accept = "audio/*";
+      input.onchange = async (e: any) => {
+        const file = e.target?.files?.[0];
+        if (!file) return;
+        setUploadingFile(true);
+        try {
+          const formData = new FormData();
+          formData.append("file", file);
+          const res = await api.post("/api/v1/creator/upload/audio", formData, {
+            headers: { "Content-Type": "multipart/form-data" },
+          });
+          if (res.data?.success && res.data?.data?.fileUrl) {
+            setEditAudioUrl(res.data.data.fileUrl);
+            Alert.alert("Tải lên thành công", "File âm thanh đã được tải lên máy chủ!");
+          }
+        } catch {
+          Alert.alert("Lỗi", "Không thể tải lên file âm thanh.");
+        } finally {
+          setUploadingFile(false);
+        }
+      };
+      input.click();
+    } else {
+      Alert.alert("Thông báo", "Vui lòng dán link file audio MP3 trực tiếp.");
     }
   };
 
@@ -668,6 +748,11 @@ export default function SongDetailScreen() {
           <TouchableOpacity style={styles.utilPill} onPress={handleOpenCopyrightModal}>
             <Ionicons name="shield-checkmark" size={18} color={Colors.dark.primaryLight} />
             <Text style={styles.utilPillText}>Bản quyền</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={[styles.utilPill, { borderColor: Colors.dark.primary }]} onPress={handleOpenEditAudioModal}>
+            <Ionicons name="musical-notes" size={18} color={Colors.dark.primary} />
+            <Text style={[styles.utilPillText, { color: Colors.dark.primaryLight, fontWeight: "700" }]}>Đổi Nhạc</Text>
           </TouchableOpacity>
         </ScrollView>
       </View>
@@ -1060,6 +1145,136 @@ export default function SongDetailScreen() {
                   <>
                     <Ionicons name="send" size={18} color="#fff" />
                     <Text style={styles.submitClaimBtnText}>Gửi Đơn Khiếu Nại Bản Quyền</Text>
+                  </>
+                )}
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Edit Audio / Change Music Modal */}
+      <Modal
+        visible={showEditAudioModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowEditAudioModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { maxHeight: "88%" }]}>
+            <View style={styles.modalHeader}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <Ionicons name="musical-notes" size={22} color={Colors.dark.primary} />
+                <Text style={styles.modalTitle}>Đổi File Nhạc & Âm Thanh 🎵</Text>
+              </View>
+              <TouchableOpacity onPress={() => setShowEditAudioModal(false)}>
+                <Ionicons name="close-circle" size={26} color={Colors.dark.textMuted} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 24 }}>
+              <Text style={{ color: Colors.dark.textMuted, fontSize: 13, marginBottom: 16 }}>
+                Thay đổi nguồn phát âm thanh của bài hát bằng cách chọn bản nhạc mẫu chất lượng cao có sẵn, dán link MP3 hoặc tải file từ thiết bị của bạn.
+              </Text>
+
+              <Text style={styles.inputLabel}>Tên bài hát</Text>
+              <TextInput
+                style={styles.textInput}
+                value={editTitle}
+                onChangeText={setEditTitle}
+                placeholder="Nhập tên bài hát..."
+                placeholderTextColor={Colors.dark.textMuted}
+              />
+
+              <Text style={styles.inputLabel}>Chọn nhanh nguồn nhạc mẫu có sẵn:</Text>
+              <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8, marginBottom: 16 }}>
+                {[
+                  { label: "☕ Lofi Anime Chill", url: "/uploads/audio/lofi_anime_chill.mp3" },
+                  { label: "🎹 Piano Ballad Việt", url: "/uploads/audio/piano_ballad_viet.mp3" },
+                  { label: "🎸 Guitar Acoustic Việt", url: "/uploads/audio/guitar_acoustic_viet.mp3" },
+                  { label: "⚡ Vocaloid Synth Beat", url: "/uploads/audio/vocaloid_synth_beat.mp3" },
+                  { label: "🔥 Anime Rock Energy", url: "/uploads/audio/anime_rock_energy.mp3" },
+                  { label: "💃 V-Pop Dance Beat", url: "/uploads/audio/vpop_dance_beat.mp3" },
+                  { label: "✨ Makoto Shinkai OST", url: "/uploads/audio/makoto_shinkai_melody.mp3" },
+                  { label: "🗡️ Demon Slayer Flame", url: "/uploads/audio/demon_slayer_flame.mp3" },
+                ].map((preset, pIdx) => {
+                  const isSelected = editAudioUrl === preset.url;
+                  return (
+                    <TouchableOpacity
+                      key={pIdx}
+                      style={[
+                        {
+                          paddingHorizontal: 12,
+                          paddingVertical: 7,
+                          borderRadius: 16,
+                          backgroundColor: isSelected ? Colors.dark.primary : Colors.dark.card,
+                          borderWidth: 1,
+                          borderColor: isSelected ? Colors.dark.primaryLight : Colors.dark.border,
+                        },
+                      ]}
+                      onPress={() => setEditAudioUrl(preset.url)}
+                    >
+                      <Text style={{ color: isSelected ? "#fff" : Colors.dark.text, fontSize: 12, fontWeight: "600" }}>
+                        {preset.label}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+
+              <Text style={styles.inputLabel}>Đường dẫn âm thanh (Audio URL / Path) *</Text>
+              <View style={{ flexDirection: "row", gap: 8, marginBottom: 16 }}>
+                <TextInput
+                  style={[styles.textInput, { flex: 1, marginBottom: 0 }]}
+                  value={editAudioUrl}
+                  onChangeText={setEditAudioUrl}
+                  placeholder="https://... hoặc /uploads/audio/..."
+                  placeholderTextColor={Colors.dark.textMuted}
+                  autoCapitalize="none"
+                />
+                <TouchableOpacity
+                  style={{
+                    backgroundColor: Colors.dark.surface,
+                    borderWidth: 1,
+                    borderColor: Colors.dark.primary,
+                    borderRadius: 12,
+                    paddingHorizontal: 14,
+                    justifyContent: "center",
+                    alignItems: "center",
+                  }}
+                  onPress={handlePickAndUploadAudio}
+                  disabled={uploadingFile}
+                >
+                  {uploadingFile ? (
+                    <ActivityIndicator size="small" color={Colors.dark.primary} />
+                  ) : (
+                    <Ionicons name="cloud-upload" size={20} color={Colors.dark.primary} />
+                  )}
+                </TouchableOpacity>
+              </View>
+
+              <Text style={styles.inputLabel}>Lời bài hát / Synced Lyrics (LRC)</Text>
+              <TextInput
+                style={styles.textAreaInput}
+                value={editLyricsText}
+                onChangeText={setEditLyricsText}
+                placeholder="[00:01.00] Dòng lời bài hát 1&#10;[00:05.00] Dòng lời bài hát 2..."
+                placeholderTextColor={Colors.dark.textMuted}
+                multiline
+                numberOfLines={5}
+              />
+
+              <TouchableOpacity
+                style={[styles.submitClaimBtn, submittingEditAudio && { opacity: 0.7 }]}
+                onPress={handleSaveEditAudio}
+                disabled={submittingEditAudio}
+              >
+                {submittingEditAudio ? (
+                  <ActivityIndicator color="#fff" size="small" />
+                ) : (
+                  <>
+                    <Ionicons name="checkmark-circle" size={20} color="#fff" />
+                    <Text style={styles.submitClaimBtnText}>Lưu & Phát Bản Nhạc Mới Ngay</Text>
                   </>
                 )}
               </TouchableOpacity>

@@ -12,4 +12,5 @@ songsRouter.get("/:id/related",  ctrl.getRelatedSongs);
 songsRouter.post("/:id/play",    authenticate, ctrl.recordPlay);
 songsRouter.post("/:id/like",    authenticate, ctrl.toggleLike);
 songsRouter.post("/",            authenticate, requireAdmin, uploadAudio.single("audio"), ctrl.createSong);
+songsRouter.patch("/:id",       authenticate, uploadAudio.single("audio"), ctrl.updateSong);
 songsRouter.delete("/:id",       authenticate, requireAdmin, ctrl.deleteSong);

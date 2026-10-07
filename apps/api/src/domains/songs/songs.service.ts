@@ -74,6 +74,29 @@ export async function createSong(data: {
   return formatSong(song);
 }
 
+export async function updateSong(id: string, data: {
+  title?: string; duration?: number; fileUrl?: string; coverUrl?: string; lyrics?: string;
+  albumId?: string; isPublic?: boolean;
+}) {
+  const song = await prisma.song.findUnique({ where: { id } });
+  if (!song) throw new AppError("Song not found", 404);
+
+  const updated = await prisma.song.update({
+    where: { id },
+    data: {
+      title: data.title !== undefined ? data.title : undefined,
+      duration: data.duration !== undefined ? data.duration : undefined,
+      fileUrl: data.fileUrl !== undefined ? data.fileUrl : undefined,
+      coverUrl: data.coverUrl !== undefined ? data.coverUrl : undefined,
+      lyrics: data.lyrics !== undefined ? data.lyrics : undefined,
+      albumId: data.albumId !== undefined ? data.albumId : undefined,
+      isPublic: data.isPublic !== undefined ? data.isPublic : undefined,
+    },
+    select: songSelect,
+  });
+  return formatSong(updated);
+}
+
 export async function deleteSong(id: string) {
   const song = await prisma.song.findUnique({ where: { id } });
   if (!song) throw new AppError("Song not found", 404);
