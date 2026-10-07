@@ -60,7 +60,7 @@ export default function AlbumDetailScreen() {
               id: "s1",
               title: "World is Mine",
               duration: 225,
-              fileUrl: "/uploads/audio/world_is_mine.mp3",
+              fileUrl: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3",
               coverUrl: "https://images.unsplash.com/photo-1578632767115-351597cf2477?w=400&q=80",
               plays: 420000,
               isPublic: true,

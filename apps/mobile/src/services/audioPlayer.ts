@@ -23,6 +23,8 @@ if (isTrackPlayerAvailable) {
 
 // Fallback HTML5 audio element for Web & Expo Go preview
 let webAudio: HTMLAudioElement | null = null;
+let currentVolume = 1.0;
+let currentRate = 1.0;
 let isPlayerSetup = false;
 
 type AudioEventCallbacks = {
@@ -89,7 +91,7 @@ export async function playSongOnPlayer(song: Song): Promise<void> {
 
     const streamUrl = song.fileUrl.startsWith("http")
       ? song.fileUrl
-      : `${API_BASE_URL}${song.fileUrl}`;
+      : `${API_BASE_URL}${song.fileUrl.startsWith("/") ? "" : "/"}${song.fileUrl}`;
 
     if (isTrackPlayerAvailable && TrackPlayer) {
       await TrackPlayer.reset();
@@ -104,11 +106,18 @@ export async function playSongOnPlayer(song: Song): Promise<void> {
       await TrackPlayer.play();
     } else if (typeof window !== "undefined" && typeof Audio !== "undefined") {
       if (webAudio) {
-        webAudio.pause();
+        try {
+          webAudio.pause();
+          webAudio.removeAttribute("src");
+          webAudio.load();
+        } catch {}
         webAudio.ontimeupdate = null;
         webAudio.onended = null;
+        webAudio.onerror = null;
       }
       webAudio = new Audio(streamUrl);
+      webAudio.volume = currentVolume;
+      webAudio.playbackRate = currentRate;
       webAudio.ontimeupdate = () => {
         if (webAudio) {
           eventCallbacks.onProgress?.(webAudio.currentTime, webAudio.duration || song.duration);
@@ -117,7 +126,10 @@ export async function playSongOnPlayer(song: Song): Promise<void> {
       webAudio.onended = () => {
         eventCallbacks.onEnded?.();
       };
-      webAudio.play().catch((e) => console.warn("[WebAudio] Playback error:", e));
+      webAudio.onerror = (e) => {
+        console.warn("[WebAudio] Audio failed to load:", streamUrl, e);
+      };
+      webAudio.play().catch((e) => console.warn("[WebAudio] Playback error (may require user interaction):", e));
     }
   } catch (error) {
     console.warn("[audioPlayer] playSong error:", error);
@@ -164,6 +176,7 @@ export async function seekToPosition(seconds: number): Promise<void> {
 export async function setAudioVolume(volume: number): Promise<void> {
   try {
     const clamped = Math.max(0, Math.min(1, volume));
+    currentVolume = clamped;
     if (isTrackPlayerAvailable && TrackPlayer) {
       await TrackPlayer.setVolume(clamped);
     } else if (webAudio) {
@@ -176,6 +189,7 @@ export async function setAudioVolume(volume: number): Promise<void> {
 
 export async function setPlaybackRate(rate: number): Promise<void> {
   try {
+    currentRate = rate;
     if (isTrackPlayerAvailable && TrackPlayer) {
       await TrackPlayer.setRate(rate);
     } else if (webAudio) {

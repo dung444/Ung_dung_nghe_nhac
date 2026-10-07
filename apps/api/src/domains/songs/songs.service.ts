@@ -115,6 +115,10 @@ export async function streamSong(songId: string, rangeHeader: string | undefined
   const song = await prisma.song.findUnique({ where: { id: songId } });
   if (!song) throw new AppError("Song not found", 404);
 
+  if (song.fileUrl.startsWith("http://") || song.fileUrl.startsWith("https://")) {
+    return res.redirect(song.fileUrl);
+  }
+
   const filePath = path.join(process.cwd(), song.fileUrl);
   if (!fs.existsSync(filePath)) throw new AppError("Audio file not found", 404);
 

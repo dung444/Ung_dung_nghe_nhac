@@ -133,7 +133,7 @@ export default function CreatorStudioScreen() {
       const res = await api.post("/api/v1/creator/songs", {
         title: songTitle.trim(),
         duration: Number(duration) || 180,
-        fileUrl: audioUrl.trim() || "/uploads/audio/default_track.mp3",
+        fileUrl: audioUrl.trim() || "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3",
         coverUrl: coverUrl.trim() || "https://images.unsplash.com/photo-1578632767115-351597cf2477?w=400&q=80",
         genreIds: [selectedGenreId],
         licenseType,
