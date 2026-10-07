@@ -18,6 +18,7 @@ import { useRouter } from "expo-router";
 import { Colors } from "../../constants/colors";
 import { useAuthStore } from "../../store/authStore";
 import { api } from "../../services/api";
+import { API_BASE_URL } from "../../constants/api";
 import type {
   AdminDashboardStats,
   AdminUserItem,
@@ -73,10 +74,91 @@ export default function AdminPortalScreen() {
   // New Song Form
   const [newSongTitle, setNewSongTitle] = useState("");
   const [newSongDuration, setNewSongDuration] = useState("210");
-  const [newSongFileUrl, setNewSongFileUrl] = useState("https://example.com/audio.mp3");
+  const [newSongFileUrl, setNewSongFileUrl] = useState("");
   const [newSongCoverUrl, setNewSongCoverUrl] = useState("");
   const [newSongArtistId, setNewSongArtistId] = useState("");
   const [newSongAlbumId, setNewSongAlbumId] = useState("");
+
+  // Local File Upload States (Admin)
+  const [localAudioName, setLocalAudioName] = useState<string | null>(null);
+  const [localAudioSize, setLocalAudioSize] = useState<string | null>(null);
+  const [uploadingAudio, setUploadingAudio] = useState(false);
+  const [localCoverName, setLocalCoverName] = useState<string | null>(null);
+  const [uploadingCover, setUploadingCover] = useState(false);
+
+  const handlePickLocalAudio = () => {
+    if (typeof document === "undefined") return;
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = "audio/mp3,audio/wav,audio/flac,audio/ogg,audio/m4a,audio/*,.mp3,.wav,.flac,.m4a";
+    input.onchange = async (e: any) => {
+      const file = e.target?.files?.[0];
+      if (!file) return;
+
+      setLocalAudioName(file.name);
+      setLocalAudioSize((file.size / (1024 * 1024)).toFixed(2));
+
+      if (!newSongTitle.trim()) {
+        const cleanName = file.name.replace(/\.[^/.]+$/, "").replace(/[-_]/g, " ");
+        setNewSongTitle(cleanName);
+      }
+
+      try {
+        const tempAudio = new Audio(URL.createObjectURL(file));
+        tempAudio.onloadedmetadata = () => {
+          if (tempAudio.duration && !isNaN(tempAudio.duration)) {
+            setNewSongDuration(Math.round(tempAudio.duration).toString());
+          }
+        };
+      } catch {}
+
+      setUploadingAudio(true);
+      try {
+        const formData = new FormData();
+        formData.append("file", file);
+        const res = await api.post("/api/v1/creator/upload/audio", formData, {
+          headers: { "Content-Type": "multipart/form-data" },
+        });
+        if (res.data?.success && res.data?.data?.url) {
+          setNewSongFileUrl(res.data.data.url);
+        }
+      } catch (err) {
+        console.warn("Admin upload audio error:", err);
+      } finally {
+        setUploadingAudio(false);
+      }
+    };
+    input.click();
+  };
+
+  const handlePickLocalCover = () => {
+    if (typeof document === "undefined") return;
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = "image/jpeg,image/png,image/webp,image/gif,image/*";
+    input.onchange = async (e: any) => {
+      const file = e.target?.files?.[0];
+      if (!file) return;
+
+      setLocalCoverName(file.name);
+      setUploadingCover(true);
+      try {
+        const formData = new FormData();
+        formData.append("file", file);
+        const res = await api.post("/api/v1/creator/upload/cover", formData, {
+          headers: { "Content-Type": "multipart/form-data" },
+        });
+        if (res.data?.success && res.data?.data?.url) {
+          setNewSongCoverUrl(res.data.data.url);
+        }
+      } catch (err) {
+        console.warn("Admin upload cover error:", err);
+      } finally {
+        setUploadingCover(false);
+      }
+    };
+    input.click();
+  };
 
   const isAdmin = user?.role === "ADMIN";
 
@@ -997,23 +1079,99 @@ export default function AdminPortalScreen() {
                 onChangeText={setNewSongDuration}
               />
 
-              <Text style={styles.inputFieldLabel}>Đường dẫn file Audio (URL / MP3)</Text>
-              <TextInput
-                style={styles.dialogInput}
-                placeholder="https://... hoặc file upload"
-                placeholderTextColor={Colors.dark.textMuted}
-                value={newSongFileUrl}
-                onChangeText={setNewSongFileUrl}
-              />
+              {/* Audio Source Picker */}
+              <View style={{ marginBottom: 12 }}>
+                <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                  <Text style={styles.inputFieldLabel}>File Âm Thanh (Audio MP3 / FLAC) *</Text>
+                  <TouchableOpacity
+                    style={styles.adminPickFileBtn}
+                    onPress={handlePickLocalAudio}
+                    disabled={uploadingAudio}
+                    activeOpacity={0.8}
+                  >
+                    {uploadingAudio ? (
+                      <ActivityIndicator size="small" color="#fff" />
+                    ) : (
+                      <>
+                        <Ionicons name="folder-open" size={13} color="#fff" />
+                        <Text style={styles.adminPickFileBtnText}>Chọn từ máy tính</Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                </View>
 
-              <Text style={styles.inputFieldLabel}>Ảnh bìa (Cover URL)</Text>
-              <TextInput
-                style={styles.dialogInput}
-                placeholder="https://images.unsplash.com/..."
-                placeholderTextColor={Colors.dark.textMuted}
-                value={newSongCoverUrl}
-                onChangeText={setNewSongCoverUrl}
-              />
+                {localAudioName && (
+                  <View style={styles.adminPickedBadge}>
+                    <Ionicons name="checkmark-circle" size={15} color={Colors.dark.accent} />
+                    <Text style={styles.adminPickedText} numberOfLines={1}>
+                      {localAudioName} {localAudioSize ? `(${localAudioSize} MB)` : ""}
+                    </Text>
+                    <TouchableOpacity
+                      onPress={() => {
+                        setLocalAudioName(null);
+                        setLocalAudioSize(null);
+                        setNewSongFileUrl("");
+                      }}
+                    >
+                      <Ionicons name="close-circle" size={16} color={Colors.dark.textMuted} />
+                    </TouchableOpacity>
+                  </View>
+                )}
+
+                <TextInput
+                  style={styles.dialogInput}
+                  placeholder="Hoặc dán URL: https://... hoặc /uploads/audio/..."
+                  placeholderTextColor={Colors.dark.textMuted}
+                  value={newSongFileUrl}
+                  onChangeText={setNewSongFileUrl}
+                />
+              </View>
+
+              {/* Cover Image Picker */}
+              <View style={{ marginBottom: 12 }}>
+                <View style={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+                  <Text style={styles.inputFieldLabel}>Ảnh Bìa (Cover Art URL)</Text>
+                  <TouchableOpacity
+                    style={styles.adminPickFileBtnSecondary}
+                    onPress={handlePickLocalCover}
+                    disabled={uploadingCover}
+                    activeOpacity={0.8}
+                  >
+                    {uploadingCover ? (
+                      <ActivityIndicator size="small" color={Colors.dark.accent} />
+                    ) : (
+                      <>
+                        <Ionicons name="image" size={13} color={Colors.dark.accent} />
+                        <Text style={styles.adminPickFileBtnSecondaryText}>Chọn ảnh từ máy</Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                </View>
+
+                {newSongCoverUrl ? (
+                  <View style={styles.adminCoverPreview}>
+                    <Image
+                      source={{ uri: newSongCoverUrl.startsWith("http") ? newSongCoverUrl : `${API_BASE_URL}${newSongCoverUrl.startsWith("/") ? "" : "/"}${newSongCoverUrl}` }}
+                      style={styles.adminCoverThumb}
+                    />
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ color: Colors.dark.text, fontSize: 11, fontWeight: "700" }}>Ảnh bìa xem trước</Text>
+                      <Text style={{ color: Colors.dark.textMuted, fontSize: 9 }} numberOfLines={1}>{localCoverName || newSongCoverUrl}</Text>
+                    </View>
+                    <TouchableOpacity onPress={() => { setNewSongCoverUrl(""); setLocalCoverName(null); }}>
+                      <Ionicons name="trash-outline" size={16} color={Colors.dark.error} />
+                    </TouchableOpacity>
+                  </View>
+                ) : null}
+
+                <TextInput
+                  style={styles.dialogInput}
+                  placeholder="Hoặc dán URL ảnh: https://images.unsplash.com/..."
+                  placeholderTextColor={Colors.dark.textMuted}
+                  value={newSongCoverUrl}
+                  onChangeText={setNewSongCoverUrl}
+                />
+              </View>
 
               <Text style={styles.inputFieldLabel}>Chọn Nghệ Sĩ</Text>
               <ScrollView horizontal style={{ maxHeight: 50, marginBottom: 16 }}>
@@ -1668,5 +1826,69 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 12,
     fontWeight: "700",
+  },
+  adminPickFileBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: Colors.dark.primary,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    gap: 4,
+  },
+  adminPickFileBtnText: {
+    color: "#fff",
+    fontSize: 10,
+    fontWeight: "700",
+  },
+  adminPickFileBtnSecondary: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(6, 182, 212, 0.15)",
+    borderWidth: 1,
+    borderColor: "rgba(6, 182, 212, 0.3)",
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 6,
+    gap: 4,
+  },
+  adminPickFileBtnSecondaryText: {
+    color: Colors.dark.accent,
+    fontSize: 10,
+    fontWeight: "700",
+  },
+  adminPickedBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(6, 182, 212, 0.1)",
+    borderWidth: 1,
+    borderColor: "rgba(6, 182, 212, 0.25)",
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 6,
+    marginBottom: 8,
+    gap: 6,
+  },
+  adminPickedText: {
+    flex: 1,
+    color: Colors.dark.accent,
+    fontSize: 11,
+    fontWeight: "600",
+  },
+  adminCoverPreview: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#11111a",
+    borderRadius: 8,
+    padding: 6,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: "#2c2c40",
+    gap: 8,
+  },
+  adminCoverThumb: {
+    width: 36,
+    height: 36,
+    borderRadius: 6,
   },
 });

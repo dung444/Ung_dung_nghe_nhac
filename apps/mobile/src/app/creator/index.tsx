@@ -17,6 +17,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { Colors } from "../../constants/colors";
 import { useAuthStore } from "../../store/authStore";
 import { api } from "../../services/api";
+import { API_BASE_URL } from "../../constants/api";
 import { formatDuration } from "@waifu-player/utils";
 import type { CreatorStudioStats, Song } from "@waifu-player/types";
 
@@ -59,6 +60,94 @@ export default function CreatorStudioScreen() {
   const [commercialUse, setCommercialUse] = useState(true);
   const [allowRemix, setAllowRemix] = useState(false);
   const [submittingSong, setSubmittingSong] = useState(false);
+
+  // Local File Upload States
+  const [localAudioName, setLocalAudioName] = useState<string | null>(null);
+  const [localAudioSize, setLocalAudioSize] = useState<string | null>(null);
+  const [uploadingAudio, setUploadingAudio] = useState(false);
+  const [localCoverName, setLocalCoverName] = useState<string | null>(null);
+  const [uploadingCover, setUploadingCover] = useState(false);
+
+  // Function to pick audio file from local machine
+  const handlePickLocalAudio = () => {
+    if (typeof document === "undefined") return;
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = "audio/mp3,audio/wav,audio/flac,audio/ogg,audio/m4a,audio/*,.mp3,.wav,.flac,.m4a";
+    input.onchange = async (e: any) => {
+      const file = e.target?.files?.[0];
+      if (!file) return;
+
+      setLocalAudioName(file.name);
+      setLocalAudioSize((file.size / (1024 * 1024)).toFixed(2));
+
+      // Auto populate song title if empty
+      if (!songTitle.trim()) {
+        const cleanName = file.name.replace(/\.[^/.]+$/, "").replace(/[-_]/g, " ");
+        setSongTitle(cleanName);
+      }
+
+      // Auto detect duration via HTML5 Audio
+      try {
+        const tempAudio = new Audio(URL.createObjectURL(file));
+        tempAudio.onloadedmetadata = () => {
+          if (tempAudio.duration && !isNaN(tempAudio.duration)) {
+            setDuration(Math.round(tempAudio.duration).toString());
+          }
+        };
+      } catch {}
+
+      // Upload file to backend
+      setUploadingAudio(true);
+      try {
+        const formData = new FormData();
+        formData.append("file", file);
+        const res = await api.post("/api/v1/creator/upload/audio", formData, {
+          headers: { "Content-Type": "multipart/form-data" },
+        });
+        if (res.data?.success && res.data?.data?.url) {
+          setAudioUrl(res.data.data.url);
+        }
+      } catch (err) {
+        console.warn("Upload audio error:", err);
+      } finally {
+        setUploadingAudio(false);
+      }
+    };
+    input.click();
+  };
+
+  // Function to pick cover art image from local machine
+  const handlePickLocalCover = () => {
+    if (typeof document === "undefined") return;
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = "image/jpeg,image/png,image/webp,image/gif,image/*";
+    input.onchange = async (e: any) => {
+      const file = e.target?.files?.[0];
+      if (!file) return;
+
+      setLocalCoverName(file.name);
+
+      // Upload file to backend
+      setUploadingCover(true);
+      try {
+        const formData = new FormData();
+        formData.append("file", file);
+        const res = await api.post("/api/v1/creator/upload/cover", formData, {
+          headers: { "Content-Type": "multipart/form-data" },
+        });
+        if (res.data?.success && res.data?.data?.url) {
+          setCoverUrl(res.data.data.url);
+        }
+      } catch (err) {
+        console.warn("Upload cover error:", err);
+      } finally {
+        setUploadingCover(false);
+      }
+    };
+    input.click();
+  };
 
   // Album Form State
   const [albumTitle, setAlbumTitle] = useState("");
@@ -412,22 +501,94 @@ export default function CreatorStudioScreen() {
                 />
               </View>
 
+              {/* Audio Source Picker */}
               <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>Link Audio MP3 / FLAC *</Text>
+                <View style={styles.fieldHeaderRow}>
+                  <Text style={styles.formLabel}>File Âm Thanh (Audio MP3 / FLAC) *</Text>
+                  <TouchableOpacity
+                    style={styles.pickFileBtn}
+                    onPress={handlePickLocalAudio}
+                    disabled={uploadingAudio}
+                    activeOpacity={0.8}
+                  >
+                    {uploadingAudio ? (
+                      <ActivityIndicator size="small" color="#fff" />
+                    ) : (
+                      <>
+                        <Ionicons name="folder-open" size={14} color="#fff" />
+                        <Text style={styles.pickFileBtnText}>Chọn file từ máy</Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                </View>
+
+                {localAudioName && (
+                  <View style={styles.pickedFileBadge}>
+                    <Ionicons name="checkmark-circle" size={16} color={Colors.dark.accent} />
+                    <Text style={styles.pickedFileName} numberOfLines={1}>
+                      {localAudioName} {localAudioSize ? `(${localAudioSize} MB)` : ""}
+                    </Text>
+                    <TouchableOpacity
+                      onPress={() => {
+                        setLocalAudioName(null);
+                        setLocalAudioSize(null);
+                        setAudioUrl("");
+                      }}
+                    >
+                      <Ionicons name="close-circle" size={16} color={Colors.dark.textMuted} />
+                    </TouchableOpacity>
+                  </View>
+                )}
+
                 <TextInput
                   style={styles.formInput}
-                  placeholder="/uploads/audio/my_new_track.mp3"
+                  placeholder="Hoặc dán URL: https://... hoặc /uploads/audio/..."
                   placeholderTextColor={Colors.dark.textMuted}
                   value={audioUrl}
                   onChangeText={setAudioUrl}
                 />
               </View>
 
+              {/* Cover Art Picker */}
               <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>Link Ảnh bìa (Cover Art URL)</Text>
+                <View style={styles.fieldHeaderRow}>
+                  <Text style={styles.formLabel}>Ảnh Bìa Bài Hát (Cover Art URL)</Text>
+                  <TouchableOpacity
+                    style={styles.pickFileBtnSecondary}
+                    onPress={handlePickLocalCover}
+                    disabled={uploadingCover}
+                    activeOpacity={0.8}
+                  >
+                    {uploadingCover ? (
+                      <ActivityIndicator size="small" color={Colors.dark.accent} />
+                    ) : (
+                      <>
+                        <Ionicons name="image" size={14} color={Colors.dark.accent} />
+                        <Text style={styles.pickFileBtnSecondaryText}>Chọn ảnh từ máy</Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                </View>
+
+                {coverUrl ? (
+                  <View style={styles.coverPreviewBox}>
+                    <Image
+                      source={{ uri: coverUrl.startsWith("http") ? coverUrl : `${API_BASE_URL}${coverUrl.startsWith("/") ? "" : "/"}${coverUrl}` }}
+                      style={styles.coverPreviewThumb}
+                    />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.coverPreviewLabel}>Ảnh bìa xem trước</Text>
+                      <Text style={styles.coverPreviewUrl} numberOfLines={1}>{localCoverName || coverUrl}</Text>
+                    </View>
+                    <TouchableOpacity onPress={() => { setCoverUrl(""); setLocalCoverName(null); }}>
+                      <Ionicons name="trash-outline" size={18} color={Colors.dark.error} />
+                    </TouchableOpacity>
+                  </View>
+                ) : null}
+
                 <TextInput
                   style={styles.formInput}
-                  placeholder="https://images.unsplash.com/..."
+                  placeholder="Hoặc dán link ảnh bìa: https://images.unsplash.com/..."
                   placeholderTextColor={Colors.dark.textMuted}
                   value={coverUrl}
                   onChangeText={setCoverUrl}
@@ -1014,5 +1175,85 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 15,
     fontWeight: "700",
+  },
+  fieldHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 6,
+  },
+  pickFileBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: Colors.dark.primary,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+    gap: 4,
+  },
+  pickFileBtnText: {
+    color: "#fff",
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  pickFileBtnSecondary: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(6, 182, 212, 0.15)",
+    borderWidth: 1,
+    borderColor: "rgba(6, 182, 212, 0.3)",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 8,
+    gap: 4,
+  },
+  pickFileBtnSecondaryText: {
+    color: Colors.dark.accent,
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  pickedFileBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(6, 182, 212, 0.1)",
+    borderWidth: 1,
+    borderColor: "rgba(6, 182, 212, 0.25)",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    marginBottom: 8,
+    gap: 6,
+  },
+  pickedFileName: {
+    flex: 1,
+    color: Colors.dark.accent,
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  coverPreviewBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: Colors.dark.card,
+    borderRadius: 10,
+    padding: 8,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: Colors.dark.border,
+    gap: 10,
+  },
+  coverPreviewThumb: {
+    width: 44,
+    height: 44,
+    borderRadius: 6,
+  },
+  coverPreviewLabel: {
+    color: Colors.dark.text,
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  coverPreviewUrl: {
+    color: Colors.dark.textMuted,
+    fontSize: 10,
+    marginTop: 2,
   },
 });

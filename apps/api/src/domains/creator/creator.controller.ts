@@ -58,3 +58,29 @@ export const createAlbum = async (req: Request, res: Response, next: NextFunctio
     next(e);
   }
 };
+
+export const uploadAudioFile = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    if (!req.file) {
+      res.status(400).json({ success: false, error: "No audio file uploaded" });
+      return;
+    }
+    const url = `/uploads/audio/${req.file.filename}`;
+    res.json({ success: true, data: { url, filename: req.file.originalname, size: req.file.size } });
+  } catch (e) {
+    next(e);
+  }
+};
+
+export const uploadCoverFile = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    if (!req.file) {
+      res.status(400).json({ success: false, error: "No image file uploaded" });
+      return;
+    }
+    const url = `/uploads/covers/${req.file.filename}`;
+    res.json({ success: true, data: { url, filename: req.file.originalname, size: req.file.size } });
+  } catch (e) {
+    next(e);
+  }
+};
