@@ -173,12 +173,17 @@ export async function createCreatorSong(
     licenseType?: "ALL_RIGHTS_RESERVED" | "CREATIVE_COMMONS" | "ROYALTY_FREE" | "PUBLIC_DOMAIN" | "CUSTOM_LICENSE";
     commercialUse?: boolean;
     allowRemix?: boolean;
+    agreedToTerms?: boolean;
   }
 ) {
   const artist = await getOrCreateCreatorProfile(userId);
 
   if (!data.title?.trim()) {
     throw new AppError("Song title is required", 400);
+  }
+
+  if (data.agreedToTerms === false) {
+    throw new AppError("Bạn phải đọc và đồng ý với điều khoản cam kết bản quyền trước khi xuất bản nhạc.", 400);
   }
 
   const song = await prisma.song.create({

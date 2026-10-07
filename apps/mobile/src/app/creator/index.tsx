@@ -60,6 +60,8 @@ export default function CreatorStudioScreen() {
   const [commercialUse, setCommercialUse] = useState(true);
   const [allowRemix, setAllowRemix] = useState(false);
   const [submittingSong, setSubmittingSong] = useState(false);
+  const [showTermsModal, setShowTermsModal] = useState(false);
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
 
   // Local File Upload States
   const [localAudioName, setLocalAudioName] = useState<string | null>(null);
@@ -329,6 +331,16 @@ export default function CreatorStudioScreen() {
       return;
     }
 
+    // Nếu người dùng chưa đồng ý điều khoản, bắt buộc mở Modal Điều Khoản để đọc và xác nhận
+    if (!agreedToTerms) {
+      setShowTermsModal(true);
+      return;
+    }
+
+    await executePublishSong();
+  };
+
+  const executePublishSong = async () => {
     setSubmittingSong(true);
     try {
       const res = await api.post("/api/v1/creator/songs", {
@@ -341,14 +353,24 @@ export default function CreatorStudioScreen() {
         isrc: isrcCode.trim() || undefined,
         commercialUse,
         allowRemix,
+        agreedToTerms: true,
       });
 
       if (res.data?.success) {
+        try {
+          const { useToastStore } = require("../../store/toastStore");
+          useToastStore.getState().showSuccess(
+            "Xuất bản thành công! 🚀",
+            `Bài hát "${songTitle.trim()}" đã được xuất bản và xác nhận cam kết bản quyền.`
+          );
+        } catch {}
         Alert.alert("Thành công! 🚀", "Bài hát của bạn đã được phát hành và bảo hộ bản quyền thành công!");
         setShowPublishModal(false);
+        setShowTermsModal(false);
         setSongTitle("");
         setAudioUrl("");
         setCoverUrl("");
+        setAgreedToTerms(false);
         fetchStudioData();
       }
     } catch (err: any) {
@@ -853,18 +875,170 @@ export default function CreatorStudioScreen() {
                 ))}
               </View>
 
+              {/* KHỐI ĐIỀU KHOẢN & CAM KẾT BẢN QUYỀN TRỰC QUAN */}
+              <View style={styles.termsBox}>
+                <View style={styles.termsBoxHeader}>
+                  <Ionicons name="shield-checkmark" size={18} color="#10b981" />
+                  <Text style={styles.termsBoxTitle}>Cam Kết Bản Quyền & Quyền Tác Giả 📜</Text>
+                </View>
+
+                <TouchableOpacity
+                  style={styles.termsCheckboxRow}
+                  onPress={() => setAgreedToTerms(!agreedToTerms)}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons
+                    name={agreedToTerms ? "checkbox" : "square-outline"}
+                    size={22}
+                    color={agreedToTerms ? Colors.dark.primary : Colors.dark.textMuted}
+                  />
+                  <Text style={styles.termsCheckboxLabel}>
+                    Tôi cam kết bài hát này do chính tôi sáng tạo và chấp nhận bị xóa nếu vi phạm bản quyền.
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.viewTermsLinkBtn}
+                  onPress={() => setShowTermsModal(true)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={styles.viewTermsLinkText}>
+                    👉 Xem toàn văn điều khoản & quy định xóa bài vi phạm
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
               <TouchableOpacity
-                style={styles.submitModalBtn}
+                style={[styles.submitModalBtn, !agreedToTerms && styles.submitModalBtnNotAgreed]}
                 onPress={handlePublishSong}
                 disabled={submittingSong}
               >
                 {submittingSong ? (
                   <ActivityIndicator color="#fff" />
                 ) : (
-                  <Text style={styles.submitModalText}>Xuất Bản Ngay</Text>
+                  <Text style={styles.submitModalText}>
+                    {agreedToTerms ? "Xuất Bản Bài Hát Ngay 🚀" : "Xem Điều Khoản & Xuất Bản 📜"}
+                  </Text>
                 )}
               </TouchableOpacity>
             </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      {/* ─── MODAL ĐIỀU KHOẢN PHÁT HÀNH & BẢN QUYỀN (TERMS MODAL) ─────────── */}
+      <Modal visible={showTermsModal} animationType="fade" transparent onRequestClose={() => setShowTermsModal(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { maxHeight: "88%" }]}>
+            <View style={styles.modalHeader}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <Ionicons name="document-text" size={22} color={Colors.dark.primary} />
+                <Text style={styles.modalTitle}>Điều Khoản Bản Quyền & Sáng Tạo 📜⚖️</Text>
+              </View>
+              <TouchableOpacity onPress={() => setShowTermsModal(false)}>
+                <Ionicons name="close" size={24} color={Colors.dark.text} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false} style={styles.termsScrollContent}>
+              <View style={styles.termsBanner}>
+                <Ionicons name="warning" size={24} color="#f59e0b" />
+                <Text style={styles.termsBannerText}>
+                  Vui lòng đọc kỹ các điều khoản dưới đây trước khi xuất bản tác phẩm lên nền tảng Waifu Player.
+                </Text>
+              </View>
+
+              {/* Điều khoản 1: Quyền sáng tạo của người dùng */}
+              <View style={styles.termArticle}>
+                <View style={styles.termArticleHeader}>
+                  <Text style={styles.termArticleNumber}>ĐIỀU 1</Text>
+                  <Text style={styles.termArticleTitle}>TÍNH NGUYÊN BẢN & NỘI DUNG SÁNG TẠO 🎵</Text>
+                </View>
+                <Text style={styles.termArticleBody}>
+                  Bạn cam kết và khẳng định rằng bài hát, bản ghi âm, giai điệu, lời bài hát hoặc bản hòa âm phối khí này là do chính bạn sáng tạo, hoặc bạn là chủ sở hữu hợp pháp đã được cấp phép đầy đủ quyền phát hành công khai.
+                </Text>
+              </View>
+
+              {/* Điều khoản 2: Chấp nhận xóa nếu vi phạm bản quyền */}
+              <View style={[styles.termArticle, { borderColor: "rgba(239, 68, 68, 0.3)" }]}>
+                <View style={styles.termArticleHeader}>
+                  <Text style={[styles.termArticleNumber, { color: "#ef4444" }]}>ĐIỀU 2</Text>
+                  <Text style={[styles.termArticleTitle, { color: "#ef4444" }]}>CHẤP NHẬN XÓA KHI VI PHẠM BẢN QUYỀN 🚫</Text>
+                </View>
+                <Text style={styles.termArticleBody}>
+                  Bạn hoàn toàn đồng ý và chấp nhận rằng: Nếu tác phẩm này bị phát hiện sao chép trái phép, đạo nhạc, hoặc có bất kỳ khiếu nại tranh chấp bản quyền hợp lệ từ bên thứ ba, hệ thống Waifu Player có toàn quyền <Text style={{ fontWeight: "800", color: "#fff" }}>LẬP TỨC XÓA HOẶC GỠ BỎ TÁC PHẨM</Text> khỏi toàn bộ hệ thống mà không cần thông báo trước.
+                </Text>
+              </View>
+
+              {/* Điều khoản 3: Trách nhiệm pháp lý & Doanh thu */}
+              <View style={styles.termArticle}>
+                <View style={styles.termArticleHeader}>
+                  <Text style={styles.termArticleNumber}>ĐIỀU 3</Text>
+                  <Text style={styles.termArticleTitle}>TRÁCH NHIỆM PHÁP LÝ & DOANH THU TÁC PHẨM ⚖️</Text>
+                </View>
+                <Text style={styles.termArticleBody}>
+                  Nhà sáng tạo tự chịu mọi trách nhiệm trước pháp luật về tính hợp pháp của bản ghi âm. Mọi khoản doanh thu phát sinh từ lượt stream hoặc quà tặng của bài hát vi phạm sẽ bị đóng băng hoặc thu hồi theo quy định kiểm duyệt của nền tảng.
+                </Text>
+              </View>
+
+              {/* Điều khoản 4: Chuẩn mực cộng đồng */}
+              <View style={styles.termArticle}>
+                <View style={styles.termArticleHeader}>
+                  <Text style={styles.termArticleNumber}>ĐIỀU 4</Text>
+                  <Text style={styles.termArticleTitle}>TIÊU CHUẨN CỘNG ĐỒNG WAIFU PLAYER 🌸</Text>
+                </View>
+                <Text style={styles.termArticleBody}>
+                  Tác phẩm âm nhạc không chứa nội dung kích động thù địch, xúc phạm danh dự nhân phẩm, đồi trụy hay vi phạm thuần phong mỹ tục và pháp luật hiện hành.
+                </Text>
+              </View>
+            </ScrollView>
+
+            {/* Checkbox bắt buộc đồng ý trong Modal */}
+            <TouchableOpacity
+              style={styles.modalTermsCheckbox}
+              onPress={() => setAgreedToTerms(!agreedToTerms)}
+              activeOpacity={0.8}
+            >
+              <Ionicons
+                name={agreedToTerms ? "checkbox" : "square-outline"}
+                size={24}
+                color={agreedToTerms ? Colors.dark.primary : Colors.dark.textMuted}
+              />
+              <Text style={styles.modalTermsCheckboxText}>
+                Tôi đã đọc kỹ, hiểu rõ và <Text style={{ fontWeight: "800", color: Colors.dark.primaryLight }}>ĐỒNG Ý CHẤP THUẬN</Text> tất cả các điều khoản bản quyền trên.
+              </Text>
+            </TouchableOpacity>
+
+            {/* Actions: Hủy hoặc Đồng ý & Xuất bản */}
+            <View style={styles.modalTermsActions}>
+              <TouchableOpacity
+                style={styles.modalTermsCancelBtn}
+                onPress={() => setShowTermsModal(false)}
+              >
+                <Text style={styles.modalTermsCancelText}>Xem lại bài hát</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[
+                  styles.modalTermsConfirmBtn,
+                  !agreedToTerms && styles.modalTermsConfirmBtnDisabled,
+                ]}
+                onPress={async () => {
+                  if (!agreedToTerms) {
+                    Alert.alert("Chưa đồng ý điều khoản", "Bạn phải tích chọn đồng ý với điều khoản bản quyền để tiếp tục xuất bản.");
+                    return;
+                  }
+                  await executePublishSong();
+                }}
+                disabled={submittingSong}
+              >
+                {submittingSong ? (
+                  <ActivityIndicator color="#fff" size="small" />
+                ) : (
+                  <Text style={styles.modalTermsConfirmText}>Đồng Ý & Xuất Bản 🚀</Text>
+                )}
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </Modal>
@@ -2066,6 +2240,161 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     color: "#10b981",
     marginTop: 1,
+  },
+  // Copyright Terms & Conditions Styles
+  termsBox: {
+    backgroundColor: "rgba(16, 185, 129, 0.08)",
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: "rgba(16, 185, 129, 0.25)",
+    marginBottom: 16,
+  },
+  termsBoxHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 8,
+  },
+  termsBoxTitle: {
+    fontSize: 13,
+    fontWeight: "800",
+    color: "#10b981",
+  },
+  termsCheckboxRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    paddingVertical: 4,
+  },
+  termsCheckboxLabel: {
+    flex: 1,
+    fontSize: 12,
+    color: Colors.dark.text,
+    lineHeight: 18,
+    fontWeight: "600",
+  },
+  viewTermsLinkBtn: {
+    marginTop: 8,
+    paddingTop: 8,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(255, 255, 255, 0.08)",
+  },
+  viewTermsLinkText: {
+    fontSize: 11,
+    color: Colors.dark.accent,
+    fontWeight: "700",
+  },
+  submitModalBtnNotAgreed: {
+    backgroundColor: "rgba(236, 72, 153, 0.6)",
+  },
+  termsScrollContent: {
+    maxHeight: 360,
+    marginVertical: 12,
+  },
+  termsBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(245, 158, 11, 0.12)",
+    borderRadius: 12,
+    padding: 12,
+    gap: 10,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: "rgba(245, 158, 11, 0.3)",
+  },
+  termsBannerText: {
+    flex: 1,
+    fontSize: 12,
+    color: "#f59e0b",
+    lineHeight: 18,
+    fontWeight: "600",
+  },
+  termArticle: {
+    backgroundColor: "rgba(255, 255, 255, 0.04)",
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: Colors.dark.border,
+  },
+  termArticleHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 6,
+  },
+  termArticleNumber: {
+    fontSize: 11,
+    fontWeight: "900",
+    color: Colors.dark.primary,
+    backgroundColor: "rgba(236, 72, 153, 0.15)",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  termArticleTitle: {
+    fontSize: 12,
+    fontWeight: "800",
+    color: Colors.dark.text,
+    flex: 1,
+  },
+  termArticleBody: {
+    fontSize: 12,
+    color: Colors.dark.textMuted,
+    lineHeight: 18,
+  },
+  modalTermsCheckbox: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(236, 72, 153, 0.1)",
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: Colors.dark.primary,
+    gap: 10,
+    marginVertical: 10,
+  },
+  modalTermsCheckboxText: {
+    flex: 1,
+    fontSize: 12,
+    color: Colors.dark.text,
+    lineHeight: 18,
+    fontWeight: "600",
+  },
+  modalTermsActions: {
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 6,
+  },
+  modalTermsCancelBtn: {
+    flex: 1,
+    backgroundColor: Colors.dark.surface,
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: Colors.dark.border,
+  },
+  modalTermsCancelText: {
+    fontSize: 13,
+    color: Colors.dark.textMuted,
+    fontWeight: "700",
+  },
+  modalTermsConfirmBtn: {
+    flex: 1.5,
+    backgroundColor: Colors.dark.primary,
+    paddingVertical: 12,
+    borderRadius: 12,
+    alignItems: "center",
+  },
+  modalTermsConfirmBtnDisabled: {
+    opacity: 0.5,
+  },
+  modalTermsConfirmText: {
+    fontSize: 13,
+    color: "#fff",
+    fontWeight: "800",
   },
 });
 
