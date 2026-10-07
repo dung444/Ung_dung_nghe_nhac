@@ -5,33 +5,47 @@ import { useRoomStore } from "../store/roomStore";
 import { getRoomSocket } from "../services/socket";
 
 export function useSocket(getSocketFn: () => Socket) {
-  const socketRef = useRef<Socket | null>(null);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const accessToken = useAuthStore((s) => s.accessToken);
+  const socketRef = useRef<Socket | null>(null);
+
+  if (!socketRef.current && isAuthenticated) {
+    const s = getSocketFn();
+    if (accessToken) s.auth = { token: accessToken };
+    socketRef.current = s;
+  }
 
   useEffect(() => {
-    if (!isAuthenticated) return;
-    const socket = getSocketFn();
+    if (!isAuthenticated) {
+      if (socketRef.current) {
+        socketRef.current.disconnect();
+        socketRef.current = null;
+      }
+      return;
+    }
+    const socket = socketRef.current || getSocketFn();
     socketRef.current = socket;
+    if (accessToken) socket.auth = { token: accessToken };
     if (!socket.connected) socket.connect();
-    return () => {
-      socket.disconnect();
-    };
-  }, [isAuthenticated]);
+  }, [isAuthenticated, accessToken]);
 
   return socketRef;
 }
 
 export function useRoomSocket(roomId?: string) {
-  const socket = useSocket(getRoomSocket);
+  const socketRef = useSocket(getRoomSocket);
   const sync = useRoomStore((s) => s.sync);
   const setCurrentSong = useRoomStore((s) => s.setCurrentSong);
   const addParticipant = useRoomStore((s) => s.addParticipant);
   const removeParticipant = useRoomStore((s) => s.removeParticipant);
+  const leaveRoom = useRoomStore((s) => s.leaveRoom);
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
 
   useEffect(() => {
-    const s = socket.current;
+    const s = socketRef.current || (isAuthenticated ? getRoomSocket() : null);
     if (!s || !roomId) return;
 
+    if (!s.connected) s.connect();
     s.emit("room:join", { roomId });
 
     const handleSync = (data: { position: number; isPlaying: boolean; serverTime: number }) => {
@@ -47,11 +61,15 @@ export function useRoomSocket(roomId?: string) {
 
     const handleJoined = (data: any) => addParticipant(data);
     const handleLeft = (data: { userId: string }) => removeParticipant(data.userId);
+    const handleClosed = () => {
+      leaveRoom();
+    };
 
     s.on("room:sync", handleSync);
     s.on("room:track:changed", handleTrackChanged);
     s.on("room:participant:joined", handleJoined);
     s.on("room:participant:left", handleLeft);
+    s.on("room:closed", handleClosed);
 
     return () => {
       s.emit("room:leave", { roomId });
@@ -59,8 +77,9 @@ export function useRoomSocket(roomId?: string) {
       s.off("room:track:changed", handleTrackChanged);
       s.off("room:participant:joined", handleJoined);
       s.off("room:participant:left", handleLeft);
+      s.off("room:closed", handleClosed);
     };
-  }, [roomId, socket.current]);
+  }, [roomId, isAuthenticated]);
 
-  return socket;
+  return socketRef;
 }

@@ -70,21 +70,21 @@ export async function login(input: LoginInput) {
 }
 
 export async function refresh(token: string) {
-  let payload: ReturnType<typeof verifyRefreshToken>;
-  try {
-    payload = verifyRefreshToken(token);
-  } catch {
+  if (!token || typeof token !== "string") {
     throw new AppError("Invalid refresh token", 401);
   }
 
-  const stored = await prisma.refreshToken.findUnique({ where: { token } });
+  const stored = await prisma.refreshToken.findUnique({
+    where: { token },
+    include: { user: { select: { id: true, role: true } } },
+  });
   if (!stored || stored.expiresAt < new Date()) {
     throw new AppError("Refresh token expired or revoked", 401);
   }
 
   // Rotate: delete old, issue new
   await prisma.refreshToken.delete({ where: { token } });
-  return generateTokenPair(payload.userId, payload.role);
+  return generateTokenPair(stored.user.id, stored.user.role);
 }
 
 export async function logout(token: string) {
@@ -104,7 +104,7 @@ export async function getMe(userId: string) {
 
 async function generateTokenPair(userId: string, role: string) {
   const accessToken = signAccessToken({ userId, role });
-  const refreshTokenValue = crypto.randomBytes(64).toString("hex");
+  const refreshTokenValue = crypto.randomBytes(40).toString("hex"); // 80 chars, safely within DB column limit
   const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
 
   await prisma.refreshToken.create({

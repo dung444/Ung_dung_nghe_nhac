@@ -36,6 +36,8 @@ export async function getSongById(id: string) {
 }
 
 export async function recordPlay(songId: string, userId: string) {
+  const song = await prisma.song.findUnique({ where: { id: songId } });
+  if (!song) throw new AppError("Song not found", 404);
   await Promise.all([
     prisma.song.update({ where: { id: songId }, data: { plays: { increment: 1 } } }),
     prisma.listeningHistory.create({ data: { userId, songId } }),
@@ -43,6 +45,8 @@ export async function recordPlay(songId: string, userId: string) {
 }
 
 export async function toggleLike(songId: string, userId: string) {
+  const song = await prisma.song.findUnique({ where: { id: songId } });
+  if (!song) throw new AppError("Song not found", 404);
   const existing = await prisma.likedSong.findUnique({ where: { userId_songId: { userId, songId } } });
   if (existing) {
     await prisma.likedSong.delete({ where: { userId_songId: { userId, songId } } });

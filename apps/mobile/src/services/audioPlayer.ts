@@ -86,6 +86,10 @@ export async function setupAudioPlayer(): Promise<boolean> {
 
 export async function playSongOnPlayer(song: Song): Promise<void> {
   try {
+    if (!song || !song.fileUrl) {
+      console.warn("[playSongOnPlayer] Missing song or song.fileUrl");
+      return;
+    }
     const ready = await setupAudioPlayer();
     if (!ready) return;
 

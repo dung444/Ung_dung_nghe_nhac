@@ -66,4 +66,50 @@ describe("Songs Endpoints", () => {
     
     expect(res.status).toBe(400); // Because audio file is missing
   });
+
+  it("should record play count and listening history when user listens to a song", async () => {
+    // Find an existing song
+    const song = await prisma.song.findFirst();
+    if (song) {
+      const initialPlays = song.plays;
+      const res = await request(app)
+        .post(`/api/v1/songs/${song.id}/play`)
+        .set("Authorization", `Bearer ${userToken}`);
+
+      expect(res.status).toBe(200);
+      expect(res.body.success).toBe(true);
+
+      const updated = await prisma.song.findUnique({ where: { id: song.id } });
+      expect(updated?.plays).toBe(initialPlays + 1);
+    }
+  });
+
+  it("should toggle like status for a song", async () => {
+    const song = await prisma.song.findFirst();
+    if (song) {
+      // Like
+      const likeRes = await request(app)
+        .post(`/api/v1/songs/${song.id}/like`)
+        .set("Authorization", `Bearer ${userToken}`);
+
+      expect(likeRes.status).toBe(200);
+      expect(likeRes.body.data.liked).toBe(true);
+
+      // Unlike
+      const unlikeRes = await request(app)
+        .post(`/api/v1/songs/${song.id}/like`)
+        .set("Authorization", `Bearer ${userToken}`);
+
+      expect(unlikeRes.status).toBe(200);
+      expect(unlikeRes.body.data.liked).toBe(false);
+    }
+  });
+
+  it("should return 404 when recording play for a non-existent song", async () => {
+    const res = await request(app)
+      .post("/api/v1/songs/non-existent-uuid/play")
+      .set("Authorization", `Bearer ${userToken}`);
+
+    expect(res.status).toBe(404);
+  });
 });

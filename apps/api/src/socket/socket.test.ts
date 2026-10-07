@@ -269,6 +269,38 @@ describe("Socket.io Realtime Event Flows & User Stories", () => {
       expect(reaction.emoji).toBe("💖");
       expect(reaction.userId).toBe(user2Id);
     });
+
+    it("should broadcast full song information including fileUrl and artists on track change", async () => {
+      const trackPromise = new Promise<any>((resolve) => {
+        memberClient.on("room:track:changed", (data) => {
+          if (data.song?.id === testSongId) {
+            resolve(data);
+          }
+        });
+      });
+
+      hostClient.emit("room:play", { roomId: testRoomId, songId: testSongId, position: 0 });
+
+      const trackData = await trackPromise;
+      expect(trackData.song).toBeDefined();
+      expect(trackData.song.fileUrl).toBeDefined();
+      expect(Array.isArray(trackData.song.artists)).toBe(true);
+    });
+
+    it("should broadcast room:closed to listeners when host closes the room", async () => {
+      const closePromise = new Promise<any>((resolve) => {
+        memberClient.on("room:closed", (data) => {
+          if (data.roomId === testRoomId) {
+            resolve(data);
+          }
+        });
+      });
+
+      hostClient.emit("room:close", { roomId: testRoomId });
+
+      const closedData = await closePromise;
+      expect(closedData.roomId).toBe(testRoomId);
+    });
   });
 
   describe("US-Playlist: Collaborative Playlist Sync", () => {

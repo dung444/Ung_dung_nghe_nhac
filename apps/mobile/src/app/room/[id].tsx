@@ -122,12 +122,23 @@ export default function RoomDetailScreen() {
       }
     };
 
+    const handleRoomClosed = () => {
+      try {
+        const { useToastStore } = require("../../store/toastStore");
+        useToastStore.getState().showWarning("Phòng đã đóng", "Chủ phòng đã kết thúc phiên nghe chung.");
+      } catch {}
+      leaveRoom();
+      router.back();
+    };
+
     s.on("room:reaction", handleReaction);
+    s.on("room:closed", handleRoomClosed);
 
     return () => {
       s.off("room:reaction", handleReaction);
+      s.off("room:closed", handleRoomClosed);
     };
-  }, [socketRef.current]);
+  }, [roomId]);
 
   const handleSyncNow = () => {
     if (roomPosition >= 0) {
@@ -194,6 +205,7 @@ export default function RoomDetailScreen() {
         style: "destructive",
         onPress: async () => {
           try {
+            socketRef.current?.emit("room:close", { roomId });
             await api.delete(`/api/v1/rooms/${roomId}`);
             leaveRoom();
             router.back();

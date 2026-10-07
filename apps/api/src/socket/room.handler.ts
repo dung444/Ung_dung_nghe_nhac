@@ -31,6 +31,29 @@ export function setupRoomHandlers(ns: Namespace, socket: Socket) {
 
       // Send current room state
       const state = roomStates.get(roomId);
+      const songToLoadId = state?.currentSongId || room.currentSongId;
+      if (songToLoadId) {
+        const currentSong = await prisma.song.findUnique({
+          where: { id: songToLoadId },
+          select: {
+            id: true,
+            title: true,
+            duration: true,
+            coverUrl: true,
+            fileUrl: true,
+            artists: { select: { artist: { select: { id: true, name: true } } } },
+          },
+        });
+        if (currentSong) {
+          const formatted = {
+            ...currentSong,
+            artists: currentSong.artists.map((a: any) => a.artist),
+          };
+          const initialPos = state ? state.position : 0;
+          socket.emit("room:track:changed", { song: formatted, position: initialPos });
+        }
+      }
+
       if (state) {
         const elapsed = state.isPlaying ? (Date.now() - state.startedAt) / 1000 : 0;
         socket.emit("room:sync", { position: state.position + elapsed, serverTime: Date.now(), isPlaying: state.isPlaying });
@@ -53,8 +76,21 @@ export function setupRoomHandlers(ns: Namespace, socket: Socket) {
     const state: RoomState = { currentSongId: songId, position, isPlaying: true, startedAt: Date.now() };
     roomStates.set(roomId, state);
 
-    const song = await prisma.song.findUnique({ where: { id: songId }, select: { id: true, title: true, duration: true, coverUrl: true } });
-    ns.to(roomId).emit("room:track:changed", { song, position });
+    const song = await prisma.song.findUnique({
+      where: { id: songId },
+      select: {
+        id: true,
+        title: true,
+        duration: true,
+        coverUrl: true,
+        fileUrl: true,
+        artists: { select: { artist: { select: { id: true, name: true } } } },
+      },
+    });
+    const formattedSong = song
+      ? { ...song, artists: song.artists.map((a: any) => a.artist) }
+      : null;
+    ns.to(roomId).emit("room:track:changed", { song: formattedSong, position });
     ns.to(roomId).emit("room:sync", { position, serverTime: Date.now(), isPlaying: true });
   });
 
@@ -72,6 +108,14 @@ export function setupRoomHandlers(ns: Namespace, socket: Socket) {
     const state = roomStates.get(roomId);
     if (state) { state.position = position; state.startedAt = Date.now(); }
     ns.to(roomId).emit("room:sync", { position, serverTime: Date.now(), isPlaying: state?.isPlaying ?? false });
+  });
+
+  socket.on("room:close", async ({ roomId }: { roomId: string }) => {
+    const room = await prisma.room.findUnique({ where: { id: roomId } });
+    if (!room || room.ownerId !== userId) return;
+    await prisma.room.update({ where: { id: roomId }, data: { isActive: false } });
+    roomStates.delete(roomId);
+    ns.to(roomId).emit("room:closed", { roomId });
   });
 
   socket.on("room:chat", async ({ roomId, message }: { roomId: string; message: string }) => {
