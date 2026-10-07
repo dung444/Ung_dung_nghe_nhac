@@ -745,7 +745,9 @@ export default function AdminPortalScreen() {
                     <View key={alb.id} style={styles.artistCard}>
                       <Ionicons name="disc" size={36} color="#06b6d4" />
                       <Text style={styles.artistCardName} numberOfLines={1}>{alb.title}</Text>
-                      <Text style={styles.artistCardBio}>Nghệ sĩ ID: {alb.artistId.slice(0, 8)}...</Text>
+                      <Text style={styles.artistCardBio}>
+                        Nghệ sĩ: {alb.artist?.name || (alb.artistId ? `${alb.artistId.slice(0, 8)}...` : "Chưa liên kết")}
+                      </Text>
                     </View>
                   ))}
                 </View>
