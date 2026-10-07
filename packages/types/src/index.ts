@@ -326,6 +326,18 @@ export interface CreatorStudioStats {
   totalPlays: number;
   estimatedEarnings: number;
   recentSongs: Song[];
+  totalGiftsReceived?: number;
+  totalCoinsFromGifts?: number;
+  fanGiftShareEarnings?: number;
+  weeklyStreams?: Array<{ day: string; streams: number }>;
+  songPerformances?: Array<{
+    id: string;
+    title: string;
+    plays: number;
+    earnings: number;
+    gifts: number;
+    isrc?: string | null;
+  }>;
 }
 
 // ─── Payment & Gift System ───────────────────────────────────────────────────
@@ -376,4 +388,77 @@ export interface PaymentOrder {
   expiresAt: string;
   createdAt: string;
   completedAt?: string;
+}
+
+export interface AdminDashboardStats {
+  totalUsers: number;
+  totalVipUsers: number;
+  totalArtists: number;
+  totalSongs: number;
+  totalPlays: number;
+  totalAlbums: number;
+  totalPlaylists: number;
+  totalRooms: number;
+  pendingClaims: number;
+  totalClaims: number;
+  recentUsers: Array<{
+    id: string;
+    username: string;
+    email: string;
+    role: Role;
+    isPremium: boolean;
+    createdAt: string;
+  }>;
+  recentSongs: Array<{
+    id: string;
+    title: string;
+    playsCount: number;
+    createdAt: string;
+    artists?: Array<{ id: string; name: string }>;
+  }>;
+  financialStats?: {
+    totalRevenue: number;
+    coinRevenue: number;
+    vipRevenue: number;
+    totalCoinsInSystem: number;
+    totalGiftsSent: number;
+    totalPayoutsAmount: number;
+    netProfit: number;
+  };
+  topPlayedSongs?: Array<{
+    id: string;
+    title: string;
+    plays: number;
+    artistName: string;
+    coverUrl?: string | null;
+  }>;
+  topGiftedSongs?: Array<{
+    id: string;
+    title: string;
+    totalCoins: number;
+    giftCount: number;
+    artistName: string;
+    coverUrl?: string | null;
+  }>;
+  growthRates?: {
+    userGrowth: number;
+    streamGrowth: number;
+    vipConversionRate: number;
+  };
+}
+
+export interface AdminUserItem {
+  id: string;
+  username: string;
+  email: string;
+  role: Role;
+  avatarUrl: string | null;
+  isPremium: boolean;
+  createdAt: string;
+  updatedAt: string;
+  _count?: {
+    playlists: number;
+    history: number;
+    likes: number;
+  };
 }

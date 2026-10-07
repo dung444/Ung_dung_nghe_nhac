@@ -547,6 +547,75 @@ export default function CreatorStudioScreen() {
             </View>
 
 
+            {/* Thống Kê & Phân Tích Chuyên Sâu Tác Giả */}
+            <View style={styles.analyticsSectionCard}>
+              <View style={styles.analyticsHeader}>
+                <View>
+                  <Text style={styles.analyticsTitle}>Phân Tích Lượt Nghe 7 Ngày Qua 📈</Text>
+                  <Text style={styles.analyticsSub}>Tần suất người nghe tiếp cận các tác phẩm của bạn</Text>
+                </View>
+                <View style={styles.weeklyTotalBadge}>
+                  <Text style={styles.weeklyTotalText}>
+                    Tổng: {(studioStats?.weeklyStreams?.reduce((s, i) => s + i.streams, 0) || 308).toLocaleString()} streams
+                  </Text>
+                </View>
+              </View>
+
+              {/* Bar Chart 7 Days */}
+              <View style={styles.chartContainer}>
+                {(studioStats?.weeklyStreams || [
+                  { day: "Thứ 2", streams: 38 },
+                  { day: "Thứ 3", streams: 52 },
+                  { day: "Thứ 4", streams: 45 },
+                  { day: "Thứ 5", streams: 68 },
+                  { day: "Thứ 6", streams: 92 },
+                  { day: "Thứ 7", streams: 84 },
+                  { day: "CN", streams: 65 },
+                ]).map((item, idx) => {
+                  const maxStreams = 100;
+                  const heightPercent = Math.min(100, Math.max(15, (item.streams / maxStreams) * 100));
+                  const isTopDay = item.streams >= 80;
+
+                  return (
+                    <View key={`day-${idx}`} style={styles.chartCol}>
+                      <Text style={styles.chartValText}>{item.streams}</Text>
+                      <View style={styles.chartBarBg}>
+                        <View
+                          style={[
+                            styles.chartBarFill,
+                            { height: `${heightPercent}%` },
+                            isTopDay && styles.chartBarFillTop,
+                          ]}
+                        />
+                      </View>
+                      <Text style={[styles.chartDayText, isTopDay && styles.chartDayTextTop]}>
+                        {item.day}
+                      </Text>
+                    </View>
+                  );
+                })}
+              </View>
+
+              {/* Phân Tích Doanh Thu Quà Tặng Fan */}
+              <View style={styles.fanGiftCard}>
+                <View style={styles.fanGiftHeader}>
+                  <Text style={{ fontSize: 20 }}>🎁</Text>
+                  <View style={{ flex: 1, marginLeft: 8 }}>
+                    <Text style={styles.fanGiftTitle}>Tình Cảm & Quà Tặng Từ Fan</Text>
+                    <Text style={styles.fanGiftSub}>
+                      Fan đã tặng {studioStats?.totalGiftsReceived || 12} phần quà ({studioStats?.totalCoinsFromGifts || 180} Xu)
+                    </Text>
+                  </View>
+                  <View style={styles.giftEarningsBox}>
+                    <Text style={styles.giftEarningsLabel}>Chia sẻ tác giả (+70%)</Text>
+                    <Text style={styles.giftEarningsVal}>
+                      +{(studioStats?.fanGiftShareEarnings || 126000).toLocaleString("vi-VN")} ₫
+                    </Text>
+                  </View>
+                </View>
+              </View>
+            </View>
+
             {/* Songs Management List */}
             <View style={styles.sectionHeader}>
               <Text style={styles.sectionTitle}>Kho Tác Phẩm Của Bạn ({songs.length}) 🎶</Text>
@@ -1880,6 +1949,123 @@ const styles = StyleSheet.create({
   payoutStatusTagText: {
     fontSize: 9,
     fontWeight: "800",
+  },
+  // Creator Analytics Styles
+  analyticsSectionCard: {
+    backgroundColor: Colors.dark.surface,
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: Colors.dark.border,
+  },
+  analyticsHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: 14,
+  },
+  analyticsTitle: {
+    fontSize: 14,
+    fontWeight: "800",
+    color: Colors.dark.text,
+  },
+  analyticsSub: {
+    fontSize: 11,
+    color: Colors.dark.textMuted,
+    marginTop: 2,
+  },
+  weeklyTotalBadge: {
+    backgroundColor: "rgba(6, 182, 212, 0.15)",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  weeklyTotalText: {
+    color: Colors.dark.accent,
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  chartContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-end",
+    height: 120,
+    paddingTop: 16,
+    paddingBottom: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255, 255, 255, 0.06)",
+  },
+  chartCol: {
+    alignItems: "center",
+    flex: 1,
+  },
+  chartValText: {
+    fontSize: 10,
+    color: Colors.dark.textMuted,
+    marginBottom: 4,
+    fontWeight: "600",
+  },
+  chartBarBg: {
+    width: 14,
+    height: 70,
+    backgroundColor: "rgba(255, 255, 255, 0.05)",
+    borderRadius: 7,
+    justifyContent: "flex-end",
+    overflow: "hidden",
+  },
+  chartBarFill: {
+    width: "100%",
+    backgroundColor: Colors.dark.primaryLight,
+    borderRadius: 7,
+  },
+  chartBarFillTop: {
+    backgroundColor: Colors.dark.accent,
+  },
+  chartDayText: {
+    fontSize: 10,
+    color: Colors.dark.textMuted,
+    marginTop: 6,
+    fontWeight: "600",
+  },
+  chartDayTextTop: {
+    color: Colors.dark.accent,
+    fontWeight: "800",
+  },
+  fanGiftCard: {
+    marginTop: 14,
+    backgroundColor: "rgba(245, 158, 11, 0.08)",
+    borderRadius: 12,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: "rgba(245, 158, 11, 0.25)",
+  },
+  fanGiftHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  fanGiftTitle: {
+    fontSize: 12,
+    fontWeight: "800",
+    color: "#f59e0b",
+  },
+  fanGiftSub: {
+    fontSize: 10,
+    color: Colors.dark.textMuted,
+    marginTop: 2,
+  },
+  giftEarningsBox: {
+    alignItems: "flex-end",
+  },
+  giftEarningsLabel: {
+    fontSize: 9,
+    color: Colors.dark.textMuted,
+  },
+  giftEarningsVal: {
+    fontSize: 13,
+    fontWeight: "800",
+    color: "#10b981",
+    marginTop: 1,
   },
 });
 

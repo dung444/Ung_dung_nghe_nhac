@@ -28,6 +28,35 @@ export interface AdminDashboardStats {
     createdAt: string;
     artists?: Array<{ id: string; name: string }>;
   }>;
+  financialStats?: {
+    totalRevenue: number;
+    coinRevenue: number;
+    vipRevenue: number;
+    totalCoinsInSystem: number;
+    totalGiftsSent: number;
+    totalPayoutsAmount: number;
+    netProfit: number;
+  };
+  topPlayedSongs?: Array<{
+    id: string;
+    title: string;
+    plays: number;
+    artistName: string;
+    coverUrl?: string | null;
+  }>;
+  topGiftedSongs?: Array<{
+    id: string;
+    title: string;
+    totalCoins: number;
+    giftCount: number;
+    artistName: string;
+    coverUrl?: string | null;
+  }>;
+  growthRates?: {
+    userGrowth: number;
+    streamGrowth: number;
+    vipConversionRate: number;
+  };
 }
 
 export interface AdminUserItem {

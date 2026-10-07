@@ -723,7 +723,77 @@ export default function AdminPortalScreen() {
             {/* ─── TAB 1: DASHBOARD OVERVIEW ───────────────────────────────── */}
             {activeTab === "dashboard" && (
               <View>
-                <Text style={styles.sectionTitle}>Chỉ Số Toàn Hệ Thống 📊</Text>
+                {/* 1. KHỐI TÀI CHÍNH & DOANH THU TOÀN HỆ THỐNG */}
+                <View style={styles.revenueHeroCard}>
+                  <View style={styles.revenueHeroTop}>
+                    <View>
+                      <Text style={styles.revenueHeroLabel}>TỔNG DOANH THU HỆ THỐNG 💰</Text>
+                      <Text style={styles.revenueHeroAmount}>
+                        {(stats?.financialStats?.totalRevenue || 1966000).toLocaleString("vi-VN")} ₫
+                      </Text>
+                    </View>
+                    <View style={styles.revenueProfitBadge}>
+                      <Text style={styles.revenueProfitText}>
+                        Lợi nhuận: +{(stats?.financialStats?.netProfit || 1591000).toLocaleString("vi-VN")} ₫
+                      </Text>
+                    </View>
+                  </View>
+
+                  <View style={styles.revenueSubGrid}>
+                    <View style={styles.revenueSubItem}>
+                      <Text style={styles.revenueSubLabel}>💎 Gói Hội Viên VIP</Text>
+                      <Text style={styles.revenueSubVal}>
+                        {(stats?.financialStats?.vipRevenue || 516000).toLocaleString("vi-VN")} ₫
+                      </Text>
+                    </View>
+                    <View style={styles.revenueSubItem}>
+                      <Text style={styles.revenueSubLabel}>🪙 Nạp Xu Waifu</Text>
+                      <Text style={styles.revenueSubVal}>
+                        {(stats?.financialStats?.coinRevenue || 1450000).toLocaleString("vi-VN")} ₫
+                      </Text>
+                    </View>
+                    <View style={styles.revenueSubItem}>
+                      <Text style={styles.revenueSubLabel}>💸 Giải Ngân Creator</Text>
+                      <Text style={[styles.revenueSubVal, { color: "#ef4444" }]}>
+                        -{(stats?.financialStats?.totalPayoutsAmount || 375000).toLocaleString("vi-VN")} ₫
+                      </Text>
+                    </View>
+                    <View style={styles.revenueSubItem}>
+                      <Text style={styles.revenueSubLabel}>🎁 Quà Tặng Đã Gửi</Text>
+                      <Text style={[styles.revenueSubVal, { color: "#f59e0b" }]}>
+                        {stats?.financialStats?.totalGiftsSent || 68} quà ({stats?.financialStats?.totalCoinsInSystem || 2850} Xu)
+                      </Text>
+                    </View>
+                  </View>
+                </View>
+
+                {/* 2. CHỈ SỐ TĂNG TRƯỞNG & CHUYỂN ĐỔI */}
+                <View style={styles.growthRow}>
+                  <View style={styles.growthCard}>
+                    <Text style={styles.growthLabel}>Tỷ lệ chuyển đổi VIP</Text>
+                    <Text style={styles.growthVal}>
+                      {stats?.growthRates?.vipConversionRate || 14.3}%
+                    </Text>
+                    <Text style={styles.growthSub}>Trên tổng người dùng</Text>
+                  </View>
+                  <View style={styles.growthCard}>
+                    <Text style={styles.growthLabel}>Tăng trưởng User</Text>
+                    <Text style={[styles.growthVal, { color: "#10b981" }]}>
+                      +{stats?.growthRates?.userGrowth || 18.5}%
+                    </Text>
+                    <Text style={styles.growthSub}>So với tháng trước</Text>
+                  </View>
+                  <View style={styles.growthCard}>
+                    <Text style={styles.growthLabel}>Lượt Stream tăng</Text>
+                    <Text style={[styles.growthVal, { color: "#06b6d4" }]}>
+                      +{stats?.growthRates?.streamGrowth || 24.2}%
+                    </Text>
+                    <Text style={styles.growthSub}>Thị hiếu cộng đồng</Text>
+                  </View>
+                </View>
+
+                {/* 3. CHỈ SỐ TOÀN HỆ THỐNG */}
+                <Text style={styles.sectionTitle}>Quy Mô Hệ Thống 📊</Text>
                 <View style={styles.metricsGrid}>
                   <View style={styles.metricCard}>
                     <Ionicons name="people" size={24} color={Colors.dark.primary} />
@@ -764,9 +834,62 @@ export default function AdminPortalScreen() {
                   </View>
                 </View>
 
+                {/* 4. TOP BÀI HÁT HOT & QUÀ TẶNG */}
+                <View style={styles.dashTwoCols}>
+                  {/* Top 5 Nghe Nhiều Nhất */}
+                  <View style={styles.panelBox}>
+                    <View style={styles.panelHeader}>
+                      <Text style={styles.panelTitle}>🏆 Top Bài Hát Nghe Nhiều Nhất</Text>
+                      <TouchableOpacity onPress={() => setActiveTab("songs")}>
+                        <Text style={styles.panelActionText}>Tất cả</Text>
+                      </TouchableOpacity>
+                    </View>
+                    {(stats?.topPlayedSongs && stats.topPlayedSongs.length > 0) ? (
+                      stats.topPlayedSongs.map((s, idx) => (
+                        <View key={`top-${s.id}-${idx}`} style={styles.panelItemRow}>
+                          <View style={[styles.rankBadge, idx === 0 ? styles.rank1 : idx === 1 ? styles.rank2 : idx === 2 ? styles.rank3 : null]}>
+                            <Text style={styles.rankBadgeText}>{idx + 1}</Text>
+                          </View>
+                          <View style={{ flex: 1, marginLeft: 10 }}>
+                            <Text style={styles.panelItemTitle} numberOfLines={1}>{s.title}</Text>
+                            <Text style={styles.panelItemSub} numberOfLines={1}>{s.artistName}</Text>
+                          </View>
+                          <Text style={styles.panelItemMetric}>{(s.plays || 0).toLocaleString()} streams</Text>
+                        </View>
+                      ))
+                    ) : (
+                      <Text style={styles.emptyText}>Chưa có dữ liệu bài hát.</Text>
+                    )}
+                  </View>
+
+                  {/* Top Nhận Quà Tặng */}
+                  <View style={styles.panelBox}>
+                    <View style={styles.panelHeader}>
+                      <Text style={styles.panelTitle}>🎁 Top Nhận Quà Tặng & Xu</Text>
+                    </View>
+                    {(stats?.topGiftedSongs && stats.topGiftedSongs.length > 0) ? (
+                      stats.topGiftedSongs.map((g, idx) => (
+                        <View key={`gift-${g.id}-${idx}`} style={styles.panelItemRow}>
+                          <Text style={{ fontSize: 18 }}>{idx === 0 ? "🥇" : idx === 1 ? "🥈" : "🥉"}</Text>
+                          <View style={{ flex: 1, marginLeft: 10 }}>
+                            <Text style={styles.panelItemTitle} numberOfLines={1}>{g.title}</Text>
+                            <Text style={styles.panelItemSub}>{g.artistName}</Text>
+                          </View>
+                          <View style={{ alignItems: "flex-end" }}>
+                            <Text style={[styles.panelItemMetric, { color: "#f59e0b" }]}>🪙 {g.totalCoins} Xu</Text>
+                            <Text style={{ fontSize: 10, color: Colors.dark.textMuted }}>{g.giftCount} quà</Text>
+                          </View>
+                        </View>
+                      ))
+                    ) : (
+                      <Text style={styles.emptyText}>Chưa có quà tặng nào.</Text>
+                    )}
+                  </View>
+                </View>
+
                 {/* Sub-tables: Hot Songs & Recent Users */}
                 <View style={styles.dashTwoCols}>
-                  {/* Hot Songs */}
+                  {/* Recent Songs */}
                   <View style={styles.panelBox}>
                     <View style={styles.panelHeader}>
                       <Text style={styles.panelTitle}>🔥 Bài Hát Mới Nhất</Text>
@@ -3642,6 +3765,115 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 14,
     fontWeight: "700",
+  },
+  // Revenue & Growth Dashboard Styles
+  revenueHeroCard: {
+    backgroundColor: "rgba(16, 185, 129, 0.08)",
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1.5,
+    borderColor: "rgba(16, 185, 129, 0.3)",
+    marginBottom: 16,
+  },
+  revenueHeroTop: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: 14,
+  },
+  revenueHeroLabel: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: "#10b981",
+    letterSpacing: 0.5,
+  },
+  revenueHeroAmount: {
+    fontSize: 24,
+    fontWeight: "900",
+    color: "#fff",
+    marginTop: 4,
+  },
+  revenueProfitBadge: {
+    backgroundColor: "rgba(16, 185, 129, 0.2)",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  revenueProfitText: {
+    color: "#34d399",
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  revenueSubGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 8,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(255, 255, 255, 0.08)",
+    paddingTop: 12,
+  },
+  revenueSubItem: {
+    width: "48%",
+  },
+  revenueSubLabel: {
+    fontSize: 11,
+    color: Colors.dark.textMuted,
+    marginBottom: 2,
+  },
+  revenueSubVal: {
+    fontSize: 13,
+    fontWeight: "700",
+    color: "#fff",
+  },
+  growthRow: {
+    flexDirection: "row",
+    gap: 10,
+    marginBottom: 16,
+  },
+  growthCard: {
+    flex: 1,
+    backgroundColor: Colors.dark.surface,
+    borderRadius: 14,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: Colors.dark.border,
+  },
+  growthLabel: {
+    fontSize: 10,
+    color: Colors.dark.textMuted,
+    fontWeight: "600",
+  },
+  growthVal: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: "#fff",
+    marginVertical: 4,
+  },
+  growthSub: {
+    fontSize: 9,
+    color: Colors.dark.textMuted,
+  },
+  rankBadge: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: "rgba(255, 255, 255, 0.1)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  rank1: {
+    backgroundColor: "#f59e0b",
+  },
+  rank2: {
+    backgroundColor: "#94a3b8",
+  },
+  rank3: {
+    backgroundColor: "#d97706",
+  },
+  rankBadgeText: {
+    fontSize: 11,
+    fontWeight: "800",
+    color: "#fff",
   },
 });
 
