@@ -16,6 +16,10 @@ export default function LoginScreen() {
   const handleLogin = async () => {
     if (!email.trim() || !password.trim()) {
       setErrorMessage("Vui lòng nhập Email/Tên đăng nhập và Mật khẩu.");
+      try {
+        const { useToastStore } = require("../../store/toastStore");
+        useToastStore.getState().showWarning("Thiếu thông tin", "Vui lòng nhập Email/Tên đăng nhập và Mật khẩu.");
+      } catch {}
       return;
     }
 
@@ -27,10 +31,19 @@ export default function LoginScreen() {
       if (res.data?.success && res.data?.data) {
         const { user, accessToken, refreshToken } = res.data.data;
         setAuth(user, accessToken, refreshToken);
+        try {
+          const { useToastStore } = require("../../store/toastStore");
+          useToastStore.getState().showSuccess("Đăng nhập thành công! ✨", `Chào mừng ${user.displayName || user.username} trở lại với Waifu Player!`);
+        } catch {}
         router.replace("/(tabs)");
         return;
       } else {
-        setErrorMessage(res.data?.message || "Đăng nhập thất bại.");
+        const msg = res.data?.message || "Đăng nhập thất bại.";
+        setErrorMessage(msg);
+        try {
+          const { useToastStore } = require("../../store/toastStore");
+          useToastStore.getState().showError("Đăng nhập thất bại ⚠️", msg);
+        } catch {}
       }
     } catch (err: any) {
       const msg =
@@ -38,6 +51,10 @@ export default function LoginScreen() {
         err.response?.data?.error ||
         "Email/Tên đăng nhập hoặc mật khẩu không chính xác.";
       setErrorMessage(msg);
+      try {
+        const { useToastStore } = require("../../store/toastStore");
+        useToastStore.getState().showError("Đăng nhập thất bại ⚠️", msg);
+      } catch {}
     } finally {
       setLoading(false);
     }

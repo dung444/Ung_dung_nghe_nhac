@@ -88,6 +88,10 @@ export default function ProfileScreen() {
     }
     setCopiedField(label);
     setTimeout(() => setCopiedField(null), 2000);
+    try {
+      const { useToastStore } = require("../../store/toastStore");
+      useToastStore.getState().showInfo("Đã sao chép 📋", `${label}: "${text}"`);
+    } catch {}
     Alert.alert("Đã sao chép! 📋", `Đã sao chép ${label}: "${text}" vào khay nhớ tạm.`);
   };
 
@@ -101,11 +105,20 @@ export default function ProfileScreen() {
 
       if (res.data?.success) {
         if (user) setUser({ ...user, isPremium: true });
+        try {
+          const { useToastStore } = require("../../store/toastStore");
+          useToastStore.getState().showSuccess("Nâng cấp VIP thành công 💎", "Tài khoản của bạn đã được kích hoạt Waifu VIP Pass!");
+        } catch {}
         Alert.alert("Chúc mừng! 💎", res.data.message || "Bạn đã nâng cấp thành công gói Waifu VIP Pass!");
         setShowPremiumModal(false);
       }
     } catch (err: any) {
-      Alert.alert("Lỗi", err.response?.data?.error || "Không thể xử lý giao dịch");
+      const errMsg = err.response?.data?.error || "Không thể xử lý giao dịch";
+      try {
+        const { useToastStore } = require("../../store/toastStore");
+        useToastStore.getState().showError("Lỗi thanh toán", errMsg);
+      } catch {}
+      Alert.alert("Lỗi", errMsg);
     } finally {
       setPaymentLoading(false);
     }
@@ -114,6 +127,10 @@ export default function ProfileScreen() {
   const handleTopup = async () => {
     const amount = Number(customTopupAmount);
     if (!amount || amount < 10000) {
+      try {
+        const { useToastStore } = require("../../store/toastStore");
+        useToastStore.getState().showError("Lỗi số tiền", "Số tiền nạp tối thiểu là 10.000 VNĐ.");
+      } catch {}
       Alert.alert("Lỗi", "Số tiền nạp tối thiểu là 10.000 VNĐ");
       return;
     }
@@ -126,11 +143,20 @@ export default function ProfileScreen() {
       });
 
       if (res.data?.success) {
+        try {
+          const { useToastStore } = require("../../store/toastStore");
+          useToastStore.getState().showSuccess("Nạp tiền thành công 🎉", `Đã nạp ${amount.toLocaleString("vi-VN")} đ vào tài khoản Waifu Coins!`);
+        } catch {}
         Alert.alert("Nạp tiền thành công! 🎉", `Đã nạp ${amount.toLocaleString()} VNĐ vào tài khoản Waifu Coins!`);
         setVipTab("PACKAGES");
       }
     } catch (err: any) {
-      Alert.alert("Lỗi", err.response?.data?.error || "Không thể nạp tiền");
+      const errMsg = err.response?.data?.error || "Không thể nạp tiền";
+      try {
+        const { useToastStore } = require("../../store/toastStore");
+        useToastStore.getState().showError("Lỗi nạp tiền", errMsg);
+      } catch {}
+      Alert.alert("Lỗi", errMsg);
     } finally {
       setPaymentLoading(false);
     }
@@ -214,6 +240,10 @@ export default function ProfileScreen() {
     if (user) {
       setUser({ ...user, avatarUrl: url });
       api.patch("/api/v1/users/me", { avatarUrl: url }).catch(() => {});
+      try {
+        const { useToastStore } = require("../../store/toastStore");
+        useToastStore.getState().showSuccess("Cập nhật Avatar thành công! 🌸", "Hình đại diện waifu của bạn đã được lưu");
+      } catch {}
     }
     setShowAvatarModal(false);
   };
@@ -221,6 +251,10 @@ export default function ProfileScreen() {
   const handleLogout = () => {
     const doLogout = () => {
       logout();
+      try {
+        const { useToastStore } = require("../../store/toastStore");
+        useToastStore.getState().showInfo("Đã đăng xuất 👋", "Hẹn sớm gặp lại bạn tại thế giới Anime & Vocaloid!");
+      } catch {}
       router.replace("/(auth)/login" as any);
     };
 

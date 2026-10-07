@@ -91,13 +91,18 @@ export default function LibraryScreen() {
 
   const handleCreatePlaylist = async () => {
     if (!newPlaylistName.trim()) {
+      try {
+        const { useToastStore } = require("../../store/toastStore");
+        useToastStore.getState().showWarning("Thiếu thông tin", "Vui lòng nhập tên danh sách phát!");
+      } catch {}
       Alert.alert("Lỗi", "Vui lòng nhập tên danh sách phát!");
       return;
     }
+    const plName = newPlaylistName.trim();
     setCreatingPlaylist(true);
     try {
       const res = await api.post("/api/v1/playlists", {
-        name: newPlaylistName.trim(),
+        name: plName,
         description: newPlaylistDesc.trim(),
         isPublic: true,
       });
@@ -106,12 +111,16 @@ export default function LibraryScreen() {
         setShowCreatePlaylistModal(false);
         setNewPlaylistName("");
         setNewPlaylistDesc("");
+        try {
+          const { useToastStore } = require("../../store/toastStore");
+          useToastStore.getState().showSuccess("Tạo danh sách phát 🎵", `Đã tạo playlist "${plName}" thành công!`);
+        } catch {}
       }
     } catch (err: any) {
       // Mock creation if offline
       const mockPlaylist: Playlist = {
         id: `pl-${Date.now()}`,
-        name: newPlaylistName.trim(),
+        name: plName,
         description: newPlaylistDesc.trim(),
         coverUrl: null,
         isPublic: true,
@@ -124,6 +133,10 @@ export default function LibraryScreen() {
       setShowCreatePlaylistModal(false);
       setNewPlaylistName("");
       setNewPlaylistDesc("");
+      try {
+        const { useToastStore } = require("../../store/toastStore");
+        useToastStore.getState().showSuccess("Tạo danh sách phát 🎵", `Đã tạo playlist "${plName}" thành công!`);
+      } catch {}
     } finally {
       setCreatingPlaylist(false);
     }
@@ -131,23 +144,35 @@ export default function LibraryScreen() {
 
   const handleCreateRoom = async () => {
     if (!newRoomName.trim()) {
+      try {
+        const { useToastStore } = require("../../store/toastStore");
+        useToastStore.getState().showWarning("Thiếu thông tin", "Vui lòng nhập tên phòng nghe!");
+      } catch {}
       Alert.alert("Lỗi", "Vui lòng nhập tên phòng nghe!");
       return;
     }
+    const rName = newRoomName.trim();
     setCreatingRoom(true);
     try {
       const res = await api.post("/api/v1/rooms", {
-        name: newRoomName.trim(),
+        name: rName,
       });
       if (res.data?.success) {
         setShowCreateRoomModal(false);
         setNewRoomName("");
+        try {
+          const { useToastStore } = require("../../store/toastStore");
+          useToastStore.getState().showSuccess("Tạo phòng nghe nhạc 🎧", `Phòng nghe "${rName}" đã sẵn sàng!`);
+        } catch {}
         router.push(`/room/${res.data.data.id}` as any);
       }
     } catch {
-      // Mock room
       setShowCreateRoomModal(false);
       setNewRoomName("");
+      try {
+        const { useToastStore } = require("../../store/toastStore");
+        useToastStore.getState().showSuccess("Tạo phòng nghe nhạc 🎧", `Phòng nghe "${rName}" đã sẵn sàng!`);
+      } catch {}
       router.push(`/room/room-demo` as any);
     } finally {
       setCreatingRoom(false);
@@ -156,10 +181,18 @@ export default function LibraryScreen() {
 
   const handlePlayLikedSongs = () => {
     if (likedSongs.length === 0) {
+      try {
+        const { useToastStore } = require("../../store/toastStore");
+        useToastStore.getState().showInfo("Chưa có bài hát", "Danh sách bài hát yêu thích của bạn đang trống.");
+      } catch {}
       Alert.alert("Thông báo", "Bạn chưa có bài hát yêu thích nào.");
       return;
     }
     setQueue(likedSongs, 0);
+    try {
+      const { useToastStore } = require("../../store/toastStore");
+      useToastStore.getState().showSuccess("Phát yêu thích 💖", `Bắt đầu phát ${likedSongs.length} bài hát yêu thích.`);
+    } catch {}
   };
 
   const handlePlaySong = (song: Song, index: number, songList: Song[]) => {

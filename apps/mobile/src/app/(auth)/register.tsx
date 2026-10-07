@@ -77,10 +77,18 @@ export default function RegisterScreen() {
   const handleGoToStep2 = () => {
     if (!email || !username || !password) {
       setErrorMessage("Vui lòng điền đầy đủ các thông tin bắt buộc (*)");
+      try {
+        const { useToastStore } = require("../../store/toastStore");
+        useToastStore.getState().showWarning("Thiếu thông tin", "Vui lòng điền đầy đủ các thông tin bắt buộc (*)");
+      } catch {}
       return;
     }
     if (password.length < 8) {
       setErrorMessage("Mật khẩu phải có tối thiểu 8 ký tự");
+      try {
+        const { useToastStore } = require("../../store/toastStore");
+        useToastStore.getState().showWarning("Mật khẩu yếu", "Mật khẩu phải có tối thiểu 8 ký tự");
+      } catch {}
       return;
     }
     setErrorMessage("");
@@ -127,12 +135,21 @@ export default function RegisterScreen() {
           api.post(`/api/v1/artists/${artId}/follow`).catch(() => {});
         }
 
+        try {
+          const { useToastStore } = require("../../store/toastStore");
+          useToastStore.getState().showSuccess("Đăng ký thành công! 🎉", "Chào mừng bạn gia nhập thế giới âm nhạc Anime & Vocaloid!");
+        } catch {}
+
         router.replace("/(tabs)");
         return;
       }
     } catch (err: any) {
       const errorMsg = err.response?.data?.error || "Đăng ký không thành công. Vui lòng kiểm tra lại thông tin.";
       setErrorMessage(errorMsg);
+      try {
+        const { useToastStore } = require("../../store/toastStore");
+        useToastStore.getState().showError("Đăng ký thất bại ⚠️", errorMsg);
+      } catch {}
       setStep(1); // Return to step 1 on registration error
     } finally {
       setLoading(false);

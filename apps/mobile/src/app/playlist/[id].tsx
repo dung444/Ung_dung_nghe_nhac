@@ -148,12 +148,20 @@ export default function PlaylistDetailScreen() {
   const handlePlayAll = () => {
     if (playlistSongs.length === 0) return;
     setQueue(playlistSongs, 0);
+    try {
+      const { useToastStore } = require("../../store/toastStore");
+      useToastStore.getState().showSuccess("Phát Playlist 🎶", `Bắt đầu phát ${playlistSongs.length} bài hát trong "${playlist?.name}".`);
+    } catch {}
   };
 
   const handleShufflePlay = () => {
     if (playlistSongs.length === 0) return;
     const shuffled = [...playlistSongs].sort(() => Math.random() - 0.5);
     setQueue(shuffled, 0);
+    try {
+      const { useToastStore } = require("../../store/toastStore");
+      useToastStore.getState().showInfo("Phát ngẫu nhiên 🔀", `Đã trộn ngẫu nhiên ${playlistSongs.length} bài hát trong playlist.`);
+    } catch {}
   };
 
   const handlePlaySong = (song: Song, index: number) => {
@@ -187,8 +195,17 @@ export default function PlaylistDetailScreen() {
         return { ...prev, songs: newSongs, songCount: newSongs.length };
       });
       setShowAddModal(false);
+      try {
+        const { useToastStore } = require("../../store/toastStore");
+        useToastStore.getState().showSuccess("Đã thêm bài hát ✨", `Đã thêm "${song.title}" vào playlist "${playlist?.name}".`);
+      } catch {}
     } catch (err: any) {
-      Alert.alert("Lỗi", err.response?.data?.error || "Không thể thêm bài hát vào danh sách phát.");
+      const msg = err.response?.data?.error || "Không thể thêm bài hát vào danh sách phát.";
+      try {
+        const { useToastStore } = require("../../store/toastStore");
+        useToastStore.getState().showError("Lỗi thêm bài", msg);
+      } catch {}
+      Alert.alert("Lỗi", msg);
     } finally {
       setAddingSongId(null);
     }
@@ -209,12 +226,20 @@ export default function PlaylistDetailScreen() {
               const newSongs = (prev.songs || []).filter((ps) => ps.songId !== songId);
               return { ...prev, songs: newSongs, songCount: newSongs.length };
             });
+            try {
+              const { useToastStore } = require("../../store/toastStore");
+              useToastStore.getState().showInfo("Đã xóa bài hát", "Bài hát đã được gỡ khỏi danh sách phát.");
+            } catch {}
           } catch {
             setPlaylist((prev) => {
               if (!prev) return prev;
               const newSongs = (prev.songs || []).filter((ps) => ps.songId !== songId);
               return { ...prev, songs: newSongs, songCount: newSongs.length };
             });
+            try {
+              const { useToastStore } = require("../../store/toastStore");
+              useToastStore.getState().showInfo("Đã xóa bài hát", "Bài hát đã được gỡ khỏi danh sách phát.");
+            } catch {}
           }
         },
       },

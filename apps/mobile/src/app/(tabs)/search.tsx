@@ -191,7 +191,13 @@ export default function SearchScreen() {
               <View style={{ marginTop: 28 }}>
                 <View style={styles.recentHeader}>
                   <Text style={styles.sectionTitle}>Tìm kiếm gần đây</Text>
-                  <TouchableOpacity onPress={() => setRecentSearches([])}>
+                  <TouchableOpacity onPress={() => {
+                    setRecentSearches([]);
+                    try {
+                      const { useToastStore } = require("../../store/toastStore");
+                      useToastStore.getState().showInfo("Đã xóa lịch sử 🧹", "Lịch sử tìm kiếm gần đây đã được dọn dẹp.");
+                    } catch {}
+                  }}>
                     <Text style={styles.clearHistoryText}>Xóa tất cả</Text>
                   </TouchableOpacity>
                 </View>

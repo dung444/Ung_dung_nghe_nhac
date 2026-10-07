@@ -82,12 +82,20 @@ export default function AlbumDetailScreen() {
   const handlePlayAll = () => {
     if (albumSongs.length === 0) return;
     setQueue(albumSongs, 0);
+    try {
+      const { useToastStore } = require("../../store/toastStore");
+      useToastStore.getState().showSuccess("Phát Album 💿", `Bắt đầu phát ${albumSongs.length} bài hát trong Album "${album?.title}".`);
+    } catch {}
   };
 
   const handleShuffle = () => {
     if (albumSongs.length === 0) return;
     const shuffled = [...albumSongs].sort(() => Math.random() - 0.5);
     setQueue(shuffled, 0);
+    try {
+      const { useToastStore } = require("../../store/toastStore");
+      useToastStore.getState().showInfo("Phát ngẫu nhiên 🔀", `Đã trộn ngẫu nhiên ${albumSongs.length} bài hát trong album.`);
+    } catch {}
   };
 
   const handlePlaySong = (song: Song, index: number) => {

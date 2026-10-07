@@ -89,16 +89,32 @@ export default function ArtistDetailScreen() {
     setFollowerCount((prev) => (nextState ? prev + 1 : Math.max(0, prev - 1)));
     try {
       await api.post(`/api/v1/artists/${id}/follow`);
+      try {
+        const { useToastStore } = require("../../store/toastStore");
+        if (nextState) {
+          useToastStore.getState().showSuccess("Theo dõi nghệ sĩ ⭐", `Đã theo dõi "${artist?.name}".`);
+        } else {
+          useToastStore.getState().showInfo("Bỏ theo dõi", `Đã hủy theo dõi "${artist?.name}".`);
+        }
+      } catch {}
     } catch {
       // Revert on error
       setIsFollowing(!nextState);
       setFollowerCount((prev) => (!nextState ? prev + 1 : Math.max(0, prev - 1)));
+      try {
+        const { useToastStore } = require("../../store/toastStore");
+        useToastStore.getState().showError("Lỗi kết nối", "Không thể cập nhật trạng thái theo dõi.");
+      } catch {}
     }
   };
 
   const handlePlayAll = () => {
     if (songs.length === 0) return;
     setQueue(songs, 0);
+    try {
+      const { useToastStore } = require("../../store/toastStore");
+      useToastStore.getState().showSuccess("Phát bài hát nghệ sĩ 🎶", `Bắt đầu phát ${songs.length} bài hát của "${artist?.name}".`);
+    } catch {}
   };
 
   const handlePlaySong = (song: Song, index: number) => {

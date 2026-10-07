@@ -133,7 +133,10 @@ export default function RoomDetailScreen() {
     if (roomPosition >= 0) {
       seekTo(roomPosition);
       setPlaying(roomPlaying);
-      Alert.alert("Đã đồng bộ", `Đã đồng bộ âm thanh tới ${formatDuration(roomPosition)} cùng phòng nghe.`);
+      try {
+        const { useToastStore } = require("../../store/toastStore");
+        useToastStore.getState().showSuccess("Đã đồng bộ ⏱️", `Đã đồng bộ âm thanh tới ${formatDuration(roomPosition)} cùng phòng nghe.`);
+      } catch {}
     }
   };
 
@@ -164,6 +167,10 @@ export default function RoomDetailScreen() {
       position: 0,
     });
     setShowSongModal(false);
+    try {
+      const { useToastStore } = require("../../store/toastStore");
+      useToastStore.getState().showSuccess("Đổi bài hát phòng 🎶", `Đã chọn "${selectedSong.title}" phát chung trong phòng.`);
+    } catch {}
   };
 
   const handleTogglePlayPauseHost = () => {
