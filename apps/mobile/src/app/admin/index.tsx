@@ -747,7 +747,7 @@ export default function AdminPortalScreen() {
                       </Text>
                     </View>
                     <View style={styles.revenueSubItem}>
-                      <Text style={styles.revenueSubLabel}>🪙 Nạp Xu Waifu</Text>
+                      <Text style={styles.revenueSubLabel}>💰 Nạp Xu Waifu</Text>
                       <Text style={styles.revenueSubVal}>
                         {(stats?.financialStats?.coinRevenue || 1450000).toLocaleString("vi-VN")} ₫
                       </Text>
@@ -876,7 +876,7 @@ export default function AdminPortalScreen() {
                             <Text style={styles.panelItemSub}>{g.artistName}</Text>
                           </View>
                           <View style={{ alignItems: "flex-end" }}>
-                            <Text style={[styles.panelItemMetric, { color: "#f59e0b" }]}>🪙 {g.totalCoins} Xu</Text>
+                            <Text style={[styles.panelItemMetric, { color: "#f59e0b" }]}>💰 {g.totalCoins} Xu</Text>
                             <Text style={{ fontSize: 10, color: Colors.dark.textMuted }}>{g.giftCount} quà</Text>
                           </View>
                         </View>
@@ -1275,7 +1275,7 @@ export default function AdminPortalScreen() {
                                 ]}
                               >
                                 <Text style={styles.orderTypeBadgeText}>
-                                  {isCoin ? `🪙 NẠP +${order.coins} XU` : `💎 MUA VIP PASS`}
+                                  {isCoin ? `💰 NẠP +${order.coins} XU` : `💎 MUA VIP PASS`}
                                 </Text>
                               </View>
                               <Text style={styles.orderCodeText}>{order.orderCode}</Text>

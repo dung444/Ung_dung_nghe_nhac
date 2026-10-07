@@ -15,6 +15,7 @@ import { usePlayerStore } from "../../store/playerStore";
 import { api } from "../../services/api";
 import type { Song } from "@waifu-player/types";
 import { formatDuration } from "@waifu-player/utils";
+import { GoldCoin } from "../../components/ui/GoldCoin";
 
 const SAMPLE_ANIME_SONGS: Song[] = [
   {
@@ -590,7 +591,8 @@ export default function HomeScreen() {
                     {giftLeaderboard[1].artists?.map((a: any) => a.name).join(", ") || "Artist"}
                   </Text>
                   <View style={styles.podiumCoinBadge}>
-                    <Text style={styles.podiumCoinText}>🪙 {giftLeaderboard[1].totalCoins?.toLocaleString()} Xu</Text>
+                    <GoldCoin size={14} />
+                    <Text style={styles.podiumCoinText}>{giftLeaderboard[1].totalCoins?.toLocaleString()} Xu</Text>
                   </View>
                   <TouchableOpacity
                     style={styles.podiumGiftBtnMini}
@@ -625,8 +627,9 @@ export default function HomeScreen() {
                     {giftLeaderboard[0].artists?.map((a: any) => a.name).join(", ") || "Artist"}
                   </Text>
                   <View style={[styles.podiumCoinBadge, { backgroundColor: "rgba(245, 158, 11, 0.25)", borderColor: "#f59e0b" }]}>
+                    <GoldCoin size={16} />
                     <Text style={[styles.podiumCoinText, { color: "#f59e0b", fontWeight: "900" }]}>
-                      🪙 {giftLeaderboard[0].totalCoins?.toLocaleString()} Xu
+                      {giftLeaderboard[0].totalCoins?.toLocaleString()} Xu
                     </Text>
                   </View>
                   <TouchableOpacity
@@ -659,7 +662,8 @@ export default function HomeScreen() {
                     {giftLeaderboard[2].artists?.map((a: any) => a.name).join(", ") || "Artist"}
                   </Text>
                   <View style={styles.podiumCoinBadge}>
-                    <Text style={styles.podiumCoinText}>🪙 {giftLeaderboard[2].totalCoins?.toLocaleString()} Xu</Text>
+                    <GoldCoin size={14} />
+                    <Text style={styles.podiumCoinText}>{giftLeaderboard[2].totalCoins?.toLocaleString()} Xu</Text>
                   </View>
                   <TouchableOpacity
                     style={styles.podiumGiftBtnMini}
@@ -772,7 +776,8 @@ export default function HomeScreen() {
                   {/* Gift Stats & Artist */}
                   <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 3 }}>
                     <View style={styles.giftBadgeMini}>
-                      <Text style={styles.giftBadgeMiniText}>🪙 +{song.totalCoins || 0} Xu</Text>
+                      <GoldCoin size={12} />
+                      <Text style={styles.giftBadgeMiniText}>+{song.totalCoins || 0} Xu</Text>
                     </View>
                     <View style={styles.giftCountMini}>
                       <Text style={styles.giftCountMiniText}>🎁 {song.giftCount || 0} quà</Text>

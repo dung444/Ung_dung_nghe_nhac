@@ -21,6 +21,7 @@ import { api } from "../../services/api";
 import { API_BASE_URL } from "../../constants/api";
 import type { CopyrightStats } from "@waifu-player/types";
 import { PaymentCheckoutModal } from "../../features/payments/PaymentCheckoutModal";
+import { GoldCoin } from "../../components/ui/GoldCoin";
 
 const WAIFU_AVATARS = [
   "https://images.unsplash.com/photo-1578632767115-351597cf2477?w=200&q=80",
@@ -565,7 +566,7 @@ export default function ProfileScreen() {
         <View style={styles.walletCard}>
           <View style={styles.walletLeft}>
             <View style={styles.coinIconBadge}>
-              <Text style={{ fontSize: 24 }}>🪙</Text>
+              <GoldCoin size={28} />
             </View>
             <View>
               <Text style={styles.walletTitle}>Ví Waifu Coins</Text>
@@ -1144,9 +1145,12 @@ export default function ProfileScreen() {
                           style={[styles.topupAmountCard, isSelected && styles.topupAmountCardActive]}
                           onPress={() => setCustomTopupAmount(item.amt)}
                         >
-                          <Text style={[styles.topupAmountText, isSelected && { color: "#f59e0b" }]}>
-                            🪙 {item.coins.toLocaleString()} Xu
-                          </Text>
+                          <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginBottom: 2 }}>
+                            <GoldCoin size={16} />
+                            <Text style={[styles.topupAmountText, isSelected && { color: "#f59e0b" }]}>
+                              {item.coins.toLocaleString()} Xu
+                            </Text>
+                          </View>
                           <Text style={styles.topupCoinsSub}>{Number(item.amt).toLocaleString()} ₫</Text>
                           {item.bonus ? (
                             <View style={{ backgroundColor: "#ec4899", paddingHorizontal: 5, paddingVertical: 1, borderRadius: 4, marginTop: 4 }}>

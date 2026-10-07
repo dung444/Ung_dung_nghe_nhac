@@ -16,6 +16,7 @@ import { api } from "../../services/api";
 import { ENDPOINTS } from "../../constants/api";
 import { useAuthStore } from "../../store/authStore";
 import { useToastStore } from "../../store/toastStore";
+import { GoldCoin } from "../../components/ui/GoldCoin";
 import type { Song } from "@waifu-player/types";
 
 interface AnimeGift {
@@ -191,7 +192,7 @@ export function GiftModal({ visible, song, onClose, onGiftSuccess }: GiftModalPr
                 </View>
                 {/* Coin balance indicator */}
                 <TouchableOpacity style={styles.coinBadge} onPress={() => setShowTopupModal(true)}>
-                  <Text style={styles.coinBadgeIcon}>🪙</Text>
+                  <GoldCoin size={16} />
                   <Text style={styles.coinBadgeVal}>{userCoins} Xu</Text>
                   <Ionicons name="add-circle" size={14} color="#f59e0b" style={{ marginLeft: 3 }} />
                 </TouchableOpacity>
@@ -215,7 +216,7 @@ export function GiftModal({ visible, song, onClose, onGiftSuccess }: GiftModalPr
                       {item.name}
                     </Text>
                     <View style={styles.giftPriceRow}>
-                      <Text style={styles.giftPriceCoin}>🪙</Text>
+                      <GoldCoin size={13} />
                       <Text style={styles.giftPriceText}>{item.coins} xu</Text>
                     </View>
                     {isSelected && <View style={styles.activeCheck}><Ionicons name="checkmark" size={11} color="#fff" /></View>}
@@ -256,9 +257,10 @@ export function GiftModal({ visible, song, onClose, onGiftSuccess }: GiftModalPr
             <View style={styles.submitBar}>
               <View>
                 <Text style={styles.totalPriceLabel}>Tổng chi phí:</Text>
-                <Text style={styles.totalPriceVal}>
-                  🪙 {totalCost} Xu
-                </Text>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 5, marginTop: 2 }}>
+                  <GoldCoin size={16} />
+                  <Text style={styles.totalPriceVal}>{totalCost} Xu</Text>
+                </View>
               </View>
               <TouchableOpacity
                 style={[styles.sendBtn, submitting && { opacity: 0.6 }]}
@@ -285,7 +287,10 @@ export function GiftModal({ visible, song, onClose, onGiftSuccess }: GiftModalPr
           <View style={styles.topupCard}>
             <View style={styles.header}>
               <View>
-                <Text style={styles.headerTitle}>Nạp Xu Waifu Coin 🪙</Text>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                  <GoldCoin size={20} />
+                  <Text style={styles.headerTitle}>Nạp Xu Waifu Coin</Text>
+                </View>
                 <Text style={styles.headerSub}>Dùng xu để tặng quà và tương tác cùng cộng đồng</Text>
               </View>
               <TouchableOpacity onPress={() => setShowTopupModal(false)} style={styles.closeBtn}>
@@ -302,7 +307,7 @@ export function GiftModal({ visible, song, onClose, onGiftSuccess }: GiftModalPr
                   activeOpacity={0.8}
                 >
                   <View style={styles.pkgLeft}>
-                    <Text style={styles.pkgIcon}>🪙</Text>
+                    <GoldCoin size={24} />
                     <View>
                       <Text style={styles.pkgName}>{pkg.name}</Text>
                       {pkg.bonusText && <Text style={styles.pkgBonus}>{pkg.bonusText}</Text>}

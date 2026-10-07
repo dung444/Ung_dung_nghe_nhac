@@ -16,6 +16,7 @@ import { api } from "../../services/api";
 import { ENDPOINTS } from "../../constants/api";
 import { useAuthStore } from "../../store/authStore";
 import { useToastStore } from "../../store/toastStore";
+import { GoldCoin } from "../../components/ui/GoldCoin";
 import type { CoinPackage, PaymentOrder } from "@waifu-player/types";
 
 export interface PaymentCheckoutModalProps {
@@ -349,17 +350,22 @@ export function PaymentCheckoutModal({
                 <Ionicons name="shield-checkmark" size={14} color="#10b981" />
                 <Text style={styles.headerBadgeText}>CỔNG THANH TOÁN BẢO MẬT</Text>
               </View>
-              <Text style={styles.headerTitle}>
-                {step === "SUCCESS"
-                  ? "Biên Lai Thanh Toán ✨"
-                  : step === "WAITING_APPROVAL"
-                  ? "Chờ Admin Duyệt Biên Lai ⏳"
-                  : step === "PAYMENT_QR"
-                  ? "Quét Mã Thanh Toán VietQR"
-                  : type === "COIN_TOPUP"
-                  ? "Nạp Xu & Mệnh Giá Thanh Toán 🪙"
-                  : "Nâng Cấp Waifu VIP Pass 💎"}
-              </Text>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                {type === "COIN_TOPUP" && step !== "SUCCESS" && step !== "PAYMENT_QR" && (
+                  <GoldCoin size={22} />
+                )}
+                <Text style={styles.headerTitle}>
+                  {step === "SUCCESS"
+                    ? "Biên Lai Thanh Toán ✨"
+                    : step === "WAITING_APPROVAL"
+                    ? "Chờ Admin Duyệt Biên Lai ⏳"
+                    : step === "PAYMENT_QR"
+                    ? "Quét Mã Thanh Toán VietQR"
+                    : type === "COIN_TOPUP"
+                    ? "Nạp Xu & Mệnh Giá Thanh Toán"
+                    : "Nâng Cấp Waifu VIP Pass 💎"}
+                </Text>
+              </View>
             </View>
             <TouchableOpacity onPress={step === "PAYMENT_QR" ? handleCancelOrder : onClose} style={styles.closeBtn}>
               <Ionicons name="close" size={22} color={Colors.dark.textMuted} />
@@ -374,8 +380,14 @@ export function PaymentCheckoutModal({
                 {type === "COIN_TOPUP" && (
                   <View style={{ marginBottom: 18 }}>
                     <View style={styles.sectionTitleRow}>
-                      <Text style={styles.sectionTitle}>CHỌN SỐ XU & MỆNH GIÁ NẠP 🪙</Text>
-                      <Text style={styles.sectionSubtitle}>10.000 ₫ = 50 Xu</Text>
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                        <GoldCoin size={18} />
+                        <Text style={styles.sectionTitle}>CHỌN SỐ XU & MỆNH GIÁ NẠP</Text>
+                      </View>
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                        <Text style={styles.sectionSubtitle}>10.000 ₫ = 50</Text>
+                        <GoldCoin size={13} />
+                      </View>
                     </View>
 
                     {/* 2-Column Grid of Coin Packages */}
@@ -401,7 +413,7 @@ export function PaymentCheckoutModal({
 
                             {/* Coin Number */}
                             <View style={styles.coinRowCenter}>
-                              <Text style={styles.coinEmoji}>🪙</Text>
+                              <GoldCoin size={22} />
                               <Text style={[styles.coinNumberText, isSelected && { color: "#f59e0b" }]}>
                                 {pkg.coins.toLocaleString()} Xu
                               </Text>
@@ -452,9 +464,11 @@ export function PaymentCheckoutModal({
                             keyboardType="numeric"
                           />
                           <View style={styles.customCalcBox}>
-                            <Text style={styles.customCalcText}>
-                              Nhận: <Text style={{ color: "#f59e0b", fontWeight: "800" }}>🪙 {getSelectedCoins()} Xu</Text>
-                            </Text>
+                            <View style={{ flexDirection: "row", alignItems: "center", gap: 4 }}>
+                              <Text style={styles.customCalcText}>Nhận:</Text>
+                              <GoldCoin size={15} />
+                              <Text style={{ color: "#f59e0b", fontWeight: "800" }}>{getSelectedCoins()} Xu</Text>
+                            </View>
                           </View>
                         </View>
                         <Text style={styles.customHintText}>
@@ -512,9 +526,12 @@ export function PaymentCheckoutModal({
                   {type === "COIN_TOPUP" && (
                     <View style={styles.summaryRow}>
                       <Text style={styles.summaryLabel}>Số xu nhận được:</Text>
-                      <Text style={[styles.summaryValBold, { color: "#f59e0b" }]}>
-                        🪙 +{getSelectedCoins().toLocaleString()} Waifu Coins
-                      </Text>
+                      <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                        <GoldCoin size={18} />
+                        <Text style={[styles.summaryValBold, { color: "#f59e0b" }]}>
+                          +{getSelectedCoins().toLocaleString()} Waifu Coins
+                        </Text>
+                      </View>
                     </View>
                   )}
                   <View style={styles.divider} />
