@@ -12,8 +12,8 @@ describe("Queue Endpoints", () => {
   let song2Id: string;
 
   beforeAll(async () => {
-    // Create user
-    const user = { email: "queuetest@waifu.test", username: "queuetest", password: "Password123!" };
+    const timestamp = Date.now();
+    const user = { email: `queuetest_${timestamp}@waifu.test`, username: `queuetest_${timestamp}`, password: "Password123!" };
     const regRes = await request(app).post("/api/v1/auth/register").send(user);
     userId = regRes.body.data.user.id;
     const loginRes = await request(app).post("/api/v1/auth/login").send({ email: user.email, password: user.password });

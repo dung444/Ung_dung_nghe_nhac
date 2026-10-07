@@ -104,7 +104,17 @@ const FEATURED_ARTISTS = [
 
 import { useAuthStore } from "../../store/authStore";
 
-const CATEGORIES = ["Tất cả", "Dành Cho Bạn ✨", "Vocaloid", "Anisong", "J-Pop", "Lo-fi Anime"];
+const CATEGORIES = [
+  "Tất cả",
+  "Nhạc Lời Việt 🇻🇳",
+  "Anime Lời Việt ✨",
+  "Dành Cho Bạn 💖",
+  "Vocaloid",
+  "Anisong",
+  "J-Pop",
+  "V-Pop Waifu",
+  "Lo-fi Anime",
+];
 
 export default function HomeScreen() {
   const router = useRouter();
@@ -115,7 +125,7 @@ export default function HomeScreen() {
 
   useEffect(() => {
     api
-      .get("/api/v1/songs")
+      .get("/api/v1/songs?limit=100")
       .then((res) => {
         if (res.data.success && Array.isArray(res.data.data) && res.data.data.length > 0) {
           setSongs(res.data.data);
@@ -135,31 +145,73 @@ export default function HomeScreen() {
     }
   };
 
+  const vietSongs = songs.filter((s) => {
+    const isVietGenre = (s.genres || []).some(
+      (g) =>
+        g.slug.includes("viet") ||
+        g.slug.includes("v-pop") ||
+        g.name.toLowerCase().includes("việt") ||
+        g.name.toLowerCase().includes("v-pop")
+    );
+    const hasVietLyrics =
+      !!s.lyrics &&
+      (s.lyrics.includes("Tôi") ||
+        s.lyrics.includes("anh") ||
+        s.lyrics.includes("em") ||
+        s.lyrics.includes("Lời Việt") ||
+        s.lyrics.includes("Việt"));
+    return isVietGenre || hasVietLyrics;
+  });
+
   const filteredSongs =
     activeCategory === "Tất cả"
       ? songs
-      : activeCategory === "Dành Cho Bạn ✨"
+      : activeCategory === "Nhạc Lời Việt 🇻🇳"
+      ? vietSongs.length > 0
+        ? vietSongs
+        : songs
+      : activeCategory === "Anime Lời Việt ✨"
+      ? songs.filter(
+          (s) =>
+            (s.genres || []).some((g) => g.slug.includes("anime-loi-viet")) ||
+            s.title.toLowerCase().includes("lời việt") ||
+            s.title.toLowerCase().includes("vietsub")
+        )
+      : activeCategory === "Dành Cho Bạn 💖"
       ? songs.filter((s) => {
           const matchGenre = (s.genres || []).some((g) =>
-            preferredGenres.some((pg) => pg.toLowerCase().includes(g.name.toLowerCase()) || g.name.toLowerCase().includes(pg.toLowerCase()))
+            preferredGenres.some(
+              (pg) =>
+                pg.toLowerCase().includes(g.name.toLowerCase()) ||
+                g.name.toLowerCase().includes(pg.toLowerCase())
+            )
           );
-          const matchArtist = (s.artists || []).some((a) =>
-            preferredArtists.includes(a.id) || preferredArtists.some((pa) => a.name.toLowerCase().includes(pa.toLowerCase()))
+          const matchArtist = (s.artists || []).some(
+            (a) =>
+              preferredArtists.includes(a.id) ||
+              preferredArtists.some((pa) => a.name.toLowerCase().includes(pa.toLowerCase()))
           );
           return matchGenre || matchArtist;
         }).length > 0
         ? songs.filter((s) => {
             const matchGenre = (s.genres || []).some((g) =>
-              preferredGenres.some((pg) => pg.toLowerCase().includes(g.name.toLowerCase()) || g.name.toLowerCase().includes(pg.toLowerCase()))
+              preferredGenres.some(
+                (pg) =>
+                  pg.toLowerCase().includes(g.name.toLowerCase()) ||
+                  g.name.toLowerCase().includes(pg.toLowerCase())
+              )
             );
-            const matchArtist = (s.artists || []).some((a) =>
-              preferredArtists.includes(a.id) || preferredArtists.some((pa) => a.name.toLowerCase().includes(pa.toLowerCase()))
+            const matchArtist = (s.artists || []).some(
+              (a) =>
+                preferredArtists.includes(a.id) ||
+                preferredArtists.some((pa) => a.name.toLowerCase().includes(pa.toLowerCase()))
             );
             return matchGenre || matchArtist;
           })
         : songs
-      : songs.filter((s) => (s.genres || []).some((g) => g.name.toLowerCase().includes(activeCategory.toLowerCase())));
-
+      : songs.filter((s) =>
+          (s.genres || []).some((g) => g.name.toLowerCase().includes(activeCategory.toLowerCase()))
+        );
 
   const getRankBadge = (index: number) => {
     if (index === 0) return { bg: "rgba(251, 191, 36, 0.2)", color: "#fbbf24", label: "🥇" };
@@ -177,7 +229,9 @@ export default function HomeScreen() {
             <View style={styles.greetingBadge}>
               <Text style={styles.greetingText}>✨ KONNICHIWA WAIFU FAN</Text>
             </View>
-            <Text style={styles.headerTitle}>Waifu Player <Text style={styles.headerTitleHighlight}>Stream</Text></Text>
+            <Text style={styles.headerTitle}>
+              Waifu Player <Text style={styles.headerTitleHighlight}>Stream</Text>
+            </Text>
           </View>
           <View style={styles.headerRightActions}>
             <TouchableOpacity
@@ -210,33 +264,45 @@ export default function HomeScreen() {
             </View>
           </View>
 
-          <Text style={styles.bannerTitle}>Hatsune Miku Magical Mirai 2026</Text>
+          <Text style={styles.bannerTitle}>Tuyển Tập Nhạc Lời Việt & Anime Vietsub 2026</Text>
           <Text style={styles.bannerSubtitle}>
-            Không gian âm nhạc Vocaloid & Anisong đỉnh cao với công nghệ đồng bộ thời gian thực
+            Hòa mình vào thế giới âm nhạc lời Việt và Anime Soundtracks có lời Karaoke đồng bộ siêu chuẩn
           </Text>
 
           <View style={styles.bannerFooter}>
             <TouchableOpacity
               style={styles.bannerPlayBtn}
-              onPress={() => handlePlaySong(songs[0], 0)}
+              onPress={() => handlePlaySong(vietSongs[0] || songs[0], 0)}
               activeOpacity={0.85}
             >
               <Ionicons name="play" size={18} color="#fff" />
-              <Text style={styles.bannerPlayText}>Phát Ngay</Text>
+              <Text style={styles.bannerPlayText}>Nghe Nhạc Lời Việt</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={styles.bannerRoomBtn}
-              onPress={() => router.push("/room/r1" as any)}
+              onPress={() => router.push("/song/current" as any)}
               activeOpacity={0.85}
             >
-              <Ionicons name="people" size={16} color={Colors.dark.accent} />
-              <Text style={styles.bannerRoomText}>Phòng Nghe Chung</Text>
+              <Ionicons name="document-text" size={16} color={Colors.dark.accent} />
+              <Text style={styles.bannerRoomText}>Xem Lời Bài Hát</Text>
             </TouchableOpacity>
           </View>
         </View>
 
         {/* Quick Hub Shortcuts */}
         <View style={styles.quickHubGrid}>
+          <TouchableOpacity
+            style={styles.quickHubCard}
+            onPress={() => setActiveCategory("Nhạc Lời Việt 🇻🇳")}
+            activeOpacity={0.8}
+          >
+            <View style={[styles.quickHubIconBg, { backgroundColor: "rgba(233, 30, 99, 0.18)" }]}>
+              <Ionicons name="mic" size={20} color={Colors.dark.primary} />
+            </View>
+            <Text style={styles.quickHubTitle}>Lời Việt</Text>
+            <Text style={styles.quickHubSub}>Có Lyrics Karaoke</Text>
+          </TouchableOpacity>
+
           <TouchableOpacity
             style={styles.quickHubCard}
             onPress={() => router.push("/room/r1" as any)}
@@ -274,9 +340,62 @@ export default function HomeScreen() {
           </TouchableOpacity>
         </View>
 
+        {/* Vietnamese Songs with Synced Lyrics Showcase */}
+        {vietSongs.length > 0 && (
+          <View style={{ marginBottom: 20 }}>
+            <View style={styles.sectionHeader}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                <Ionicons name="sparkles" size={18} color="#f59e0b" />
+                <Text style={styles.sectionTitle}>Nhạc Lời Việt Có Lyrics Chuẩn 🇻🇳</Text>
+              </View>
+              <TouchableOpacity onPress={() => setActiveCategory("Nhạc Lời Việt 🇻🇳")}>
+                <Text style={styles.seeAllText}>Xem tất cả</Text>
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginHorizontal: -16, paddingHorizontal: 16 }}>
+              {vietSongs.slice(0, 10).map((vietSong, vIdx) => {
+                const isCurrent = currentSong?.id === vietSong.id;
+                return (
+                  <TouchableOpacity
+                    key={vietSong.id}
+                    style={styles.vietSongCard}
+                    onPress={() => handlePlaySong(vietSong, songs.findIndex((s) => s.id === vietSong.id))}
+                    activeOpacity={0.85}
+                  >
+                    <View style={styles.vietCoverWrapper}>
+                      <Image source={{ uri: vietSong.coverUrl ?? "" }} style={styles.vietSongCover} />
+                      <View style={styles.vietBadge}>
+                        <Ionicons name="musical-notes" size={10} color="#fff" />
+                        <Text style={styles.vietBadgeText}>LỜI VIỆT</Text>
+                      </View>
+                      <TouchableOpacity
+                        style={[styles.vietPlayOverlay, isCurrent && isPlaying && styles.vietPlayOverlayActive]}
+                        onPress={() => handlePlaySong(vietSong, songs.findIndex((s) => s.id === vietSong.id))}
+                      >
+                        <Ionicons
+                          name={isCurrent && isPlaying ? "pause" : "play"}
+                          size={18}
+                          color="#fff"
+                        />
+                      </TouchableOpacity>
+                    </View>
+                    <Text style={[styles.vietSongTitle, isCurrent && { color: Colors.dark.primaryLight }]} numberOfLines={1}>
+                      {vietSong.title}
+                    </Text>
+                    <Text style={styles.vietSongArtist} numberOfLines={1}>
+                      {vietSong.artists?.map((a) => a.name).join(", ") || "V-Pop"}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </View>
+        )}
+
         {/* Featured Waifu Artists */}
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Nghệ Sĩ Waifu Nổi Bật ⭐</Text>
+          <Text style={styles.sectionTitle}>Nghệ Sĩ Nổi Bật ⭐</Text>
           <TouchableOpacity onPress={() => router.push("/search" as any)}>
             <Text style={styles.seeAllText}>Khám phá</Text>
           </TouchableOpacity>
@@ -296,8 +415,12 @@ export default function HomeScreen() {
                   <Ionicons name="checkmark-circle" size={14} color={Colors.dark.accent} />
                 </View>
               </View>
-              <Text style={styles.artistName} numberOfLines={1}>{artist.name}</Text>
-              <Text style={styles.artistRole} numberOfLines={1}>{artist.role}</Text>
+              <Text style={styles.artistName} numberOfLines={1}>
+                {artist.name}
+              </Text>
+              <Text style={styles.artistRole} numberOfLines={1}>
+                {artist.role}
+              </Text>
             </TouchableOpacity>
           ))}
         </ScrollView>
@@ -323,7 +446,7 @@ export default function HomeScreen() {
 
         {/* Trending Section */}
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Bảng Xếp Hạng Thịnh Hành 🔥</Text>
+          <Text style={styles.sectionTitle}>Bảng Xếp Hạng & Bài Hát 🔥</Text>
           <Text style={styles.songCountText}>{filteredSongs.length} bài hát</Text>
         </View>
 
@@ -331,6 +454,7 @@ export default function HomeScreen() {
           const isCurrent = currentSong?.id === song.id;
           const artistName = song.artists?.map((a) => a.name).join(", ") || "Unknown Artist";
           const rankInfo = getRankBadge(index);
+          const hasLyrics = !!song.lyrics && song.lyrics.trim().length > 0;
 
           return (
             <TouchableOpacity
@@ -346,13 +470,20 @@ export default function HomeScreen() {
               </View>
 
               <Image
-                source={{ uri: song.coverUrl ?? "https://images.unsplash.com/photo-1578632767115-351597cf2477?w=400&q=80" }}
+                source={{
+                  uri:
+                    song.coverUrl ??
+                    "https://images.unsplash.com/photo-1578632767115-351597cf2477?w=400&q=80",
+                }}
                 style={styles.songThumb}
               />
 
               <View style={styles.songInfo}>
                 <View style={styles.songTitleRow}>
-                  <Text style={[styles.songTitle, isCurrent && { color: Colors.dark.primaryLight }]} numberOfLines={1}>
+                  <Text
+                    style={[styles.songTitle, isCurrent && { color: Colors.dark.primaryLight }]}
+                    numberOfLines={1}
+                  >
                     {song.title}
                   </Text>
                   {isCurrent && isPlaying && (
@@ -361,9 +492,17 @@ export default function HomeScreen() {
                     </View>
                   )}
                 </View>
-                <Text style={styles.songArtist} numberOfLines={1}>
-                  {artistName} • {formatDuration(song.duration)} • {(song.plays || 0).toLocaleString()} lượt nghe
-                </Text>
+                <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 3 }}>
+                  {hasLyrics && (
+                    <View style={styles.lyricsTagMini}>
+                      <Ionicons name="document-text" size={9} color={Colors.dark.primaryLight} />
+                      <Text style={styles.lyricsTagMiniText}>Lời Việt</Text>
+                    </View>
+                  )}
+                  <Text style={styles.songArtist} numberOfLines={1}>
+                    {artistName} • {formatDuration(song.duration)}
+                  </Text>
+                </View>
               </View>
 
               <TouchableOpacity
@@ -724,5 +863,84 @@ const styles = StyleSheet.create({
   },
   playIconBtn: {
     padding: 4,
+  },
+  vietSongCard: {
+    width: 140,
+    marginRight: 14,
+  },
+  vietCoverWrapper: {
+    position: "relative",
+    width: 140,
+    height: 140,
+    borderRadius: 14,
+    overflow: "hidden",
+    marginBottom: 8,
+    backgroundColor: Colors.dark.card,
+  },
+  vietSongCover: {
+    width: "100%",
+    height: "100%",
+  },
+  vietBadge: {
+    position: "absolute",
+    top: 6,
+    left: 6,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    backgroundColor: "rgba(233, 30, 99, 0.85)",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  vietBadgeText: {
+    color: "#fff",
+    fontSize: 9,
+    fontWeight: "800",
+    letterSpacing: 0.5,
+  },
+  vietPlayOverlay: {
+    position: "absolute",
+    bottom: 8,
+    right: 8,
+    width: 34,
+    height: 34,
+    borderRadius: 17,
+    backgroundColor: "rgba(0, 0, 0, 0.65)",
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.3)",
+  },
+  vietPlayOverlayActive: {
+    backgroundColor: Colors.dark.primary,
+    borderColor: Colors.dark.primaryLight,
+  },
+  vietSongTitle: {
+    color: Colors.dark.text,
+    fontSize: 13,
+    fontWeight: "700",
+    marginBottom: 2,
+  },
+  vietSongArtist: {
+    color: Colors.dark.textMuted,
+    fontSize: 11,
+    fontWeight: "500",
+  },
+  lyricsTagMini: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    backgroundColor: "rgba(233, 30, 140, 0.15)",
+    paddingHorizontal: 5,
+    paddingVertical: 1.5,
+    borderRadius: 4,
+    borderWidth: 0.5,
+    borderColor: "rgba(233, 30, 140, 0.4)",
+  },
+  lyricsTagMiniText: {
+    color: Colors.dark.primaryLight,
+    fontSize: 9,
+    fontWeight: "700",
   },
 });

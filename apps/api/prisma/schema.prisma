@@ -140,6 +140,7 @@ model Song {
   duration    Int
   fileUrl     String
   coverUrl    String?
+  lyrics      String?   @db.Text
   plays       Int       @default(0)
   isPublic    Boolean   @default(true)
   releaseDate DateTime?

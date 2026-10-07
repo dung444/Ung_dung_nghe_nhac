@@ -5,7 +5,7 @@ import fs from "fs";
 import { env } from "../../config/env";
 
 const songSelect = {
-  id: true, title: true, duration: true, fileUrl: true, coverUrl: true,
+  id: true, title: true, duration: true, fileUrl: true, coverUrl: true, lyrics: true,
   plays: true, isPublic: true, releaseDate: true, albumId: true, createdAt: true, updatedAt: true,
   album: { select: { id: true, title: true, coverUrl: true } },
   artists: { select: { artist: { select: { id: true, name: true, avatarUrl: true } } } },
@@ -53,7 +53,7 @@ export async function toggleLike(songId: string, userId: string) {
 }
 
 export async function createSong(data: {
-  title: string; duration: number; fileUrl: string; coverUrl?: string;
+  title: string; duration: number; fileUrl: string; coverUrl?: string; lyrics?: string;
   albumId?: string; artistIds: string[]; genreIds?: string[]; isPublic?: boolean; releaseDate?: string;
 }) {
   const song = await prisma.song.create({
@@ -62,6 +62,7 @@ export async function createSong(data: {
       duration: data.duration,
       fileUrl: data.fileUrl,
       coverUrl: data.coverUrl,
+      lyrics: data.lyrics,
       albumId: data.albumId,
       isPublic: data.isPublic ?? true,
       releaseDate: data.releaseDate ? new Date(data.releaseDate) : undefined,

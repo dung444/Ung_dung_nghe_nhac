@@ -20,15 +20,19 @@ import { SongRow } from "../../features/songs/components/SongRow";
 import type { Song, Artist, Album } from "@waifu-player/types";
 
 const TRENDING_TAGS = [
+  "Nhạc Lời Việt 🇻🇳",
+  "Nơi Này Có Anh",
+  "Ánh Trăng Tình Yêu",
+  "Doraemon Lời Việt",
+  "See Tình",
+  "Sơn Tùng M-TP",
   "Hatsune Miku",
   "YOASOBI",
   "LiSA",
-  "Ado",
-  "Vocaloid",
-  "J-Pop",
-  "Anime OST",
-  "Kenshi Yonezu",
-  "Oshi no Ko",
+  "Gurenge Lời Việt",
+  "Sparkle Lời Việt",
+  "Vũ Trụ Có Anh",
+  "Tăng Duy Tân",
 ];
 
 const SEARCH_TABS = ["Tất cả", "Bài hát", "Nghệ sĩ", "Album"] as const;
