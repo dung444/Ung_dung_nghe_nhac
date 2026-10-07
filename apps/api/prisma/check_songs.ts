@@ -7,8 +7,14 @@ async function main() {
   const copyrightsCount = await p.songCopyright.count();
   const usersCount = await p.user.count();
   console.log({ songsCount, artistsCount, genresCount, copyrightsCount, usersCount });
-  const all = await p.song.findMany({ select: { title: true }, orderBy: { title: "asc" } });
-  console.log("Current titles count:", all.length);
-  console.log("Titles:", all.map(x => x.title).join(", "));
+  const all = await p.song.findMany({ select: { title: true, lyrics: true }, orderBy: { title: "asc" } });
+  const withLyrics = all.filter(s => !!s.lyrics && s.lyrics.trim().length > 0);
+  const withoutLyrics = all.filter(s => !s.lyrics || s.lyrics.trim().length === 0);
+  console.log("Total songs:", all.length);
+  console.log("With lyrics (Có Lời):", withLyrics.length);
+  console.log("Without lyrics (Không Lời):", withoutLyrics.length);
+  if (withoutLyrics.length > 0) {
+    console.log("Without lyrics samples:", withoutLyrics.slice(0, 5).map(s => s.title));
+  }
 }
 main().finally(() => p.$disconnect());

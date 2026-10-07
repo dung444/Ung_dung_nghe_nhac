@@ -40,19 +40,7 @@ interface LyricLine {
 
 function parseLyrics(lyricsText: string | null | undefined, songDuration: number): LyricLine[] {
   if (!lyricsText || lyricsText.trim().length === 0) {
-    const defaultLines = [
-      "♪ Giai điệu anime du dương ngân vang ♪",
-      "Cùng đắm chìm vào thế giới âm nhạc Waifu Player",
-      "Từng nốt nhạc hòa quyện cùng nhịp đập trái tim ✨",
-      "Feel the energy and passion of anime music",
-      "Nguyện lưu giữ khoảnh khắc tuyệt vời này mãi mãi",
-      "♪ Waifu Player - Anime Soundtracks & Vocaloid Hits ♪",
-    ];
-    const step = Math.max(3, (songDuration || 180) / defaultLines.length);
-    return defaultLines.map((line, idx) => ({
-      time: Math.floor(idx * step),
-      text: line,
-    }));
+    return [];
   }
 
   const lines = lyricsText.split("\n").filter((l) => l.trim().length > 0);
@@ -152,27 +140,12 @@ export default function SongDetailScreen() {
     if (!currentSong) return;
     if (currentSong.lyrics) {
       setLrcText(currentSong.lyrics);
+      setLoadingLrc(false);
       return;
     }
-
-    const artistName = currentSong.artists?.map((a) => a.name).join(" ") || "";
-    setLoadingLrc(true);
-    fetch(
-      `https://lrclib.net/api/get?track_name=${encodeURIComponent(
-        currentSong.title
-      )}&artist_name=${encodeURIComponent(artistName)}`
-    )
-      .then((res) => res.json())
-      .then((data) => {
-        if (data?.syncedLyrics || data?.plainLyrics) {
-          setLrcText(data.syncedLyrics || data.plainLyrics);
-        } else {
-          setLrcText(null);
-        }
-      })
-      .catch(() => setLrcText(null))
-      .finally(() => setLoadingLrc(false));
-  }, [currentSong?.id]);
+    setLrcText(null);
+    setLoadingLrc(false);
+  }, [currentSong?.id, currentSong?.lyrics]);
 
   useEffect(() => {
     if (id && id !== "current" && currentSong?.id !== id) {
@@ -490,6 +463,7 @@ export default function SongDetailScreen() {
   };
 
   const artistNames = currentSong.artists?.map((a) => a.name).join(", ") || "Unknown Artist";
+  const hasLyrics = !!currentSong.lyrics && currentSong.lyrics.trim().length > 0;
 
   let sleepTimerRemainingText = "";
   if (sleepTimerEndTime) {
@@ -521,43 +495,63 @@ export default function SongDetailScreen() {
       <View style={styles.centerContainer}>
         {showLyrics ? (
           <View style={styles.lyricsContainer}>
-            <View style={styles.lyricsHeaderRow}>
-              <Ionicons name="sparkles" size={16} color={Colors.dark.primaryLight} />
-              <Text style={styles.lyricsBadge}>LỜI BÀI HÁT KARAOKE ĐỒNG BỘ</Text>
-              <Ionicons name="sparkles" size={16} color={Colors.dark.primaryLight} />
-            </View>
+            {hasLyrics ? (
+              <>
+                <View style={styles.lyricsHeaderRow}>
+                  <Ionicons name="sparkles" size={16} color={Colors.dark.primaryLight} />
+                  <Text style={styles.lyricsBadge}>LỜI BÀI HÁT KARAOKE ĐỒNG BỘ</Text>
+                  <Ionicons name="sparkles" size={16} color={Colors.dark.primaryLight} />
+                </View>
 
-            {loadingLrc ? (
-              <View style={{ paddingVertical: 30, alignItems: "center" }}>
-                <ActivityIndicator color={Colors.dark.primary} size="small" />
-                <Text style={{ color: Colors.dark.textMuted, fontSize: 12, marginTop: 8 }}>
-                  Tự động tra cứu lời bài hát chuẩn...
+                {loadingLrc ? (
+                  <View style={{ paddingVertical: 30, alignItems: "center" }}>
+                    <ActivityIndicator color={Colors.dark.primary} size="small" />
+                    <Text style={{ color: Colors.dark.textMuted, fontSize: 12, marginTop: 8 }}>
+                      Tự động tra cứu lời bài hát chuẩn...
+                    </Text>
+                  </View>
+                ) : (
+                  <ScrollView
+                    ref={lyricsScrollViewRef}
+                    style={{ width: "100%", maxHeight: 260 }}
+                    contentContainerStyle={{ alignItems: "center", paddingVertical: 12 }}
+                    showsVerticalScrollIndicator={false}
+                  >
+                    {parsedLyrics.map((line, idx) => {
+                      const isActive = idx === activeLyricIndex;
+                      return (
+                        <TouchableOpacity
+                          key={idx}
+                          onPress={() => seekTo(line.time)}
+                          activeOpacity={0.8}
+                          style={[styles.lyricLineBox, isActive && styles.lyricLineBoxActive]}
+                        >
+                          <Text style={[styles.lyricsLine, isActive && styles.lyricsLineActive]}>
+                            {line.text}
+                          </Text>
+                          {isActive && <View style={styles.lyricActiveDot} />}
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </ScrollView>
+                )}
+              </>
+            ) : (
+              <View style={styles.instrumentalContainer}>
+                <View style={styles.instrumentalIconCircle}>
+                  <Ionicons name="musical-notes" size={32} color="#22d3ee" />
+                </View>
+                <Text style={styles.instrumentalTitle}>BẢN NHẠC KHÔNG LỜI (INSTRUMENTAL)</Text>
+                <Text style={styles.instrumentalSub}>
+                  Giai điệu thuần nhạc cụ / EDM Beat. Tác phẩm không có lời hát.
+                </Text>
+                <View style={{ width: "90%", marginVertical: 10, alignItems: "center" }}>
+                  <WaveformVisualizer isPlaying={isPlaying} progress={duration > 0 ? position / duration : 0} />
+                </View>
+                <Text style={styles.instrumentalQuote}>
+                  "Thả lỏng tâm trí và tận hưởng từng nốt nhạc thuần khiết ✨"
                 </Text>
               </View>
-            ) : (
-              <ScrollView
-                ref={lyricsScrollViewRef}
-                style={{ width: "100%", maxHeight: 260 }}
-                contentContainerStyle={{ alignItems: "center", paddingVertical: 12 }}
-                showsVerticalScrollIndicator={false}
-              >
-                {parsedLyrics.map((line, idx) => {
-                  const isActive = idx === activeLyricIndex;
-                  return (
-                    <TouchableOpacity
-                      key={idx}
-                      onPress={() => seekTo(line.time)}
-                      activeOpacity={0.8}
-                      style={[styles.lyricLineBox, isActive && styles.lyricLineBoxActive]}
-                    >
-                      <Text style={[styles.lyricsLine, isActive && styles.lyricsLineActive]}>
-                        {line.text}
-                      </Text>
-                      {isActive && <View style={styles.lyricActiveDot} />}
-                    </TouchableOpacity>
-                  );
-                })}
-              </ScrollView>
             )}
           </View>
         ) : (
@@ -613,9 +607,22 @@ export default function SongDetailScreen() {
         {/* Title, Artist & Controls */}
         <View style={styles.titleRow}>
           <View style={{ flex: 1, marginRight: 12 }}>
-            <Text style={styles.title} numberOfLines={1}>
-              {currentSong.title}
-            </Text>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+              <Text style={styles.title} numberOfLines={1}>
+                {currentSong.title}
+              </Text>
+              {hasLyrics ? (
+                <View style={styles.vocalBadgeDetail}>
+                  <Ionicons name="mic" size={10} color={Colors.dark.primaryLight} />
+                  <Text style={styles.vocalBadgeDetailText}>Có Lời</Text>
+                </View>
+              ) : (
+                <View style={styles.instrumentalBadgeDetail}>
+                  <Ionicons name="musical-notes" size={10} color="#22d3ee" />
+                  <Text style={styles.instrumentalBadgeDetailText}>Không Lời</Text>
+                </View>
+              )}
+            </View>
             <Text style={styles.artist} numberOfLines={1}>
               {artistNames}
             </Text>
@@ -729,12 +736,12 @@ export default function SongDetailScreen() {
             onPress={() => setShowLyrics(!showLyrics)}
           >
             <Ionicons
-              name="document-text-outline"
+              name={hasLyrics ? "document-text-outline" : "musical-notes-outline"}
               size={18}
-              color={showLyrics ? "#fff" : Colors.dark.textMuted}
+              color={showLyrics ? "#fff" : hasLyrics ? Colors.dark.textMuted : "#22d3ee"}
             />
             <Text style={[styles.utilPillText, showLyrics && styles.utilPillTextActive]}>
-              Lời bài hát
+              {hasLyrics ? "Lời bài hát" : "Không lời 🎵"}
             </Text>
           </TouchableOpacity>
 
@@ -1886,6 +1893,78 @@ const styles = StyleSheet.create({
   utilPillWave: {
     backgroundColor: "rgba(168, 85, 247, 0.85)",
     borderColor: "#a855f7",
+  },
+  vocalBadgeDetail: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    backgroundColor: "rgba(233, 30, 99, 0.2)",
+    borderColor: "rgba(233, 30, 99, 0.5)",
+    borderWidth: 0.8,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  vocalBadgeDetailText: {
+    color: Colors.dark.primaryLight,
+    fontSize: 10,
+    fontWeight: "700",
+  },
+  instrumentalBadgeDetail: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    backgroundColor: "rgba(6, 182, 212, 0.2)",
+    borderColor: "rgba(6, 182, 212, 0.5)",
+    borderWidth: 0.8,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  instrumentalBadgeDetailText: {
+    color: "#22d3ee",
+    fontSize: 10,
+    fontWeight: "700",
+  },
+  instrumentalContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 24,
+    paddingHorizontal: 16,
+  },
+  instrumentalIconCircle: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: "rgba(6, 182, 212, 0.15)",
+    alignItems: "center",
+    justifyContent: "center",
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: "rgba(6, 182, 212, 0.35)",
+  },
+  instrumentalTitle: {
+    color: "#22d3ee",
+    fontSize: 14,
+    fontWeight: "800",
+    letterSpacing: 0.5,
+    marginBottom: 6,
+    textAlign: "center",
+  },
+  instrumentalSub: {
+    color: Colors.dark.textMuted,
+    fontSize: 12,
+    textAlign: "center",
+    lineHeight: 18,
+    paddingHorizontal: 12,
+  },
+  instrumentalQuote: {
+    color: Colors.dark.text,
+    fontSize: 12,
+    fontStyle: "italic",
+    textAlign: "center",
+    marginTop: 8,
+    opacity: 0.85,
   },
 });
 

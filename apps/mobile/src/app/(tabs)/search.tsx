@@ -20,6 +20,8 @@ import { SongRow } from "../../features/songs/components/SongRow";
 import type { Song, Artist, Album } from "@waifu-player/types";
 
 const TRENDING_TAGS = [
+  "Có Lời 🎤",
+  "Không Lời 🎵",
   "Tuyển Chọn 🇻🇳",
   "NCS Release",
   "NEFFEX",
@@ -31,12 +33,11 @@ const TRENDING_TAGS = [
   "Fight Back",
   "Grateful",
   "Soldier",
-  "Dân Ca Quan Họ",
   "Anime & EDM",
   "Future Bass",
 ];
 
-const SEARCH_TABS = ["Tất cả", "Bài hát", "Nghệ sĩ", "Album"] as const;
+const SEARCH_TABS = ["Tất cả", "Có Lời 🎤", "Không Lời 🎵", "Bài hát", "Nghệ sĩ", "Album"] as const;
 type SearchTab = (typeof SEARCH_TABS)[number];
 
 export default function SearchScreen() {
@@ -88,6 +89,16 @@ export default function SearchScreen() {
   }, [debouncedQuery]);
 
   const handleSelectTag = (tag: string) => {
+    if (tag === "Có Lời 🎤" || tag === "Không Lời 🎵") {
+      setActiveTab(tag as SearchTab);
+      api.get("/api/v1/songs?limit=100").then((res) => {
+        if (res.data?.success && Array.isArray(res.data.data)) {
+          setSongs(res.data.data);
+        }
+      });
+      setQuery(" ");
+      return;
+    }
     setQuery(tag);
   };
 
@@ -269,20 +280,48 @@ export default function SearchScreen() {
             )}
 
             {/* Songs Section */}
-            {(activeTab === "Tất cả" || activeTab === "Bài hát") && songs.length > 0 && (
-              <View style={styles.resultSection}>
-                <Text style={styles.resultSectionTitle}>Bài hát ({songs.length})</Text>
-                {songs.map((song, index) => (
-                  <SongRow
-                    key={song.id}
-                    song={song}
-                    isPlaying={currentSong?.id === song.id && isPlaying}
-                    onPress={() => handlePlaySong(song, index)}
-                    showPlays={true}
-                  />
-                ))}
-              </View>
-            )}
+            {(activeTab === "Tất cả" || activeTab === "Bài hát" || activeTab === "Có Lời 🎤" || activeTab === "Không Lời 🎵") && songs.length > 0 && (() => {
+              const displaySongs =
+                activeTab === "Có Lời 🎤"
+                  ? songs.filter((s) => !!s.lyrics && s.lyrics.trim().length > 0)
+                  : activeTab === "Không Lời 🎵"
+                  ? songs.filter((s) => !s.lyrics || s.lyrics.trim().length === 0)
+                  : songs;
+
+              if (displaySongs.length === 0) {
+                return (
+                  <View style={styles.resultSection}>
+                    <Text style={styles.resultSectionTitle}>
+                      {activeTab === "Có Lời 🎤" ? "Bài hát có lời (0)" : "Nhạc không lời / Beat (0)"}
+                    </Text>
+                    <Text style={{ color: Colors.dark.textMuted, fontSize: 13, marginTop: 8 }}>
+                      Không có bài hát phù hợp với bộ lọc này.
+                    </Text>
+                  </View>
+                );
+              }
+
+              return (
+                <View style={styles.resultSection}>
+                  <Text style={styles.resultSectionTitle}>
+                    {activeTab === "Có Lời 🎤"
+                      ? `Bài hát có lời (${displaySongs.length})`
+                      : activeTab === "Không Lời 🎵"
+                      ? `Nhạc không lời / Beat (${displaySongs.length})`
+                      : `Bài hát (${displaySongs.length})`}
+                  </Text>
+                  {displaySongs.map((song, index) => (
+                    <SongRow
+                      key={song.id}
+                      song={song}
+                      isPlaying={currentSong?.id === song.id && isPlaying}
+                      onPress={() => handlePlaySong(song, index)}
+                      showPlays={true}
+                    />
+                  ))}
+                </View>
+              );
+            })()}
           </View>
         )}
       </ScrollView>

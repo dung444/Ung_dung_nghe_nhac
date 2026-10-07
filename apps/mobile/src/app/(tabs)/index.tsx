@@ -106,6 +106,8 @@ import { useAuthStore } from "../../store/authStore";
 
 const CATEGORIES = [
   "Tất cả",
+  "Có Lời 🎤",
+  "Không Lời 🎵",
   "Tuyển Chọn 🇻🇳",
   "Anime & EDM ✨",
   "Dành Cho Bạn 💖",
@@ -174,6 +176,10 @@ export default function HomeScreen() {
   const filteredSongs =
     activeCategory === "Tất cả"
       ? songs
+      : activeCategory === "Có Lời 🎤"
+      ? songs.filter((s) => !!s.lyrics && s.lyrics.trim().length > 0)
+      : activeCategory === "Không Lời 🎵"
+      ? songs.filter((s) => !s.lyrics || s.lyrics.trim().length === 0)
       : activeCategory === "Tuyển Chọn 🇻🇳"
       ? vietSongs.length > 0
         ? vietSongs
@@ -379,10 +385,17 @@ export default function HomeScreen() {
                   >
                     <View style={styles.vietCoverWrapper}>
                       <Image source={{ uri: vietSong.coverUrl ?? "" }} style={styles.vietSongCover} />
-                      <View style={styles.vietBadge}>
-                        <Ionicons name="musical-notes" size={10} color="#fff" />
-                        <Text style={styles.vietBadgeText}>CÓ LỜI</Text>
-                      </View>
+                      {!!vietSong.lyrics && vietSong.lyrics.trim().length > 0 ? (
+                        <View style={styles.vietBadge}>
+                          <Ionicons name="mic" size={10} color="#fff" />
+                          <Text style={styles.vietBadgeText}>CÓ LỜI</Text>
+                        </View>
+                      ) : (
+                        <View style={[styles.vietBadge, { backgroundColor: "rgba(6, 182, 212, 0.85)" }]}>
+                          <Ionicons name="musical-notes" size={10} color="#fff" />
+                          <Text style={styles.vietBadgeText}>KHÔNG LỜI</Text>
+                        </View>
+                      )}
                       <TouchableOpacity
                         style={styles.vietAddLaterBtn}
                         onPress={(e) => handleAddToPlayLater(vietSong, e)}
@@ -514,10 +527,15 @@ export default function HomeScreen() {
                   )}
                 </View>
                 <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: 3 }}>
-                  {hasLyrics && (
+                  {hasLyrics ? (
                     <View style={styles.lyricsTagMini}>
-                      <Ionicons name="document-text" size={9} color={Colors.dark.primaryLight} />
+                      <Ionicons name="mic" size={9} color={Colors.dark.primaryLight} />
                       <Text style={styles.lyricsTagMiniText}>Có Lời</Text>
+                    </View>
+                  ) : (
+                    <View style={[styles.lyricsTagMini, styles.instrumentalTagMini]}>
+                      <Ionicons name="musical-notes" size={9} color="#22d3ee" />
+                      <Text style={[styles.lyricsTagMiniText, { color: "#22d3ee" }]}>Không Lời</Text>
                     </View>
                   )}
                   <Text style={styles.songArtist} numberOfLines={1}>
@@ -984,6 +1002,10 @@ const styles = StyleSheet.create({
     color: Colors.dark.primaryLight,
     fontSize: 9,
     fontWeight: "700",
+  },
+  instrumentalTagMini: {
+    backgroundColor: "rgba(6, 182, 212, 0.15)",
+    borderColor: "rgba(6, 182, 212, 0.4)",
   },
   vietAddLaterBtn: {
     position: "absolute",

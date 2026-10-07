@@ -18,6 +18,7 @@ export function SongRow({ song, onPress, isPlaying = false, showPlays = false, o
   const artistNames = song.artists?.map((a) => a.name).join(", ") ?? "";
   const { addToQueue } = usePlayerStore();
   const [added, setAdded] = useState(false);
+  const hasLyrics = !!song.lyrics && song.lyrics.trim().length > 0;
 
   const handleAddLater = () => {
     if (onAddToQueue) {
@@ -39,9 +40,22 @@ export function SongRow({ song, onPress, isPlaying = false, showPlays = false, o
         </View>
       )}
       <View style={styles.info}>
-        <Text style={[styles.title, isPlaying && { color: Colors.dark.primary }]} numberOfLines={1}>
-          {song.title}
-        </Text>
+        <View style={styles.titleRow}>
+          <Text style={[styles.title, isPlaying && { color: Colors.dark.primary }]} numberOfLines={1}>
+            {song.title}
+          </Text>
+          {hasLyrics ? (
+            <View style={styles.vocalBadge}>
+              <Ionicons name="mic" size={9} color={Colors.dark.primaryLight} />
+              <Text style={styles.vocalBadgeText}>Có Lời</Text>
+            </View>
+          ) : (
+            <View style={styles.instrumentalBadge}>
+              <Ionicons name="musical-notes" size={9} color="#22d3ee" />
+              <Text style={styles.instrumentalBadgeText}>Không Lời</Text>
+            </View>
+          )}
+        </View>
         <Text style={styles.sub} numberOfLines={1}>
           {artistNames}{showPlays ? `  ·  ${formatPlays(song.plays)}` : ""}
         </Text>
@@ -70,7 +84,40 @@ const styles = StyleSheet.create({
   cover: { width: 48, height: 48, borderRadius: 8, marginRight: 12 },
   coverFallback: { backgroundColor: Colors.dark.card, alignItems: "center", justifyContent: "center" },
   info: { flex: 1, marginRight: 8 },
-  title: { color: Colors.dark.text, fontSize: 14, fontWeight: "600" },
+  titleRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  title: { color: Colors.dark.text, fontSize: 14, fontWeight: "600", flexShrink: 1 },
+  vocalBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    backgroundColor: "rgba(233, 30, 99, 0.15)",
+    borderColor: "rgba(233, 30, 99, 0.4)",
+    borderWidth: 0.5,
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    borderRadius: 4,
+  },
+  vocalBadgeText: {
+    color: Colors.dark.primaryLight,
+    fontSize: 9,
+    fontWeight: "700",
+  },
+  instrumentalBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 3,
+    backgroundColor: "rgba(6, 182, 212, 0.15)",
+    borderColor: "rgba(6, 182, 212, 0.4)",
+    borderWidth: 0.5,
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    borderRadius: 4,
+  },
+  instrumentalBadgeText: {
+    color: "#22d3ee",
+    fontSize: 9,
+    fontWeight: "700",
+  },
   sub: { color: Colors.dark.textMuted, fontSize: 12, marginTop: 2 },
   duration: { color: Colors.dark.textMuted, fontSize: 12, marginRight: 12 },
   addQueueBtn: {
