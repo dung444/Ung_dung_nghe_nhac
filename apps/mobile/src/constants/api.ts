@@ -74,6 +74,12 @@ export const ENDPOINTS = {
   coinBalance:        `${API_V1}/payments/coins/balance`,
   coinTopup:          `${API_V1}/payments/coins/topup`,
   songGiftStats:      (id: string) => `${API_V1}/payments/gifts/song/${id}`,
+  // Payment Orders & Checkout Workflow
+  createOrder:        `${API_V1}/payments/orders/create`,
+  myOrders:           `${API_V1}/payments/orders`,
+  orderDetail:        (id: string) => `${API_V1}/payments/orders/${id}`,
+  confirmOrder:       (id: string) => `${API_V1}/payments/orders/${id}/confirm`,
+  cancelOrder:        (id: string) => `${API_V1}/payments/orders/${id}/cancel`,
 } as const;
 
 

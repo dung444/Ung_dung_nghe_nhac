@@ -19,6 +19,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { api } from "../../services/api";
 import type { CopyrightStats } from "@waifu-player/types";
+import { PaymentCheckoutModal } from "../../features/payments/PaymentCheckoutModal";
 
 const WAIFU_AVATARS = [
   "https://images.unsplash.com/photo-1578632767115-351597cf2477?w=200&q=80",
@@ -57,6 +58,22 @@ export default function ProfileScreen() {
   const [paymentLoading, setPaymentLoading] = useState(false);
   const [paymentHistory, setPaymentHistory] = useState<any[]>([]);
   const [copiedField, setCopiedField] = useState<string | null>(null);
+
+  // Coins & Checkout Modal States
+  const [userCoins, setUserCoins] = useState<number>(100);
+  const [showCheckoutModal, setShowCheckoutModal] = useState(false);
+  const [checkoutType, setCheckoutType] = useState<"COIN_TOPUP" | "BUY_VIP">("COIN_TOPUP");
+  const [checkoutCustomAmount, setCheckoutCustomAmount] = useState<number>(50000);
+
+  const fetchUserCoins = async () => {
+    try {
+      const res = await api.get("/api/v1/payments/coins/balance");
+      if (res.data?.success && res.data?.data?.coins !== undefined) {
+        setUserCoins(res.data.data.coins);
+      }
+    } catch {}
+  };
+
   const [bankConfig, setBankConfig] = useState<{
     bankId: string;
     bankName: string;
@@ -222,6 +239,8 @@ export default function ProfileScreen() {
   useEffect(() => {
     if (!isAuthenticated) return;
 
+    fetchUserCoins();
+
     // Fetch user stats
     Promise.all([
       api.get("/api/v1/users/me/liked").catch(() => ({ data: { data: [] } })),
@@ -329,6 +348,31 @@ export default function ProfileScreen() {
             <Text style={styles.statNumber}>{stats.followingCount}</Text>
             <Text style={styles.statLabel}>Theo dõi</Text>
           </View>
+        </View>
+
+        {/* Wallet & Coins Card */}
+        <View style={styles.walletCard}>
+          <View style={styles.walletLeft}>
+            <View style={styles.coinIconBadge}>
+              <Text style={{ fontSize: 24 }}>🪙</Text>
+            </View>
+            <View>
+              <Text style={styles.walletTitle}>Ví Waifu Coins</Text>
+              <Text style={styles.walletBalanceText}>{userCoins} Xu</Text>
+            </View>
+          </View>
+          <TouchableOpacity
+            style={styles.walletTopupBtn}
+            onPress={() => {
+              setCheckoutType("COIN_TOPUP");
+              setCheckoutCustomAmount(50000);
+              setShowCheckoutModal(true);
+            }}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="add-circle" size={16} color="#fff" />
+            <Text style={styles.walletTopupBtnText}>Nạp Tiền Mua Xu</Text>
+          </TouchableOpacity>
         </View>
 
         {/* Upgrade VIP Banner */}
@@ -791,7 +835,20 @@ export default function ProfileScreen() {
 
                   {/* Submit Purchase Button */}
                   <TouchableOpacity
-                    style={styles.paySubmitBtn}
+                    style={[styles.paySubmitBtn, { backgroundColor: Colors.dark.primary, marginBottom: 10 }]}
+                    onPress={() => {
+                      setCheckoutType("BUY_VIP");
+                      setShowPremiumModal(false);
+                      setShowCheckoutModal(true);
+                    }}
+                    activeOpacity={0.85}
+                  >
+                    <Ionicons name="shield-checkmark" size={18} color="#fff" />
+                    <Text style={styles.paySubmitText}>Mở Cổng Thanh Toán VietQR Tự Động 💳</Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[styles.paySubmitBtn, { backgroundColor: "rgba(255,255,255,0.08)", borderColor: "rgba(255,255,255,0.15)", borderWidth: 1 }]}
                     onPress={handleBuyVip}
                     disabled={paymentLoading}
                     activeOpacity={0.85}
@@ -946,7 +1003,23 @@ export default function ProfileScreen() {
                   })()}
 
                   <TouchableOpacity
-                    style={styles.paySubmitBtn}
+                    style={[styles.paySubmitBtn, { backgroundColor: Colors.dark.primary, marginBottom: 10 }]}
+                    onPress={() => {
+                      setCheckoutType("COIN_TOPUP");
+                      setCheckoutCustomAmount(Number(customTopupAmount) || 50000);
+                      setShowPremiumModal(false);
+                      setShowCheckoutModal(true);
+                    }}
+                    activeOpacity={0.85}
+                  >
+                    <Ionicons name="qr-code" size={18} color="#fff" />
+                    <Text style={styles.paySubmitText}>
+                      Mở Cổng Thanh Toán VietQR ({Number(customTopupAmount || 50000).toLocaleString()} ₫)
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[styles.paySubmitBtn, { backgroundColor: "rgba(255,255,255,0.08)", borderColor: "rgba(255,255,255,0.15)", borderWidth: 1 }]}
                     onPress={handleTopup}
                     disabled={paymentLoading}
                     activeOpacity={0.85}
@@ -1123,6 +1196,23 @@ export default function ProfileScreen() {
           </View>
         </View>
       </Modal>
+      {/* Checkout Modal với quy trình thanh toán đầy đủ */}
+      <PaymentCheckoutModal
+        visible={showCheckoutModal}
+        type={checkoutType}
+        customAmount={checkoutCustomAmount}
+        selectedVipPackageId={selectedPackageId}
+        onClose={() => setShowCheckoutModal(false)}
+        onPaymentSuccess={(_order, newBalance) => {
+          if (newBalance !== undefined) {
+            setUserCoins(newBalance);
+          } else {
+            fetchUserCoins();
+          }
+          fetchPaymentHistory();
+          setShowCheckoutModal(false);
+        }}
+      />
     </SafeAreaView>
   );
 }
@@ -1917,6 +2007,55 @@ const styles = StyleSheet.create({
     color: Colors.dark.primaryLight,
     fontSize: 10,
     fontWeight: "700",
+  },
+  walletCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: Colors.dark.surface,
+    padding: 16,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: "rgba(245, 158, 11, 0.3)",
+    marginBottom: 16,
+  },
+  walletLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  coinIconBadge: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: "rgba(245, 158, 11, 0.15)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  walletTitle: {
+    color: Colors.dark.textMuted,
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  walletBalanceText: {
+    color: "#f59e0b",
+    fontSize: 18,
+    fontWeight: "900",
+    marginTop: 2,
+  },
+  walletTopupBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: "#f59e0b",
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    borderRadius: 12,
+  },
+  walletTopupBtnText: {
+    color: "#fff",
+    fontSize: 13,
+    fontWeight: "800",
   },
 });
 

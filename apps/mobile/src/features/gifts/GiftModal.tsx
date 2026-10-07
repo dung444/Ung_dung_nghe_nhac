@@ -51,6 +51,8 @@ const DEFAULT_COIN_PACKAGES: CoinPackage[] = [
   { id: "COIN_2000", name: "Kho Báu Hoàng Gia (2000 Xu)", coins: 2000, priceVnd: 200000, bonusText: "+100% Gấp Đôi" },
 ];
 
+import { PaymentCheckoutModal } from "../payments/PaymentCheckoutModal";
+
 interface GiftModalProps {
   visible: boolean;
   song: Song | null;
@@ -71,9 +73,10 @@ export function GiftModal({ visible, song, onClose, onGiftSuccess }: GiftModalPr
   const [giftMessage, setGiftMessage] = useState<string>("");
   const [submitting, setSubmitting] = useState(false);
 
-  // Top-up Modal State
+  // Top-up Modal State & Checkout Flow
   const [showTopupModal, setShowTopupModal] = useState(false);
-  const [toppingUp, setToppingUp] = useState(false);
+  const [selectedPkgForCheckout, setSelectedPkgForCheckout] = useState<CoinPackage | null>(null);
+  const [showCheckoutModal, setShowCheckoutModal] = useState(false);
 
   const loadCoinsAndGifts = async () => {
     try {
@@ -141,26 +144,14 @@ export function GiftModal({ visible, song, onClose, onGiftSuccess }: GiftModalPr
     }
   };
 
-  const handleBuyCoinPackage = async (pkg: CoinPackage) => {
+  const handleBuyCoinPackage = (pkg: CoinPackage) => {
     if (!isAuthenticated) {
       showWarning("Chưa đăng nhập", "Vui lòng đăng nhập trước khi nạp xu!");
       return;
     }
-
-    setToppingUp(true);
-    try {
-      const res = await api.post(ENDPOINTS.coinTopup, { packageId: pkg.id });
-      if (res.data?.success) {
-        const newBalance = res.data.data?.balance ?? userCoins + pkg.coins;
-        setUserCoins(newBalance);
-        showSuccess("Nạp Xu thành công! 🪙", `Đã cộng ${pkg.coins} Xu vào tài khoản. Số dư: ${newBalance} Xu.`);
-        setShowTopupModal(false);
-      }
-    } catch (err: any) {
-      showError("Lỗi nạp xu", err.response?.data?.error || "Không thể nạp xu lúc này.");
-    } finally {
-      setToppingUp(false);
-    }
+    setSelectedPkgForCheckout(pkg);
+    setShowTopupModal(false);
+    setShowCheckoutModal(true);
   };
 
   return (
@@ -307,7 +298,7 @@ export function GiftModal({ visible, song, onClose, onGiftSuccess }: GiftModalPr
                   key={pkg.id}
                   style={styles.packageRow}
                   onPress={() => handleBuyCoinPackage(pkg)}
-                  disabled={toppingUp}
+                  activeOpacity={0.8}
                 >
                   <View style={styles.pkgLeft}>
                     <Text style={styles.pkgIcon}>🪙</Text>
@@ -331,6 +322,20 @@ export function GiftModal({ visible, song, onClose, onGiftSuccess }: GiftModalPr
           </View>
         </View>
       </Modal>
+
+      {/* Modal Thanh Toán Mua Xu (Fintech Checkout Flow) */}
+      <PaymentCheckoutModal
+        visible={showCheckoutModal}
+        type="COIN_TOPUP"
+        selectedCoinPackage={selectedPkgForCheckout}
+        onClose={() => setShowCheckoutModal(false)}
+        onPaymentSuccess={(_order, newBalance) => {
+          if (newBalance !== undefined) {
+            setUserCoins(newBalance);
+          }
+          setShowCheckoutModal(false);
+        }}
+      />
     </>
   );
 }

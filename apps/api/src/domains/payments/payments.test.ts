@@ -223,5 +223,106 @@ describe("Payments & VIP Subscription Endpoints", () => {
     expect(leaderboardRes.body.data.length).toBeGreaterThan(0);
     expect(leaderboardRes.body.data[0].rank).toBe(1);
   });
+
+  it("should create a payment order for buying coins with PENDING status and VietQR", async () => {
+    const res = await request(app)
+      .post("/api/v1/payments/orders/create")
+      .set("Authorization", `Bearer ${userToken}`)
+      .send({
+        type: "COIN_TOPUP",
+        packageId: "COIN_350",
+        method: "VIETQR_BANKING",
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.order).toBeDefined();
+    expect(res.body.data.order.status).toBe("PENDING");
+    expect(res.body.data.order.amount).toBe(50000);
+    expect(res.body.data.order.coins).toBe(350);
+    expect(res.body.data.order.orderCode).toContain("WFP");
+    expect(res.body.data.order.qrUrl).toContain("https://img.vietqr.io/image/");
+    expect(res.body.data.order.expiresAt).toBeDefined();
+  });
+
+  it("should get payment order status and details by orderId", async () => {
+    // 1. Create order
+    const createRes = await request(app)
+      .post("/api/v1/payments/orders/create")
+      .set("Authorization", `Bearer ${userToken}`)
+      .send({
+        type: "COIN_TOPUP",
+        packageId: "COIN_800",
+        method: "VIETQR_BANKING",
+      });
+    const orderId = createRes.body.data.order.id;
+
+    // 2. Fetch order
+    const getRes = await request(app)
+      .get(`/api/v1/payments/orders/${orderId}`)
+      .set("Authorization", `Bearer ${userToken}`);
+
+    expect(getRes.status).toBe(200);
+    expect(getRes.body.success).toBe(true);
+    expect(getRes.body.data.order.id).toBe(orderId);
+    expect(getRes.body.data.order.status).toBe("PENDING");
+  });
+
+  it("should confirm payment order, credit coins to user balance, and update status to SUCCESS", async () => {
+    // 1. Get initial balance
+    const initRes = await request(app)
+      .get("/api/v1/payments/coins/balance")
+      .set("Authorization", `Bearer ${userToken}`);
+    const initialCoins = initRes.body.data.coins;
+
+    // 2. Create order for 350 coins
+    const createRes = await request(app)
+      .post("/api/v1/payments/orders/create")
+      .set("Authorization", `Bearer ${userToken}`)
+      .send({
+        type: "COIN_TOPUP",
+        packageId: "COIN_350",
+        method: "VIETQR_BANKING",
+      });
+    const orderId = createRes.body.data.order.id;
+
+    // 3. Confirm order payment
+    const confirmRes = await request(app)
+      .post(`/api/v1/payments/orders/${orderId}/confirm`)
+      .set("Authorization", `Bearer ${userToken}`);
+
+    expect(confirmRes.status).toBe(200);
+    expect(confirmRes.body.success).toBe(true);
+    expect(confirmRes.body.data.order.status).toBe("SUCCESS");
+    expect(confirmRes.body.data.balance).toBe(initialCoins + 350);
+
+    // 4. Verify balance via endpoint
+    const finalRes = await request(app)
+      .get("/api/v1/payments/coins/balance")
+      .set("Authorization", `Bearer ${userToken}`);
+    expect(finalRes.body.data.coins).toBe(initialCoins + 350);
+  });
+
+  it("should allow cancelling a pending payment order", async () => {
+    // 1. Create order
+    const createRes = await request(app)
+      .post("/api/v1/payments/orders/create")
+      .set("Authorization", `Bearer ${userToken}`)
+      .send({
+        type: "COIN_TOPUP",
+        packageId: "COIN_50",
+        method: "MOMO",
+      });
+    const orderId = createRes.body.data.order.id;
+
+    // 2. Cancel order
+    const cancelRes = await request(app)
+      .post(`/api/v1/payments/orders/${orderId}/cancel`)
+      .set("Authorization", `Bearer ${userToken}`);
+
+    expect(cancelRes.status).toBe(200);
+    expect(cancelRes.body.success).toBe(true);
+    expect(cancelRes.body.data.order.status).toBe("CANCELLED");
+  });
 });
 

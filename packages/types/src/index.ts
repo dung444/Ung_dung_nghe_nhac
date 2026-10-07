@@ -328,5 +328,47 @@ export interface CreatorStudioStats {
   recentSongs: Song[];
 }
 
+// ─── Payment & Gift System ───────────────────────────────────────────────────
 
+export interface AnimeGift {
+  id: string;
+  name: string;
+  emoji: string;
+  coins: number;
+  description: string;
+}
 
+export interface CoinPackage {
+  id: string;
+  name: string;
+  coins: number;
+  priceVnd: number;
+  bonusText?: string;
+}
+
+export interface PaymentOrder {
+  id: string;
+  userId: string;
+  userEmail?: string;
+  userName?: string;
+  orderCode: string;
+  type: "COIN_TOPUP" | "BUY_VIP";
+  packageId?: string;
+  packageName: string;
+  amount: number;
+  coins?: number;
+  currency: string;
+  method: "VIETQR_BANKING" | "MOMO" | "ZALOPAY" | "VNPAY" | string;
+  status: "PENDING" | "SUCCESS" | "FAILED" | "CANCELLED" | "EXPIRED";
+  qrUrl: string;
+  bankInfo: {
+    bankId: string;
+    bankName: string;
+    accountNo: string;
+    accountName: string;
+  };
+  instructions: string;
+  expiresAt: string;
+  createdAt: string;
+  completedAt?: string;
+}

@@ -134,3 +134,48 @@ export const handleGetSongGiftStats = async (req: Request, res: Response, next: 
   }
 };
 
+export const handleCreatePaymentOrder = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const result = await svc.createPaymentOrder(req.user!.userId, req.body);
+    res.json({ ...result, data: result });
+  } catch (e) {
+    next(e);
+  }
+};
+
+export const handleGetPaymentOrder = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const result = await svc.getPaymentOrder(req.params.orderId, req.user!.userId);
+    res.json({ ...result, data: result });
+  } catch (e) {
+    next(e);
+  }
+};
+
+export const handleConfirmPaymentOrder = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const result = await svc.confirmPaymentOrder(req.params.orderId, req.user!.userId);
+    res.json({ ...result, data: result });
+  } catch (e) {
+    next(e);
+  }
+};
+
+export const handleCancelPaymentOrder = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const result = await svc.cancelPaymentOrder(req.params.orderId, req.user!.userId);
+    res.json({ ...result, data: result });
+  } catch (e) {
+    next(e);
+  }
+};
+
+export const handleGetUserOrders = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const result = await svc.getUserOrders(req.user!.userId);
+    res.json({ success: true, data: result });
+  } catch (e) {
+    next(e);
+  }
+};
+

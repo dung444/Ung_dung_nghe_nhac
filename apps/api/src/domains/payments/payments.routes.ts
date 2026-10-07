@@ -20,6 +20,13 @@ paymentsRouter.get("/coins/balance", authenticate, ctrl.handleGetUserCoins);
 paymentsRouter.post("/coins/topup", authenticate, ctrl.handleTopupCoins);
 paymentsRouter.post("/gifts/send", authenticate, ctrl.handleSendGift);
 
+// Payment Orders & Checkout Workflow
+paymentsRouter.post("/orders/create", authenticate, ctrl.handleCreatePaymentOrder);
+paymentsRouter.get("/orders", authenticate, ctrl.handleGetUserOrders);
+paymentsRouter.get("/orders/:orderId", authenticate, ctrl.handleGetPaymentOrder);
+paymentsRouter.post("/orders/:orderId/confirm", authenticate, ctrl.handleConfirmPaymentOrder);
+paymentsRouter.post("/orders/:orderId/cancel", authenticate, ctrl.handleCancelPaymentOrder);
+
 // Admin-only routes
 paymentsRouter.put("/bank-config", authenticate, requireAdmin, ctrl.handleUpdateBankConfig);
 paymentsRouter.get("/admin/transactions", authenticate, requireAdmin, ctrl.handleGetAllTransactions);

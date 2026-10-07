@@ -591,3 +591,247 @@ export async function getSongGiftStats(songId: string) {
     topSupporters,
   };
 }
+
+// ─── PAYMENT ORDERS & CHECKOUT WORKFLOW ──────────────────────────────────────
+
+export interface PaymentOrder {
+  id: string;
+  userId: string;
+  userEmail?: string;
+  userName?: string;
+  orderCode: string;
+  type: "COIN_TOPUP" | "BUY_VIP";
+  packageId?: string;
+  packageName: string;
+  amount: number;
+  coins?: number;
+  currency: string;
+  method: "VIETQR_BANKING" | "MOMO" | "ZALOPAY" | "VNPAY" | string;
+  status: "PENDING" | "SUCCESS" | "FAILED" | "CANCELLED" | "EXPIRED";
+  qrUrl: string;
+  bankInfo: {
+    bankId: string;
+    bankName: string;
+    accountNo: string;
+    accountName: string;
+  };
+  instructions: string;
+  expiresAt: string;
+  createdAt: string;
+  completedAt?: string;
+}
+
+const paymentOrders = new Map<string, PaymentOrder>();
+
+export async function createPaymentOrder(
+  userId: string,
+  data: {
+    type: "COIN_TOPUP" | "BUY_VIP";
+    packageId?: string;
+    amount?: number;
+    method?: string;
+  }
+) {
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (!user) throw new AppError("User not found", 404);
+
+  let amount = 0;
+  let packageName = "";
+  let coins: number | undefined = undefined;
+
+  if (data.type === "COIN_TOPUP") {
+    if (data.packageId) {
+      const pkg = COIN_PACKAGES.find((p) => p.id === data.packageId);
+      if (!pkg) throw new AppError("Gói xu không hợp lệ", 400);
+      amount = pkg.priceVnd;
+      packageName = pkg.name;
+      coins = pkg.coins;
+    } else if (data.amount && data.amount >= 10000) {
+      amount = Math.round(Number(data.amount));
+      coins = Math.floor(amount / 200);
+      packageName = `Nạp ${coins} Xu Waifu Tùy Chọn`;
+    } else {
+      throw new AppError("Vui lòng chọn gói xu hoặc nhập số tiền tối thiểu 10.000 VNĐ", 400);
+    }
+  } else if (data.type === "BUY_VIP") {
+    const pkg = VIP_PACKAGES.find((p) => p.id === data.packageId);
+    if (!pkg) throw new AppError("Gói VIP không hợp lệ", 400);
+    amount = pkg.priceVnd;
+    packageName = pkg.name;
+    coins = pkg.coins;
+  } else {
+    throw new AppError("Loại đơn hàng thanh toán không hợp lệ", 400);
+  }
+
+  const orderId = `ord_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+  const randomSuffix = Math.random().toString(36).substring(2, 6).toUpperCase();
+  const orderCode = `${bankConfig.memoPrefix} ${data.type === "COIN_TOPUP" ? "COIN" : "VIP"} ${randomSuffix}`;
+
+  const qrUrl = buildVietQrUrl({
+    bankId: bankConfig.bankId,
+    accountNo: bankConfig.accountNo,
+    template: bankConfig.template,
+    amount,
+    description: orderCode,
+    accountName: bankConfig.accountName,
+  });
+
+  const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
+  const method = data.method || "VIETQR_BANKING";
+
+  const order: PaymentOrder = {
+    id: orderId,
+    userId,
+    userEmail: user.email,
+    userName: user.displayName || user.username,
+    orderCode,
+    type: data.type,
+    packageId: data.packageId,
+    packageName,
+    amount,
+    coins,
+    currency: "VND",
+    method,
+    status: "PENDING",
+    qrUrl,
+    bankInfo: {
+      bankId: bankConfig.bankId,
+      bankName: bankConfig.bankName,
+      accountNo: bankConfig.accountNo,
+      accountName: bankConfig.accountName,
+    },
+    instructions: `Quét mã VietQR bằng app ngân hàng hoặc chuyển khoản chính xác ${amount.toLocaleString()} VNĐ với nội dung "${orderCode}".`,
+    expiresAt,
+    createdAt: new Date().toISOString(),
+  };
+
+  paymentOrders.set(orderId, order);
+
+  const tx: TransactionRecord = {
+    id: `tx_${orderId}`,
+    userId,
+    userEmail: user.email,
+    userName: user.username,
+    type: data.type === "COIN_TOPUP" ? "TOPUP" : "BUY_VIP",
+    amount,
+    currency: "VND",
+    method,
+    packageId: data.packageId,
+    packageName,
+    status: "PENDING",
+    transactionCode: orderCode,
+    qrUrl,
+    createdAt: order.createdAt,
+  };
+  transactions.unshift(tx);
+
+  return {
+    success: true,
+    order,
+  };
+}
+
+export async function getPaymentOrder(orderId: string, userId: string) {
+  const order = paymentOrders.get(orderId);
+  if (!order) throw new AppError("Đơn hàng thanh toán không tồn tại", 404);
+
+  if (order.userId !== userId) {
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (user?.role !== "ADMIN") throw new AppError("Không có quyền xem đơn hàng này", 403);
+  }
+
+  if (order.status === "PENDING" && new Date(order.expiresAt).getTime() < Date.now()) {
+    order.status = "EXPIRED";
+  }
+
+  return {
+    success: true,
+    order,
+  };
+}
+
+export async function confirmPaymentOrder(orderId: string, userId: string) {
+  const order = paymentOrders.get(orderId);
+  if (!order) throw new AppError("Đơn hàng thanh toán không tồn tại", 404);
+
+  if (order.userId !== userId) {
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (user?.role !== "ADMIN") throw new AppError("Không có quyền xác nhận đơn hàng này", 403);
+  }
+
+  if (order.status === "CANCELLED") {
+    throw new AppError("Đơn hàng đã bị hủy, không thể thanh toán", 400);
+  }
+  if (order.status === "EXPIRED") {
+    throw new AppError("Đơn hàng đã hết hạn thanh toán, vui lòng tạo đơn mới", 400);
+  }
+
+  let newBalance = await getUserCoins(order.userId);
+
+  if (order.status !== "SUCCESS") {
+    order.status = "SUCCESS";
+    order.completedAt = new Date().toISOString();
+
+    if (order.type === "COIN_TOPUP" && order.coins) {
+      newBalance += order.coins;
+      userCoinBalances.set(order.userId, newBalance);
+    } else if (order.type === "BUY_VIP") {
+      await prisma.user.update({
+        where: { id: order.userId },
+        data: { isPremium: true },
+      });
+    }
+
+    const tx = transactions.find((t) => t.id === `tx_${order.id}` || t.transactionCode === order.orderCode);
+    if (tx) {
+      tx.status = "SUCCESS";
+    }
+  }
+
+  return {
+    success: true,
+    order,
+    balance: newBalance,
+    message:
+      order.type === "COIN_TOPUP"
+        ? `Thanh toán thành công! Đã nạp ${order.coins} Xu vào tài khoản. Số dư hiện tại: ${newBalance} Xu.`
+        : `Thanh toán thành công! Gói ${order.packageName} đã được kích hoạt.`,
+  };
+}
+
+export async function cancelPaymentOrder(orderId: string, userId: string) {
+  const order = paymentOrders.get(orderId);
+  if (!order) throw new AppError("Đơn hàng không tồn tại", 404);
+
+  if (order.userId !== userId) {
+    throw new AppError("Không có quyền hủy đơn hàng này", 403);
+  }
+
+  if (order.status !== "PENDING") {
+    throw new AppError("Chỉ có thể hủy đơn hàng đang chờ thanh toán", 400);
+  }
+
+  order.status = "CANCELLED";
+
+  const tx = transactions.find((t) => t.id === `tx_${order.id}` || t.transactionCode === order.orderCode);
+  if (tx) {
+    tx.status = "FAILED";
+  }
+
+  return {
+    success: true,
+    order,
+    message: "Đã hủy đơn hàng thanh toán thành công",
+  };
+}
+
+export async function getUserOrders(userId: string) {
+  const userOrders = Array.from(paymentOrders.values())
+    .filter((o) => o.userId === userId)
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+  return {
+    orders: userOrders,
+    totalCount: userOrders.length,
+  };
+}
