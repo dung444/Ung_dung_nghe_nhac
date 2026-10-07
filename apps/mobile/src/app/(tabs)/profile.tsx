@@ -867,20 +867,32 @@ export default function ProfileScreen() {
 
               {vipTab === "TOPUP" && (
                 <View>
-                  <Text style={styles.formSectionLabel}>Chọn mệnh giá nạp vào Ví Waifu Coins:</Text>
+                  <Text style={styles.formSectionLabel}>Chọn số xu & mệnh giá nạp vào Ví Waifu Coins:</Text>
                   <View style={styles.topupAmountsGrid}>
-                    {["50000", "100000", "200000", "500000"].map((amt) => {
-                      const isSelected = customTopupAmount === amt;
+                    {[
+                      { amt: "10000", coins: 50, bonus: "" },
+                      { amt: "20000", coins: 120, bonus: "+20%" },
+                      { amt: "50000", coins: 350, bonus: "+40% HOT" },
+                      { amt: "100000", coins: 800, bonus: "+60%" },
+                      { amt: "200000", coins: 2000, bonus: "+100%" },
+                      { amt: "500000", coins: 5500, bonus: "+120%" },
+                    ].map((item) => {
+                      const isSelected = customTopupAmount === item.amt;
                       return (
                         <TouchableOpacity
-                          key={amt}
+                          key={item.amt}
                           style={[styles.topupAmountCard, isSelected && styles.topupAmountCardActive]}
-                          onPress={() => setCustomTopupAmount(amt)}
+                          onPress={() => setCustomTopupAmount(item.amt)}
                         >
-                          <Text style={[styles.topupAmountText, isSelected && { color: Colors.dark.primaryLight }]}>
-                            {Number(amt).toLocaleString()} ₫
+                          <Text style={[styles.topupAmountText, isSelected && { color: "#f59e0b" }]}>
+                            🪙 {item.coins.toLocaleString()} Xu
                           </Text>
-                          <Text style={styles.topupCoinsSub}>+ {Number(amt) / 1000} Waifu Coins</Text>
+                          <Text style={styles.topupCoinsSub}>{Number(item.amt).toLocaleString()} ₫</Text>
+                          {item.bonus ? (
+                            <View style={{ backgroundColor: "#ec4899", paddingHorizontal: 5, paddingVertical: 1, borderRadius: 4, marginTop: 4 }}>
+                              <Text style={{ color: "#fff", fontSize: 9, fontWeight: "800" }}>{item.bonus}</Text>
+                            </View>
+                          ) : null}
                         </TouchableOpacity>
                       );
                     })}

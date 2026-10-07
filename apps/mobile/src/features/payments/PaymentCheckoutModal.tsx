@@ -8,9 +8,7 @@ import {
   ScrollView,
   Image,
   ActivityIndicator,
-  Alert,
   TextInput,
-  Platform,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { Colors } from "../../constants/colors";
@@ -30,6 +28,42 @@ export interface PaymentCheckoutModalProps {
   onPaymentSuccess?: (order: PaymentOrder, newBalance?: number) => void;
 }
 
+export const DEFAULT_COIN_PACKAGES: CoinPackage[] = [
+  { id: "COIN_50", name: "Túi Xu Đồng (50 Xu)", coins: 50, priceVnd: 10000 },
+  { id: "COIN_120", name: "Hộp Xu Bạc (120 Xu)", coins: 120, priceVnd: 20000, bonusText: "+20% Tặng Thêm" },
+  { id: "COIN_350", name: "Rương Xu Vàng (350 Xu)", coins: 350, priceVnd: 50000, bonusText: "+40% Phổ Biến" },
+  { id: "COIN_800", name: "Kho Báu Sakura (800 Xu)", coins: 800, priceVnd: 100000, bonusText: "+60% Siêu Hời" },
+  { id: "COIN_2000", name: "Kho Báu Hoàng Gia (2000 Xu)", coins: 2000, priceVnd: 200000, bonusText: "+100% Gấp Đôi Xu" },
+  { id: "COIN_5500", name: "Đại Phú Hào Waifu (5500 Xu)", coins: 5500, priceVnd: 500000, bonusText: "+120% Cực Khủng" },
+];
+
+export const VIP_PACKAGES_LIST = [
+  {
+    id: "VIP_1_MONTH",
+    name: "VIP Anime Waifu Pass (1 Tháng)",
+    priceVnd: 49000,
+    duration: "30 Ngày",
+    badge: "PHỔ BIẾN",
+    desc: "Mở khóa 100% Lossless 24-bit FLAC & nghe không quảng cáo",
+  },
+  {
+    id: "VIP_3_MONTHS",
+    name: "VIP Sakura Season Pass (3 Tháng)",
+    priceVnd: 129000,
+    duration: "90 Ngày",
+    badge: "TIẾT KIỆM 15%",
+    desc: "Huy hiệu Sakura phát sáng, live room không giới hạn",
+  },
+  {
+    id: "VIP_1_YEAR",
+    name: "VIP Lifetime Anime Master (1 Năm)",
+    priceVnd: 449000,
+    duration: "365 Ngày",
+    badge: "SIÊU TIẾT KIỆM 30%",
+    desc: "Vương miện vàng hoàng gia, tặng 100 điểm bản quyền",
+  },
+];
+
 const PAYMENT_METHODS = [
   { id: "VIETQR_BANKING", name: "VietQR 24/7", desc: "Chuyển khoản liên ngân hàng quét mã tức thì", icon: "qr-code", badge: "KHUYÊN DÙNG" },
   { id: "MOMO", name: "Ví MoMo", desc: "Thanh toán qua ví điện tử MoMo", icon: "wallet", badge: "NHANH CHÓNG" },
@@ -47,13 +81,23 @@ export function PaymentCheckoutModal({
   onPaymentSuccess,
 }: PaymentCheckoutModalProps) {
   const { user, setUser } = useAuthStore();
-  const { showSuccess, showError, showInfo, showWarning } = useToastStore();
+  const { showSuccess, showError, showInfo } = useToastStore();
 
   const [step, setStep] = useState<"SELECT_METHOD" | "PAYMENT_QR" | "SUCCESS">("SELECT_METHOD");
   const [selectedMethod, setSelectedMethod] = useState("VIETQR_BANKING");
   const [loading, setLoading] = useState(false);
   const [currentOrder, setCurrentOrder] = useState<PaymentOrder | null>(null);
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
+
+  // Coin selection states
+  const [activeCoinPkg, setActiveCoinPkg] = useState<CoinPackage | null>(
+    selectedCoinPackage || DEFAULT_COIN_PACKAGES[2]
+  );
+  const [isCustomMode, setIsCustomMode] = useState<boolean>(!selectedCoinPackage && !!customAmount);
+  const [customVndInput, setCustomVndInput] = useState<string>(customAmount ? String(customAmount) : "50000");
+
+  // VIP selection states
+  const [activeVipId, setActiveVipId] = useState<string>(selectedVipPackageId || "VIP_1_MONTH");
 
   // Timer countdown 15 minutes (900 seconds)
   const [timeLeft, setTimeLeft] = useState<number>(900);
@@ -64,10 +108,25 @@ export function PaymentCheckoutModal({
       setStep("SELECT_METHOD");
       setCurrentOrder(null);
       setTimeLeft(900);
+
+      if (selectedCoinPackage) {
+        setActiveCoinPkg(selectedCoinPackage);
+        setIsCustomMode(false);
+      } else if (customAmount) {
+        setCustomVndInput(String(customAmount));
+        setIsCustomMode(true);
+      } else {
+        setActiveCoinPkg(DEFAULT_COIN_PACKAGES[2]);
+        setIsCustomMode(false);
+      }
+
+      if (selectedVipPackageId) {
+        setActiveVipId(selectedVipPackageId);
+      }
     } else {
       if (timerRef.current) clearInterval(timerRef.current);
     }
-  }, [visible]);
+  }, [visible, selectedCoinPackage, customAmount, selectedVipPackageId]);
 
   useEffect(() => {
     if (step === "PAYMENT_QR" && timeLeft > 0) {
@@ -101,6 +160,38 @@ export function PaymentCheckoutModal({
     setTimeout(() => setCopiedKey(null), 2000);
   };
 
+  // Helper calculations for dynamic display
+  const getSelectedCoins = () => {
+    if (type !== "COIN_TOPUP") return 0;
+    if (isCustomMode) {
+      const amt = Number(customVndInput) || 0;
+      return Math.floor(amt / 200);
+    }
+    return activeCoinPkg?.coins || 350;
+  };
+
+  const getSelectedPrice = () => {
+    if (type === "COIN_TOPUP") {
+      if (isCustomMode) {
+        return Number(customVndInput) || 50000;
+      }
+      return activeCoinPkg?.priceVnd || 50000;
+    }
+    const vip = VIP_PACKAGES_LIST.find((v) => v.id === activeVipId);
+    return vip?.priceVnd || 49000;
+  };
+
+  const getSelectedTitle = () => {
+    if (type === "COIN_TOPUP") {
+      if (isCustomMode) {
+        return `Nạp ${getSelectedCoins()} Xu Waifu Tùy Chọn`;
+      }
+      return activeCoinPkg?.name || "Rương Xu Vàng (350 Xu)";
+    }
+    const vip = VIP_PACKAGES_LIST.find((v) => v.id === activeVipId);
+    return vip?.name || "VIP Anime Waifu Pass (1 Tháng)";
+  };
+
   // Step 1: Create Payment Order
   const handleCreateOrder = async () => {
     setLoading(true);
@@ -111,13 +202,14 @@ export function PaymentCheckoutModal({
       };
 
       if (type === "COIN_TOPUP") {
-        if (selectedCoinPackage) {
-          payload.packageId = selectedCoinPackage.id;
-        } else if (customAmount) {
-          payload.amount = customAmount;
+        if (!isCustomMode && activeCoinPkg) {
+          payload.packageId = activeCoinPkg.id;
+        } else {
+          const amt = Math.max(10000, Number(customVndInput) || 10000);
+          payload.amount = amt;
         }
       } else {
-        payload.packageId = selectedVipPackageId || "VIP_1_MONTH";
+        payload.packageId = activeVipId;
       }
 
       const res = await api.post(ENDPOINTS.createOrder, payload);
@@ -177,20 +269,6 @@ export function PaymentCheckoutModal({
     }
   };
 
-  const getPackageTitle = () => {
-    if (type === "COIN_TOPUP") {
-      return selectedCoinPackage ? selectedCoinPackage.name : `Nạp Xu Waifu (${(customAmount || 50000).toLocaleString()} ₫)`;
-    }
-    return "Nâng Cấp Waifu VIP Pass";
-  };
-
-  const getPackagePrice = () => {
-    if (type === "COIN_TOPUP") {
-      return selectedCoinPackage ? selectedCoinPackage.priceVnd : customAmount || 50000;
-    }
-    return 49000;
-  };
-
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <View style={styles.overlay}>
@@ -207,7 +285,9 @@ export function PaymentCheckoutModal({
                   ? "Biên Lai Thanh Toán ✨"
                   : step === "PAYMENT_QR"
                   ? "Quét Mã Thanh Toán VietQR"
-                  : "Thanh Toán & Nạp Xu 🪙"}
+                  : type === "COIN_TOPUP"
+                  ? "Nạp Xu & Mệnh Giá Thanh Toán 🪙"
+                  : "Nâng Cấp Waifu VIP Pass 💎"}
               </Text>
             </View>
             <TouchableOpacity onPress={step === "PAYMENT_QR" ? handleCancelOrder : onClose} style={styles.closeBtn}>
@@ -216,31 +296,164 @@ export function PaymentCheckoutModal({
           </View>
 
           <ScrollView style={styles.body} showsVerticalScrollIndicator={false}>
-            {/* ──────── STEP 1: CHỌN PHƯƠNG THỨC THANH TOÁN ──────── */}
+            {/* ──────── STEP 1: CHỌN SỐ XU / MỆNH GIÁ & PHƯƠNG THỨC ──────── */}
             {step === "SELECT_METHOD" && (
               <View>
-                {/* Package Info Card */}
+                {/* 1. SELECTION FOR COIN TOPUP */}
+                {type === "COIN_TOPUP" && (
+                  <View style={{ marginBottom: 18 }}>
+                    <View style={styles.sectionTitleRow}>
+                      <Text style={styles.sectionTitle}>CHỌN SỐ XU & MỆNH GIÁ NẠP 🪙</Text>
+                      <Text style={styles.sectionSubtitle}>10.000 ₫ = 50 Xu</Text>
+                    </View>
+
+                    {/* 2-Column Grid of Coin Packages */}
+                    <View style={styles.coinGrid}>
+                      {DEFAULT_COIN_PACKAGES.map((pkg) => {
+                        const isSelected = !isCustomMode && activeCoinPkg?.id === pkg.id;
+                        return (
+                          <TouchableOpacity
+                            key={pkg.id}
+                            style={[styles.coinGridCard, isSelected && styles.coinGridCardActive]}
+                            onPress={() => {
+                              setActiveCoinPkg(pkg);
+                              setIsCustomMode(false);
+                            }}
+                            activeOpacity={0.8}
+                          >
+                            {/* Bonus Badge */}
+                            {pkg.bonusText && (
+                              <View style={styles.coinBonusBadge}>
+                                <Text style={styles.coinBonusText}>{pkg.bonusText}</Text>
+                              </View>
+                            )}
+
+                            {/* Coin Number */}
+                            <View style={styles.coinRowCenter}>
+                              <Text style={styles.coinEmoji}>🪙</Text>
+                              <Text style={[styles.coinNumberText, isSelected && { color: "#f59e0b" }]}>
+                                {pkg.coins.toLocaleString()} Xu
+                              </Text>
+                            </View>
+
+                            {/* Price in VND */}
+                            <Text style={[styles.coinPriceText, isSelected && { color: "#fff", fontWeight: "800" }]}>
+                              {pkg.priceVnd.toLocaleString()} ₫
+                            </Text>
+
+                            {/* Active Checkmark */}
+                            {isSelected && (
+                              <View style={styles.selectedCheckBadge}>
+                                <Ionicons name="checkmark-circle" size={16} color="#f59e0b" />
+                              </View>
+                            )}
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+
+                    {/* Custom Amount Option */}
+                    <TouchableOpacity
+                      style={[styles.customToggleBox, isCustomMode && styles.customToggleBoxActive]}
+                      onPress={() => setIsCustomMode(!isCustomMode)}
+                      activeOpacity={0.8}
+                    >
+                      <Ionicons
+                        name="create-outline"
+                        size={18}
+                        color={isCustomMode ? Colors.dark.primaryLight : Colors.dark.textMuted}
+                      />
+                      <Text style={[styles.customToggleText, isCustomMode && { color: "#fff", fontWeight: "700" }]}>
+                        Hoặc tự nhập số tiền nạp tùy chọn (VNĐ)
+                      </Text>
+                      <Ionicons name={isCustomMode ? "chevron-up" : "chevron-down"} size={16} color={Colors.dark.textMuted} />
+                    </TouchableOpacity>
+
+                    {isCustomMode && (
+                      <View style={styles.customInputContainer}>
+                        <View style={styles.customInputRow}>
+                          <TextInput
+                            style={styles.customInput}
+                            placeholder="Nhập số tiền VNĐ (VD: 150000)..."
+                            placeholderTextColor={Colors.dark.textMuted}
+                            value={customVndInput}
+                            onChangeText={setCustomVndInput}
+                            keyboardType="numeric"
+                          />
+                          <View style={styles.customCalcBox}>
+                            <Text style={styles.customCalcText}>
+                              Nhận: <Text style={{ color: "#f59e0b", fontWeight: "800" }}>🪙 {getSelectedCoins()} Xu</Text>
+                            </Text>
+                          </View>
+                        </View>
+                        <Text style={styles.customHintText}>
+                          Tối thiểu 10.000 VNĐ. Hệ thống tự động quy đổi: 1.000 VNĐ = 5 Xu Waifu.
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                )}
+
+                {/* 2. SELECTION FOR VIP PASS */}
+                {type === "BUY_VIP" && (
+                  <View style={{ marginBottom: 18 }}>
+                    <Text style={styles.sectionTitle}>CHỌN GÓI HỘI VIÊN WAIFU VIP 💎</Text>
+                    <View style={{ gap: 10, marginTop: 8 }}>
+                      {VIP_PACKAGES_LIST.map((pkg) => {
+                        const isSelected = activeVipId === pkg.id;
+                        return (
+                          <TouchableOpacity
+                            key={pkg.id}
+                            style={[styles.vipChoiceCard, isSelected && styles.vipChoiceCardActive]}
+                            onPress={() => setActiveVipId(pkg.id)}
+                            activeOpacity={0.85}
+                          >
+                            <View style={{ flex: 1 }}>
+                              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                                <Text style={[styles.vipChoiceName, isSelected && { color: Colors.dark.primaryLight }]}>
+                                  {pkg.name}
+                                </Text>
+                                <View style={styles.vipBadge}>
+                                  <Text style={styles.vipBadgeText}>{pkg.badge}</Text>
+                                </View>
+                              </View>
+                              <Text style={styles.vipChoiceDesc}>{pkg.desc}</Text>
+                            </View>
+                            <View style={{ alignItems: "flex-end" }}>
+                              <Text style={[styles.vipChoicePrice, isSelected && { color: "#fff" }]}>
+                                {pkg.priceVnd.toLocaleString()} ₫
+                              </Text>
+                              <Text style={styles.vipChoiceDuration}>/ {pkg.duration}</Text>
+                            </View>
+                          </TouchableOpacity>
+                        );
+                      })}
+                    </View>
+                  </View>
+                )}
+
+                {/* 3. ORDER SUMMARY CARD */}
                 <View style={styles.summaryCard}>
                   <View style={styles.summaryRow}>
-                    <Text style={styles.summaryLabel}>Dịch vụ thanh toán:</Text>
-                    <Text style={styles.summaryValBold}>{getPackageTitle()}</Text>
+                    <Text style={styles.summaryLabel}>Gói đã chọn:</Text>
+                    <Text style={styles.summaryValBold}>{getSelectedTitle()}</Text>
                   </View>
-                  {type === "COIN_TOPUP" && selectedCoinPackage && (
+                  {type === "COIN_TOPUP" && (
                     <View style={styles.summaryRow}>
                       <Text style={styles.summaryLabel}>Số xu nhận được:</Text>
                       <Text style={[styles.summaryValBold, { color: "#f59e0b" }]}>
-                        🪙 +{selectedCoinPackage.coins} Waifu Coins
+                        🪙 +{getSelectedCoins().toLocaleString()} Waifu Coins
                       </Text>
                     </View>
                   )}
                   <View style={styles.divider} />
                   <View style={styles.summaryRow}>
-                    <Text style={styles.totalPriceLabel}>Tổng tiền cần thanh toán:</Text>
-                    <Text style={styles.totalPriceVal}>{getPackagePrice().toLocaleString()} VNĐ</Text>
+                    <Text style={styles.totalPriceLabel}>Tổng tiền thanh toán:</Text>
+                    <Text style={styles.totalPriceVal}>{getSelectedPrice().toLocaleString()} VNĐ</Text>
                   </View>
                 </View>
 
-                {/* Payment Methods */}
+                {/* 4. PAYMENT METHODS */}
                 <Text style={styles.sectionTitle}>CHỌN HÌNH THỨC THANH TOÁN</Text>
                 <View style={styles.methodsList}>
                   {PAYMENT_METHODS.map((method) => {
@@ -282,11 +495,11 @@ export function PaymentCheckoutModal({
                   })}
                 </View>
 
-                {/* Security Guarantee Note */}
+                {/* Security Note */}
                 <View style={styles.securityBox}>
                   <Ionicons name="lock-closed" size={16} color="#10b981" />
                   <Text style={styles.securityText}>
-                    Giao dịch mã hóa an toàn 256-bit chuẩn Napas & Ngân hàng Nhà nước. Tự động cộng xu ngay khi nhận được tiền.
+                    Giao dịch mã hóa an toàn 256-bit chuẩn Napas 247. Tự động nhận diện và cộng xu ngay khi nhận được tiền.
                   </Text>
                 </View>
 
@@ -300,7 +513,9 @@ export function PaymentCheckoutModal({
                     <ActivityIndicator color="#fff" />
                   ) : (
                     <>
-                      <Text style={styles.payBtnText}>Tạo Mã Thanh Toán & Quét QR</Text>
+                      <Text style={styles.payBtnText}>
+                        Tạo Mã Thanh Toán & Quét QR ({getSelectedPrice().toLocaleString()} ₫)
+                      </Text>
                       <Ionicons name="arrow-forward" size={18} color="#fff" />
                     </>
                   )}
@@ -551,6 +766,191 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 14,
   },
+
+  // Coin Grid & Denominations Styles
+  sectionTitleRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 10,
+  },
+  sectionTitle: {
+    color: Colors.dark.textMuted,
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 1,
+    marginBottom: 8,
+  },
+  sectionSubtitle: {
+    color: "#f59e0b",
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  coinGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 10,
+    marginBottom: 12,
+  },
+  coinGridCard: {
+    width: "48%",
+    backgroundColor: "rgba(255,255,255,0.04)",
+    borderRadius: 14,
+    padding: 12,
+    borderWidth: 1.5,
+    borderColor: "rgba(255,255,255,0.08)",
+    alignItems: "center",
+    position: "relative",
+  },
+  coinGridCardActive: {
+    borderColor: "#f59e0b",
+    backgroundColor: "rgba(245, 158, 11, 0.1)",
+  },
+  coinBonusBadge: {
+    position: "absolute",
+    top: -8,
+    right: 8,
+    backgroundColor: "#ec4899",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  coinBonusText: {
+    color: "#fff",
+    fontSize: 9,
+    fontWeight: "800",
+  },
+  coinRowCenter: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 4,
+  },
+  coinEmoji: {
+    fontSize: 18,
+  },
+  coinNumberText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "900",
+  },
+  coinPriceText: {
+    color: Colors.dark.textMuted,
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  selectedCheckBadge: {
+    position: "absolute",
+    bottom: 6,
+    right: 6,
+  },
+
+  // Custom Input Box
+  customToggleBox: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    backgroundColor: "rgba(255,255,255,0.03)",
+    padding: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.08)",
+    marginBottom: 8,
+  },
+  customToggleBoxActive: {
+    borderColor: Colors.dark.primaryLight,
+    backgroundColor: "rgba(236, 72, 153, 0.08)",
+  },
+  customToggleText: {
+    color: Colors.dark.textMuted,
+    fontSize: 12,
+    flex: 1,
+  },
+  customInputContainer: {
+    marginBottom: 14,
+  },
+  customInputRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  customInput: {
+    flex: 1,
+    backgroundColor: "rgba(255,255,255,0.05)",
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    color: "#fff",
+    fontSize: 14,
+    borderWidth: 1,
+    borderColor: "rgba(255,255,255,0.1)",
+  },
+  customCalcBox: {
+    backgroundColor: "rgba(245, 158, 11, 0.1)",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "rgba(245, 158, 11, 0.25)",
+  },
+  customCalcText: {
+    color: "#fff",
+    fontSize: 12,
+  },
+  customHintText: {
+    color: Colors.dark.textMuted,
+    fontSize: 11,
+    marginTop: 4,
+    paddingHorizontal: 2,
+  },
+
+  // VIP Choice Styles
+  vipChoiceCard: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.04)",
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 1.5,
+    borderColor: "rgba(255,255,255,0.08)",
+  },
+  vipChoiceCardActive: {
+    borderColor: Colors.dark.primaryLight,
+    backgroundColor: "rgba(236, 72, 153, 0.1)",
+  },
+  vipChoiceName: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  vipBadge: {
+    backgroundColor: "rgba(236, 72, 153, 0.15)",
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  vipBadgeText: {
+    color: Colors.dark.primaryLight,
+    fontSize: 9,
+    fontWeight: "800",
+  },
+  vipChoiceDesc: {
+    color: Colors.dark.textMuted,
+    fontSize: 11,
+    marginTop: 3,
+  },
+  vipChoicePrice: {
+    color: Colors.dark.primaryLight,
+    fontSize: 16,
+    fontWeight: "900",
+  },
+  vipChoiceDuration: {
+    color: Colors.dark.textMuted,
+    fontSize: 10,
+  },
+
+  // Summary Card Styles
   summaryCard: {
     backgroundColor: "rgba(255,255,255,0.03)",
     borderRadius: 16,
@@ -589,13 +989,8 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "900",
   },
-  sectionTitle: {
-    color: Colors.dark.textMuted,
-    fontSize: 11,
-    fontWeight: "800",
-    letterSpacing: 1,
-    marginBottom: 10,
-  },
+
+  // Payment Methods List Styles
   methodsList: {
     gap: 10,
     marginBottom: 16,

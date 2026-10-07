@@ -46,9 +46,10 @@ const DEFAULT_GIFTS: AnimeGift[] = [
 const DEFAULT_COIN_PACKAGES: CoinPackage[] = [
   { id: "COIN_50", name: "Túi Xu Đồng (50 Xu)", coins: 50, priceVnd: 10000 },
   { id: "COIN_120", name: "Hộp Xu Bạc (120 Xu)", coins: 120, priceVnd: 20000, bonusText: "+20% Tặng Thêm" },
-  { id: "COIN_350", name: "Rương Xu Vàng (350 Xu)", coins: 350, priceVnd: 50000, bonusText: "+40% Tặng Thêm" },
+  { id: "COIN_350", name: "Rương Xu Vàng (350 Xu)", coins: 350, priceVnd: 50000, bonusText: "+40% Phổ Biến" },
   { id: "COIN_800", name: "Kho Báu Sakura (800 Xu)", coins: 800, priceVnd: 100000, bonusText: "+60% Siêu Hời" },
   { id: "COIN_2000", name: "Kho Báu Hoàng Gia (2000 Xu)", coins: 2000, priceVnd: 200000, bonusText: "+100% Gấp Đôi" },
+  { id: "COIN_5500", name: "Đại Phú Hào (5500 Xu)", coins: 5500, priceVnd: 500000, bonusText: "+120% Cực Khủng" },
 ];
 
 import { PaymentCheckoutModal } from "../payments/PaymentCheckoutModal";
