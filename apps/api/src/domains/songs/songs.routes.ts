@@ -7,7 +7,8 @@ export const songsRouter = Router();
 
 songsRouter.get("/",              ctrl.getSongs);
 songsRouter.get("/:id",          ctrl.getSongById);
-songsRouter.get("/:id/stream",   ctrl.streamSong);
+songsRouter.get("/:id/stream",     ctrl.streamSong);
+songsRouter.get("/:id/stream.mp3", ctrl.streamSong);
 songsRouter.get("/:id/related",  ctrl.getRelatedSongs);
 songsRouter.post("/:id/play",    authenticate, ctrl.recordPlay);
 songsRouter.post("/:id/like",    authenticate, ctrl.toggleLike);

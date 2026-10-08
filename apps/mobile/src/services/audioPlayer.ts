@@ -67,11 +67,11 @@ function startProgressTicker(songDuration: number) {
           eventCallbacks.onProgress?.(cur, dur);
         }
       } else if (expoAudioPlayer) {
-        if (expoAudioPlayer.playing) {
-          const cur = typeof expoAudioPlayer.currentTime === "number" ? expoAudioPlayer.currentTime : 0;
-          const dur = typeof expoAudioPlayer.duration === "number" && expoAudioPlayer.duration > 0
-            ? expoAudioPlayer.duration
-            : songDuration;
+        const cur = typeof expoAudioPlayer.currentTime === "number" ? expoAudioPlayer.currentTime : 0;
+        const dur = typeof expoAudioPlayer.duration === "number" && expoAudioPlayer.duration > 0
+          ? expoAudioPlayer.duration
+          : songDuration;
+        if (expoAudioPlayer.playing || cur > 0) {
           eventCallbacks.onProgress?.(cur, dur);
         }
       } else if (legacySound) {
@@ -96,6 +96,19 @@ function stopProgressTicker() {
 
 export async function setupAudioPlayer(): Promise<boolean> {
   if (isPlayerSetup) return true;
+
+  if (Platform.OS !== "web" && ExpoAudio?.setAudioModeAsync) {
+    try {
+      await ExpoAudio.setAudioModeAsync({
+        playsInSilentMode: true,
+        shouldPlayInBackground: true,
+        interruptionMode: "doNotMix",
+      });
+      console.log("[ExpoAudio] Global audio mode initialized.");
+    } catch (e) {
+      console.warn("[ExpoAudio] setAudioModeAsync warning:", e);
+    }
+  }
 
   if (isTrackPlayerAvailable && TrackPlayer) {
     try {
@@ -149,11 +162,14 @@ export async function playSongOnPlayer(song: Song): Promise<void> {
     const ready = await setupAudioPlayer();
     if (!ready) return;
 
-    // Chuẩn hóa và mã hóa an toàn đường dẫn URL (xử lý khoảng trắng và ký tự tiếng Nhật/Việt)
-    const rawUrl = song.fileUrl.startsWith("http")
-      ? song.fileUrl
-      : `${API_BASE_URL}${song.fileUrl.startsWith("/") ? "" : "/"}${song.fileUrl}`;
-    const streamUrl = encodeURI(rawUrl);
+    // Ưu tiên endpoint stream theo UUID (đã cấu hình stream.mp3 chuẩn byte-range và không bị lỗi ký tự Unicode/khoảng trắng)
+    const streamUrl = song.id
+      ? `${API_BASE_URL}/api/v1/songs/${song.id}/stream.mp3`
+      : (song.fileUrl.startsWith("http")
+          ? encodeURI(song.fileUrl)
+          : `${API_BASE_URL}${song.fileUrl.startsWith("/") ? "" : "/"}${encodeURI(song.fileUrl)}`);
+
+    console.log(`[AudioPlayer] Playing song "${song.title}" with stream URL: ${streamUrl}`);
 
     currentPlayingSongId = song.id;
     stopProgressTicker();
@@ -193,19 +209,28 @@ export async function playSongOnPlayer(song: Song): Promise<void> {
         if (ExpoAudio.setAudioModeAsync) {
           await ExpoAudio.setAudioModeAsync({
             playsInSilentMode: true,
-            staysActiveInBackground: true,
+            shouldPlayInBackground: true,
             interruptionMode: "doNotMix",
           }).catch(() => {});
         }
 
         const player = ExpoAudio.createAudioPlayer(streamUrl, {
-          updateInterval: 500,
+          updateInterval: 250,
         });
         player.volume = currentVolume;
         player.playbackRate = currentRate;
 
         player.addListener("playbackStatusUpdate", (status: any) => {
           if (status) {
+            if (status.error) {
+              console.warn("[ExpoAudio] Playback status error:", status.error);
+              try {
+                const { useToastStore } = require("../store/toastStore");
+                useToastStore.getState().showError("Lỗi phát nhạc", `Không thể phát luồng: ${status.error}`);
+              } catch {}
+              return;
+            }
+
             const pos = typeof status.currentTime === "number" ? status.currentTime : 0;
             const dur = typeof status.duration === "number" && status.duration > 0 ? status.duration : (song.duration || 0);
             eventCallbacks.onProgress?.(pos, dur);
@@ -221,8 +246,15 @@ export async function playSongOnPlayer(song: Song): Promise<void> {
         expoAudioPlayer = player;
         startProgressTicker(song.duration || 0);
         return;
-      } catch (err) {
+      } catch (err: any) {
         console.warn("[ExpoAudio] Error playing with expo-audio:", err);
+        try {
+          const { useToastStore } = require("../store/toastStore");
+          useToastStore.getState().showError(
+            "Lỗi trình phát",
+            err?.message || "Không thể khởi chạy âm thanh."
+          );
+        } catch {}
       }
     }
 
