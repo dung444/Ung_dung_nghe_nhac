@@ -10,7 +10,6 @@ import {
   Alert,
   ActivityIndicator,
   TextInput,
-  Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Colors } from "../../constants/colors";
@@ -50,6 +49,7 @@ export default function ProfileScreen() {
   const [showAvatarModal, setShowAvatarModal] = useState(false);
   const [showQualityModal, setShowQualityModal] = useState(false);
   const [showPremiumModal, setShowPremiumModal] = useState(false);
+  const [showLogoutConfirmModal, setShowLogoutConfirmModal] = useState(false);
   const [selectedQuality, setSelectedQuality] = useState("high");
 
   // Helper lấy URL ảnh hoàn chỉnh (hỗ trợ relative uploads, base64, blob, http)
@@ -475,30 +475,14 @@ export default function ProfileScreen() {
     ]);
   };
 
-  const handleLogout = () => {
-    const doLogout = () => {
-      logout();
-      try {
-        const { useToastStore } = require("../../store/toastStore");
-        useToastStore.getState().showInfo("Đã đăng xuất 👋", "Hẹn sớm gặp lại bạn tại thế giới Anime & Vocaloid!");
-      } catch {}
-      router.replace("/(auth)/login" as any);
-    };
-
-    if (Platform.OS === "web") {
-      if (typeof window !== "undefined" && window.confirm("Bạn có chắc chắn muốn đăng xuất khỏi Waifu Player?")) {
-        doLogout();
-      }
-    } else {
-      Alert.alert("Xác nhận đăng xuất", "Bạn có chắc muốn đăng xuất khỏi Waifu Player?", [
-        { text: "Hủy", style: "cancel" },
-        {
-          text: "Đăng xuất",
-          style: "destructive",
-          onPress: doLogout,
-        },
-      ]);
-    }
+  const confirmLogout = () => {
+    setShowLogoutConfirmModal(false);
+    logout();
+    try {
+      const { useToastStore } = require("../../store/toastStore");
+      useToastStore.getState().showInfo("Đã đăng xuất 👋", "Hẹn gặp lại bạn!");
+    } catch {}
+    router.replace("/(auth)/login" as any);
   };
 
   return (
@@ -742,29 +726,31 @@ export default function ProfileScreen() {
             <Ionicons name="chevron-forward" size={18} color={Colors.dark.accent} />
           </TouchableOpacity>
 
-          <TouchableOpacity
-            style={[
-              styles.menuItem,
-              {
-                backgroundColor: "rgba(236, 72, 153, 0.08)",
-                borderRadius: 12,
-                paddingHorizontal: 10,
-                marginVertical: 4,
-              },
-            ]}
-            onPress={() => router.push("/admin" as any)}
-          >
-            <Ionicons name="settings-outline" size={22} color={Colors.dark.primary} />
-            <View style={styles.menuItemCenter}>
-              <Text style={[styles.menuText, { color: Colors.dark.primary }]}>
-                Bảng điều khiển Quản trị (Admin Portal)
-              </Text>
-              <Text style={styles.menuSubText}>
-                Quản lý bài hát, phân quyền người dùng, thẩm định bản quyền
-              </Text>
-            </View>
-            <Ionicons name="chevron-forward" size={18} color={Colors.dark.primary} />
-          </TouchableOpacity>
+          {user?.role === "ADMIN" && (
+            <TouchableOpacity
+              style={[
+                styles.menuItem,
+                {
+                  backgroundColor: "rgba(236, 72, 153, 0.08)",
+                  borderRadius: 12,
+                  paddingHorizontal: 10,
+                  marginVertical: 4,
+                },
+              ]}
+              onPress={() => router.push("/admin" as any)}
+            >
+              <Ionicons name="settings-outline" size={22} color={Colors.dark.primary} />
+              <View style={styles.menuItemCenter}>
+                <Text style={[styles.menuText, { color: Colors.dark.primary }]}>
+                  Bảng điều khiển Quản trị (Admin Portal)
+                </Text>
+                <Text style={styles.menuSubText}>
+                  Quản lý bài hát, phân quyền người dùng, thẩm định bản quyền
+                </Text>
+              </View>
+              <Ionicons name="chevron-forward" size={18} color={Colors.dark.primary} />
+            </TouchableOpacity>
+          )}
 
           <TouchableOpacity
             style={styles.menuItem}
@@ -779,7 +765,7 @@ export default function ProfileScreen() {
           </TouchableOpacity>
 
           {isAuthenticated ? (
-            <TouchableOpacity style={[styles.menuItem, { borderBottomWidth: 0 }]} onPress={handleLogout}>
+            <TouchableOpacity style={[styles.menuItem, { borderBottomWidth: 0 }]} onPress={() => setShowLogoutConfirmModal(true)}>
               <Ionicons name="log-out-outline" size={22} color={Colors.dark.secondary} />
               <View style={styles.menuItemCenter}>
                 <Text style={[styles.menuText, { color: Colors.dark.secondary }]}>Đăng xuất</Text>
@@ -802,6 +788,28 @@ export default function ProfileScreen() {
           )}
         </View>
       </ScrollView>
+
+      <Modal
+        visible={showLogoutConfirmModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowLogoutConfirmModal(false)}
+      >
+        <View style={styles.modalBgCenter}>
+          <View style={styles.qualityCard}>
+            <Text style={styles.modalTitle}>Xác nhận đăng xuất</Text>
+            <Text style={styles.logoutConfirmText}>Bạn có chắc muốn đăng xuất khỏi Waifu Player?</Text>
+            <View style={styles.logoutActions}>
+              <TouchableOpacity style={styles.logoutCancelBtn} onPress={() => setShowLogoutConfirmModal(false)}>
+                <Text style={styles.logoutCancelText}>Hủy</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.logoutConfirmBtn} onPress={confirmLogout}>
+                <Text style={styles.logoutConfirmBtnText}>Xác nhận đăng xuất</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
 
 
       {/* Audio Quality Modal */}
@@ -1672,7 +1680,42 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 16,
-    paddingBottom: 110,
+    paddingBottom: 130,
+  },
+  logoutConfirmText: {
+    color: Colors.dark.textMuted,
+    fontSize: 14,
+    lineHeight: 20,
+    marginTop: 8,
+  },
+  logoutActions: {
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 20,
+  },
+  logoutCancelBtn: {
+    flex: 1,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: Colors.dark.border,
+    borderRadius: 10,
+    paddingVertical: 12,
+  },
+  logoutCancelText: {
+    color: Colors.dark.textMuted,
+    fontWeight: "700",
+  },
+  logoutConfirmBtn: {
+    flex: 1.6,
+    alignItems: "center",
+    backgroundColor: Colors.dark.secondary,
+    borderRadius: 10,
+    paddingVertical: 12,
+  },
+  logoutConfirmBtnText: {
+    color: "#fff",
+    fontWeight: "700",
+    fontSize: 12,
   },
   header: {
     paddingVertical: 12,

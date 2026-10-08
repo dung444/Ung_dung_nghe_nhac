@@ -8,10 +8,22 @@ const app = createApp();
 describe("Creator Studio Endpoints", () => {
   let creatorToken: string;
   let creatorUserId: string;
+  let viewerToken: string;
+  let viewerUserId: string;
   let createdSongId: string;
+  let createdSongWithInvalidGenreId: string;
   let createdAlbumId: string;
+  let creditedArtistId: string;
 
   beforeAll(async () => {
+    const viewerRes = await request(app).post("/api/v1/auth/register").send({
+      email: "creator_viewer@waifu.test",
+      username: "creator_viewer",
+      password: "Password123!",
+    });
+    viewerUserId = viewerRes.body.data.user.id;
+    viewerToken = viewerRes.body.data.accessToken;
+
     // 1. Create creator user
     const creatorUser = {
       email: "creator_test@waifu.test",
@@ -22,6 +34,11 @@ describe("Creator Studio Endpoints", () => {
     const regRes = await request(app).post("/api/v1/auth/register").send(creatorUser);
     creatorUserId = regRes.body.data.user.id;
     creatorToken = regRes.body.data.accessToken;
+
+    const creditedArtist = await prisma.artist.create({
+      data: { name: "Credited Artist For Creator Test" },
+    });
+    creditedArtistId = creditedArtist.id;
   });
 
   afterAll(async () => {
@@ -30,11 +47,18 @@ describe("Creator Studio Endpoints", () => {
       await prisma.songArtist.deleteMany({ where: { songId: createdSongId } });
       await prisma.song.deleteMany({ where: { id: createdSongId } });
     }
+    if (createdSongWithInvalidGenreId) {
+      await prisma.songCopyright.deleteMany({ where: { songId: createdSongWithInvalidGenreId } });
+      await prisma.songArtist.deleteMany({ where: { songId: createdSongWithInvalidGenreId } });
+      await prisma.song.deleteMany({ where: { id: createdSongWithInvalidGenreId } });
+    }
     if (createdAlbumId) {
       await prisma.album.deleteMany({ where: { id: createdAlbumId } });
     }
+    await prisma.artist.deleteMany({ where: { id: creditedArtistId } });
     await prisma.artist.deleteMany({ where: { userId: creatorUserId } });
     await prisma.user.deleteMany({ where: { id: creatorUserId } });
+    await prisma.user.deleteMany({ where: { id: viewerUserId } });
     await prisma.$disconnect();
   });
 
@@ -75,6 +99,8 @@ describe("Creator Studio Endpoints", () => {
         duration: 215,
         fileUrl: "/uploads/audio/sunset_akiba.mp3",
         coverUrl: "https://images.unsplash.com/photo-1578632767115-351597cf2477?w=400&q=80",
+        artistIds: [creditedArtistId],
+        copyrightOwnerName: "Test Rights Holder Co.",
         licenseType: "CREATIVE_COMMONS",
         commercialUse: true,
         allowRemix: true,
@@ -83,7 +109,43 @@ describe("Creator Studio Endpoints", () => {
     expect(res.status).toBe(201);
     expect(res.body.success).toBe(true);
     expect(res.body.data.title).toBe("Sunset over Akihabara");
+    expect(res.body.data.artists).toEqual([
+      expect.objectContaining({ id: creditedArtistId, name: "Credited Artist For Creator Test" }),
+    ]);
     createdSongId = res.body.data.id;
+
+    const copyright = await prisma.songCopyright.findUnique({ where: { songId: createdSongId } });
+    expect(copyright?.registeredById).toBe(creatorUserId);
+    expect(copyright?.ownerName).toBe("Test Rights Holder Co.");
+  });
+
+  it("should not create a creator profile or upgrade role when merely opening the studio", async () => {
+    const res = await request(app)
+      .get("/api/v1/creator/studio")
+      .set("Authorization", `Bearer ${viewerToken}`);
+
+    expect(res.status).toBe(403);
+    const viewer = await prisma.user.findUnique({ where: { id: viewerUserId }, select: { role: true } });
+    const artistProfile = await prisma.artist.findFirst({ where: { userId: viewerUserId } });
+    expect(viewer?.role).toBe("USER");
+    expect(artistProfile).toBeNull();
+  });
+
+  it("should ignore unknown genre IDs instead of failing song publication", async () => {
+    const res = await request(app)
+      .post("/api/v1/creator/songs")
+      .set("Authorization", `Bearer ${creatorToken}`)
+      .send({
+        title: "Song without a valid genre",
+        duration: 180,
+        fileUrl: "/uploads/audio/unknown-genre.mp3",
+        genreIds: ["genre-that-does-not-exist"],
+      });
+
+    expect(res.status).toBe(201);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.genres).toEqual([]);
+    createdSongWithInvalidGenreId = res.body.data.id;
   });
 
   it("should list creator's own published songs", async () => {

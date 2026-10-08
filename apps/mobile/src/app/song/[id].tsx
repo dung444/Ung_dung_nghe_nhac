@@ -181,7 +181,7 @@ export default function SongDetailScreen() {
         .then((res) => {
           if (res.data?.success && Array.isArray(res.data.data)) {
             const isSongLiked = res.data.data.some(
-              (item: any) => item.songId === currentSong.id || item.song?.id === currentSong.id
+              (item: any) => item.id === currentSong.id || item.songId === currentSong.id || item.song?.id === currentSong.id
             );
             setIsLiked(isSongLiked);
             setCurrentSong({ ...currentSong, isLiked: isSongLiked });
@@ -245,12 +245,12 @@ export default function SongDetailScreen() {
         const actualLiked = res.data.data.liked;
         setIsLiked(actualLiked);
         setCurrentSong({ ...currentSong, isLiked: actualLiked });
-      }
-      const { useToastStore } = require("../../store/toastStore");
-      if (newLiked) {
-        useToastStore.getState().showSuccess("Yêu thích 💖", `Đã thêm "${currentSong.title}" vào danh sách yêu thích.`);
-      } else {
-        useToastStore.getState().showInfo("Bỏ thích", `Đã xóa "${currentSong.title}" khỏi danh sách yêu thích.`);
+        const { useToastStore } = require("../../store/toastStore");
+        if (actualLiked) {
+          useToastStore.getState().showSuccess("Yêu thích 💖", `Đã thêm "${currentSong.title}" vào danh sách yêu thích.`);
+        } else {
+          useToastStore.getState().showInfo("Đã hủy thích 💔", `Đã gỡ "${currentSong.title}" khỏi danh sách yêu thích.`);
+        }
       }
     } catch (err: any) {
       setIsLiked(!newLiked);

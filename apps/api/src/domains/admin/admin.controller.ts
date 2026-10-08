@@ -3,6 +3,7 @@ import * as service from "./admin.service";
 import {
   UpdateUserAdminSchema,
   CreateArtistSchema,
+  CreateGenreSchema,
   CreateAlbumSchema,
 } from "./admin.types";
 
@@ -81,6 +82,20 @@ export async function createArtist(
     const parsed = CreateArtistSchema.parse(req.body);
     const artist = await service.createArtist(parsed);
     res.status(201).json({ success: true, data: artist });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export async function createGenre(
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> {
+  try {
+    const parsed = CreateGenreSchema.parse(req.body);
+    const genre = await service.createGenre(parsed);
+    res.status(201).json({ success: true, data: genre });
   } catch (error) {
     next(error);
   }

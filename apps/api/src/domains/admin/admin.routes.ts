@@ -12,4 +12,5 @@ adminRouter.get("/users", ctrl.getUsersList);
 adminRouter.patch("/users/:id", ctrl.updateUser);
 adminRouter.delete("/users/:id", ctrl.deleteUser);
 adminRouter.post("/artists", ctrl.createArtist);
+adminRouter.post("/genres", ctrl.createGenre);
 adminRouter.post("/albums", ctrl.createAlbum);

@@ -45,12 +45,26 @@ export async function getOrCreateCreatorProfile(userId: string, data?: { name?: 
   };
 }
 
-export async function getCreatorStudio(userId: string): Promise<CreatorStudioStats> {
-  const artist = await getOrCreateCreatorProfile(userId);
+/** Creator-only actions must not upgrade a user merely for opening a screen. */
+async function requireCreatorProfile(userId: string) {
+  const artist = await prisma.artist.findFirst({
+    where: { userId },
+    include: { _count: { select: { followers: true, songs: true, albums: true } } },
+  });
+  if (!artist) {
+    throw new AppError("Bạn cần đăng ký hồ sơ Nhà sáng tạo trước khi sử dụng Creator Studio.", 403);
+  }
+  return {
+    ...artist,
+    followerCount: artist._count.followers,
+    songCount: artist._count.songs,
+    albumCount: artist._count.albums,
+  };
+}
 
-  // Fetch all songs of this creator's artist
-  const songArtistRows = await prisma.songArtist.findMany({
-    where: { artistId: artist.id },
+async function getSongsPublishedBy(userId: string): Promise<Song[]> {
+  const rows = await prisma.songCopyright.findMany({
+    where: { registeredById: userId },
     include: {
       song: {
         include: {
@@ -61,11 +75,11 @@ export async function getCreatorStudio(userId: string): Promise<CreatorStudioSta
         },
       },
     },
-    orderBy: { song: { createdAt: "desc" } },
+    orderBy: { createdAt: "desc" },
   });
 
-  const songs = songArtistRows.map((r) => {
-    const s = r.song;
+  return rows.map((row) => {
+    const s = row.song;
     return {
       ...s,
       artists: s.artists.map((a: any) => a.artist),
@@ -75,6 +89,11 @@ export async function getCreatorStudio(userId: string): Promise<CreatorStudioSta
       updatedAt: s.updatedAt.toISOString(),
     } as unknown as Song;
   });
+}
+
+export async function getCreatorStudio(userId: string): Promise<CreatorStudioStats> {
+  const artist = await requireCreatorProfile(userId);
+  const songs = await getSongsPublishedBy(userId);
 
   const totalPlays = songs.reduce((sum, s) => sum + (s.plays || 0), 0);
   const estimatedEarnings = Math.round(totalPlays * 25); // 25 VND / play
@@ -130,33 +149,8 @@ export async function getCreatorStudio(userId: string): Promise<CreatorStudioSta
 }
 
 export async function getCreatorSongs(userId: string): Promise<Song[]> {
-  const artist = await getOrCreateCreatorProfile(userId);
-  const rows = await prisma.songArtist.findMany({
-    where: { artistId: artist.id },
-    include: {
-      song: {
-        include: {
-          album: { select: { id: true, title: true, coverUrl: true } },
-          artists: { select: { artist: { select: { id: true, name: true, avatarUrl: true } } } },
-          genres: { select: { genre: { select: { id: true, name: true, slug: true } } } },
-          copyright: true,
-        },
-      },
-    },
-    orderBy: { song: { createdAt: "desc" } },
-  });
-
-  return rows.map((r) => {
-    const s = r.song;
-    return {
-      ...s,
-      artists: s.artists.map((a: any) => a.artist),
-      genres: s.genres.map((g: any) => g.genre),
-      releaseDate: s.releaseDate ? s.releaseDate.toISOString() : null,
-      createdAt: s.createdAt.toISOString(),
-      updatedAt: s.updatedAt.toISOString(),
-    } as unknown as Song;
-  });
+  await requireCreatorProfile(userId);
+  return getSongsPublishedBy(userId);
 }
 
 export async function createCreatorSong(
@@ -168,6 +162,8 @@ export async function createCreatorSong(
     coverUrl?: string;
     albumId?: string;
     genreIds?: string[];
+    artistIds?: string[];
+    copyrightOwnerName?: string;
     isPublic?: boolean;
     isrc?: string;
     licenseType?: "ALL_RIGHTS_RESERVED" | "CREATIVE_COMMONS" | "ROYALTY_FREE" | "PUBLIC_DOMAIN" | "CUSTOM_LICENSE";
@@ -176,7 +172,7 @@ export async function createCreatorSong(
     agreedToTerms?: boolean;
   }
 ) {
-  const artist = await getOrCreateCreatorProfile(userId);
+  const artist = await requireCreatorProfile(userId);
 
   if (!data.title?.trim()) {
     throw new AppError("Song title is required", 400);
@@ -185,6 +181,21 @@ export async function createCreatorSong(
   if (data.agreedToTerms === false) {
     throw new AppError("Bạn phải đọc và đồng ý với điều khoản cam kết bản quyền trước khi xuất bản nhạc.", 400);
   }
+
+  let validGenreIds: string[] = [];
+  if (Array.isArray(data.genreIds) && data.genreIds.length > 0) {
+    const existingGenres = await prisma.genre.findMany({
+      where: { id: { in: data.genreIds } },
+      select: { id: true },
+    });
+    validGenreIds = existingGenres.map((genre) => genre.id);
+  }
+
+  const selectedArtistIds = Array.isArray(data.artistIds) ? data.artistIds : [];
+  const selectedArtists = selectedArtistIds.length > 0
+    ? await prisma.artist.findMany({ where: { id: { in: selectedArtistIds } }, select: { id: true } })
+    : [];
+  const creditedArtistIds = selectedArtists.length > 0 ? selectedArtists.map((selected) => selected.id) : [artist.id];
 
   const song = await prisma.song.create({
     data: {
@@ -195,10 +206,10 @@ export async function createCreatorSong(
       albumId: data.albumId || null,
       isPublic: data.isPublic ?? true,
       artists: {
-        create: [{ artistId: artist.id }],
+        create: creditedArtistIds.map((artistId) => ({ artistId })),
       },
       genres: {
-        create: (data.genreIds ?? []).map((genreId) => ({ genreId })),
+        create: validGenreIds.map((genreId) => ({ genreId })),
       },
     },
     include: {
@@ -214,7 +225,7 @@ export async function createCreatorSong(
     data: {
       songId: song.id,
       isrc: isrcCode,
-      ownerName: artist.name,
+      ownerName: data.copyrightOwnerName?.trim() || artist.name,
       licenseType: data.licenseType || "ALL_RIGHTS_RESERVED",
       status: "ACTIVE",
       commercialUse: data.commercialUse ?? true,
@@ -234,13 +245,14 @@ export async function createCreatorSong(
 }
 
 export async function deleteCreatorSong(userId: string, songId: string) {
-  const artist = await getOrCreateCreatorProfile(userId);
+  const artist = await requireCreatorProfile(userId);
+  const copyright = await prisma.songCopyright.findUnique({ where: { songId }, select: { registeredById: true } });
   const songArtist = await prisma.songArtist.findUnique({
     where: { songId_artistId: { songId, artistId: artist.id } },
   });
 
   const user = await prisma.user.findUnique({ where: { id: userId } });
-  if (!songArtist && user?.role !== "ADMIN") {
+  if (copyright?.registeredById !== userId && !songArtist && user?.role !== "ADMIN") {
     throw new AppError("Forbidden: You do not own this song", 403);
   }
 
@@ -263,7 +275,7 @@ export async function createCreatorAlbum(
   userId: string,
   data: { title: string; coverUrl?: string; releaseDate?: string }
 ) {
-  const artist = await getOrCreateCreatorProfile(userId);
+  const artist = await requireCreatorProfile(userId);
   if (!data.title?.trim()) {
     throw new AppError("Album title is required", 400);
   }
@@ -321,7 +333,7 @@ export async function requestPayout(
   const user = await prisma.user.findUnique({ where: { id: userId } });
   if (!user) throw new AppError("User not found", 404);
 
-  const artist = await getOrCreateCreatorProfile(userId);
+  const artist = await requireCreatorProfile(userId);
   const studio = await getCreatorStudio(userId);
 
   const amount = Number(data.amount);

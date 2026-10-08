@@ -66,6 +66,20 @@ pnpm dev
 - Backend API: http://localhost:3000
 - Frontend Web: http://localhost:8081
 
+### Ghi chú media cục bộ
+
+Ảnh bìa tải lên được API lưu dưới dạng đường dẫn `/uploads/covers/...`. Ứng dụng di động tự chuyển các đường dẫn này thành URL của Backend API trước khi hiển thị, để Web không nhầm chúng với đường dẫn trên Frontend (cổng 8081).
+
+### Ghi công và bản quyền khi Creator phát hành
+
+Khi đăng bài, Creator có thể chọn **nghệ sĩ thể hiện** khác với tài khoản đăng bài và khai báo **chủ sở hữu bản quyền**. Hệ thống lưu tài khoản phát hành trong `SongCopyright.registeredById`; quyền quản lý bài trong Creator Studio dựa trên thông tin này, không dựa vào nghệ sĩ được ghi công.
+
+Việc chỉ mở Creator Studio không thay đổi role; người dùng chỉ trở thành `ARTIST` sau khi chủ động xác nhận tạo hồ sơ Creator.
+
+### Danh mục thể loại
+
+Tài khoản `ADMIN` có thể thêm thể loại trong **Bảng điều khiển → Nghệ sĩ & Album → Quản lý thể loại**. Khi phát hành, Creator có thể tìm và chọn nhiều thể loại cho cùng một bài hát; danh mục không bị giới hạn bốn thể loại.
+
 ## 🛡️ Hệ Thống Quản Lý Bản Quyền Âm Nhạc (Music Copyright & Licensing)
 
 Waifu Player tích hợp giải pháp quản trị bản quyền âm nhạc số toàn diện tuân thủ tiêu chuẩn quốc tế và chính sách DMCA:

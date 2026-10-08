@@ -4,6 +4,7 @@ const songSel = {
   id: true,
   title: true,
   duration: true,
+  fileUrl: true,
   coverUrl: true,
   plays: true,
   artists: { select: { artist: { select: { id: true, name: true } } } },

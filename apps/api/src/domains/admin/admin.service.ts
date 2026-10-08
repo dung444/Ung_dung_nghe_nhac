@@ -304,13 +304,47 @@ export async function deleteUser(userId: string, currentAdminId: string) {
 }
 
 export async function createArtist(data: { name: string; bio?: string }) {
+  const name = data.name.trim().replace(/\s+/g, " ");
+  const existing = await prisma.artist.findFirst({
+    where: { name },
+    select: { id: true },
+  });
+  if (existing) {
+    throw new AppError(`Nghệ sĩ "${name}" đã tồn tại`, 409);
+  }
+
   const artist = await prisma.artist.create({
     data: {
-      name: data.name.trim(),
+      name,
       bio: data.bio?.trim() || null,
     },
   });
   return artist;
+}
+
+export async function createGenre(data: { name: string }) {
+  const name = data.name.trim().replace(/\s+/g, " ");
+  const slug = name
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/đ/gi, "d")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+
+  if (!slug) {
+    throw new AppError("Tên thể loại phải chứa chữ cái hoặc chữ số", 400);
+  }
+
+  const existing = await prisma.genre.findFirst({
+    where: { OR: [{ name }, { slug }] },
+    select: { id: true },
+  });
+  if (existing) {
+    throw new AppError(`Thể loại "${name}" đã tồn tại`, 409);
+  }
+
+  return prisma.genre.create({ data: { name, slug } });
 }
 
 export async function createAlbum(data: {

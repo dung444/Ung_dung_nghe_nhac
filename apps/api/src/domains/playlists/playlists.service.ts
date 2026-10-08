@@ -3,7 +3,7 @@ import { AppError } from "../../middleware/error.middleware";
 
 const songInPlaylist = {
   position: true, addedAt: true,
-  song: { select: { id: true, title: true, duration: true, coverUrl: true, plays: true,
+  song: { select: { id: true, title: true, duration: true, fileUrl: true, coverUrl: true, plays: true,
     artists: { select: { artist: { select: { id: true, name: true } } } } } },
 };
 

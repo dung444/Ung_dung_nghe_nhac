@@ -8,6 +8,7 @@ const app = createApp();
 describe("Artists Endpoints", () => {
   let userToken: string;
   let artistId: string;
+  let songId: string;
 
   beforeAll(async () => {
     // Create test user
@@ -25,9 +26,20 @@ describe("Artists Endpoints", () => {
       },
     });
     artistId = artist.id;
+
+    const song = await prisma.song.create({
+      data: {
+        title: "Artist Endpoint Playback Test",
+        duration: 180,
+        fileUrl: "/uploads/audio/artist-endpoint-playback-test.mp3",
+        artists: { create: { artistId } },
+      },
+    });
+    songId = song.id;
   });
 
   afterAll(async () => {
+    await prisma.song.deleteMany({ where: { id: songId } });
     await prisma.userFollowArtist.deleteMany({ where: { artistId } });
     await prisma.artist.deleteMany({ where: { id: artistId } });
     await prisma.user.deleteMany({ where: { email: "artisttest@waifu.test" } });
@@ -47,6 +59,18 @@ describe("Artists Endpoints", () => {
     expect(res.body.success).toBe(true);
     expect(res.body.data.id).toBe(artistId);
     expect(res.body.data.name).toBe("Test Waifu Artist");
+  });
+
+  it("should include a playable fileUrl in artist songs", async () => {
+    const res = await request(app).get(`/api/v1/artists/${artistId}/songs`);
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: songId, fileUrl: "/uploads/audio/artist-endpoint-playback-test.mp3" }),
+      ])
+    );
   });
 
   it("should toggle follow artist", async () => {

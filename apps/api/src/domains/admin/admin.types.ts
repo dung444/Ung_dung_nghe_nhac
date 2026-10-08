@@ -89,6 +89,12 @@ export const CreateArtistSchema = z.object({
 
 export type CreateArtistInput = z.infer<typeof CreateArtistSchema>;
 
+export const CreateGenreSchema = z.object({
+  name: z.string().trim().min(1, "Tên thể loại không được để trống").max(80),
+});
+
+export type CreateGenreInput = z.infer<typeof CreateGenreSchema>;
+
 export const CreateAlbumSchema = z.object({
   title: z.string().min(1, "Tên album không được để trống").max(200),
   artistId: z.string().uuid("ID nghệ sĩ không hợp lệ"),

@@ -40,7 +40,7 @@ export async function getArtistSongs(artistId: string) {
     where: { artistId },
     include: {
       song: {
-        select: { id: true, title: true, duration: true, coverUrl: true, plays: true,
+        select: { id: true, title: true, duration: true, fileUrl: true, coverUrl: true, plays: true,
           artists: { select: { artist: { select: { id: true, name: true } } } } },
       },
     },

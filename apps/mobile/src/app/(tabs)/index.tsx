@@ -13,7 +13,7 @@ import { useRouter } from "expo-router";
 import { Colors } from "../../constants/colors";
 import { usePlayerStore } from "../../store/playerStore";
 import { api } from "../../services/api";
-import type { Song } from "@waifu-player/types";
+import type { Artist, Song } from "@waifu-player/types";
 import { formatDuration } from "@waifu-player/utils";
 import { GoldCoin } from "../../components/ui/GoldCoin";
 
@@ -95,14 +95,6 @@ const SAMPLE_ANIME_SONGS: Song[] = [
   },
 ];
 
-const FEATURED_ARTISTS = [
-  { id: "art1", name: "Hatsune Miku", role: "Vocaloid Queen", avatar: "https://images.unsplash.com/photo-1578632767115-351597cf2477?w=200&q=80" },
-  { id: "art2", name: "LiSA", role: "Anisong Diva", avatar: "https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?w=200&q=80" },
-  { id: "art3", name: "YOASOBI", role: "J-Pop Duo", avatar: "https://images.unsplash.com/photo-1534447677768-be436bb09401?w=200&q=80" },
-  { id: "art4", name: "Ado", role: "Utaite Legend", avatar: "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=200&q=80" },
-  { id: "art5", name: "Aimer", role: "Mystic Vocals", avatar: "https://images.unsplash.com/photo-1563089145-599997674d42?w=200&q=80" },
-];
-
 import { useAuthStore } from "../../store/authStore";
 import { useToastStore } from "../../store/toastStore";
 import { NotificationModal } from "../../components/ui/NotificationModal";
@@ -128,6 +120,7 @@ export default function HomeScreen() {
   const router = useRouter();
   const [activeCategory, setActiveCategory] = useState("Tất cả");
   const [songs, setSongs] = useState<Song[]>(SAMPLE_ANIME_SONGS);
+  const [featuredArtists, setFeaturedArtists] = useState<Artist[]>([]);
   const [showNotificationModal, setShowNotificationModal] = useState(false);
   const { history } = useToastStore();
   const unreadCount = history.filter((h) => !h.read).length;
@@ -191,6 +184,15 @@ export default function HomeScreen() {
       .catch(() => {
         // Fallback to rich sample data
       });
+
+    api
+      .get(ENDPOINTS.artists)
+      .then((res) => {
+        if (res.data?.success && Array.isArray(res.data?.data)) {
+          setFeaturedArtists(res.data.data);
+        }
+      })
+      .catch(() => {});
 
     loadGiftLeaderboardData();
   }, []);
@@ -502,7 +504,7 @@ export default function HomeScreen() {
         </View>
 
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.artistsScroll}>
-          {FEATURED_ARTISTS.map((artist) => (
+           {featuredArtists.map((artist) => (
             <TouchableOpacity
               key={artist.id}
               style={styles.artistItem}
@@ -510,7 +512,7 @@ export default function HomeScreen() {
               activeOpacity={0.8}
             >
               <View style={styles.artistAvatarWrapper}>
-                <Image source={{ uri: artist.avatar }} style={styles.artistAvatar} />
+                <Image source={{ uri: artist.avatarUrl || undefined }} style={styles.artistAvatar} />
                 <View style={styles.verifiedBadge}>
                   <Ionicons name="checkmark-circle" size={14} color={Colors.dark.accent} />
                 </View>
@@ -519,7 +521,7 @@ export default function HomeScreen() {
                 {artist.name}
               </Text>
               <Text style={styles.artistRole} numberOfLines={1}>
-                {artist.role}
+                {artist.bio || "Nghệ sĩ Waifu"}
               </Text>
             </TouchableOpacity>
           ))}

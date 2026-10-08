@@ -1,6 +1,6 @@
 import { prisma } from "../../config/database";
 
-const songSel = { id: true, title: true, duration: true, coverUrl: true, plays: true,
+const songSel = { id: true, title: true, duration: true, fileUrl: true, coverUrl: true, plays: true,
   artists: { select: { artist: { select: { id: true, name: true } } } } };
 
 export async function search(q: string, types: string[]) {

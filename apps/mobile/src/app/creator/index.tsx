@@ -19,15 +19,7 @@ import { useAuthStore } from "../../store/authStore";
 import { api } from "../../services/api";
 import { API_BASE_URL } from "../../constants/api";
 import { formatDuration } from "@waifu-player/utils";
-import type { CreatorStudioStats, Song } from "@waifu-player/types";
-
-const GENRES = [
-  { id: "g1", name: "Vocaloid" },
-  { id: "g2", name: "Anisong" },
-  { id: "g3", name: "J-Pop" },
-  { id: "g4", name: "Lo-fi Anime" },
-  { id: "g5", name: "J-Rock" },
-];
+import type { Artist, CreatorStudioStats, Genre, Song } from "@waifu-player/types";
 
 const LICENSE_TYPES = [
   { id: "ALL_RIGHTS_RESERVED", name: "Bảo lưu mọi quyền (All Rights Reserved)" },
@@ -54,7 +46,13 @@ export default function CreatorStudioScreen() {
   const [audioUrl, setAudioUrl] = useState("");
   const [coverUrl, setCoverUrl] = useState("");
   const [duration, setDuration] = useState("210");
-  const [selectedGenreId, setSelectedGenreId] = useState("g1");
+  const [genresList, setGenresList] = useState<Genre[]>([]);
+  const [selectedGenreIds, setSelectedGenreIds] = useState<string[]>([]);
+  const [genreSearch, setGenreSearch] = useState("");
+  const [artistsList, setArtistsList] = useState<Artist[]>([]);
+  const [selectedArtistId, setSelectedArtistId] = useState<string | null>(null);
+  const [artistSearch, setArtistSearch] = useState("");
+  const [copyrightOwnerName, setCopyrightOwnerName] = useState("");
   const [licenseType, setLicenseType] = useState("ALL_RIGHTS_RESERVED");
   const [isrcCode, setIsrcCode] = useState("");
   const [commercialUse, setCommercialUse] = useState(true);
@@ -209,20 +207,24 @@ export default function CreatorStudioScreen() {
   const fetchStudioData = async () => {
     setLoading(true);
     try {
-      const [studioRes, songsRes] = await Promise.all([
-        api.get("/api/v1/creator/studio").catch(() => null),
-        api.get("/api/v1/creator/songs").catch(() => null),
-      ]);
+      const studioRes = await api.get("/api/v1/creator/studio");
+      let songsRes: any = null;
 
       if (studioRes?.data?.success) {
         setStudioStats(studioRes.data.data);
+        songsRes = await api.get("/api/v1/creator/songs").catch(() => null);
+        setSelectedArtistId((current) => current ?? studioRes.data.data.artist?.id ?? null);
+        setCopyrightOwnerName((current) => current || studioRes.data.data.artist?.name || "");
       }
       if (songsRes?.data?.success && Array.isArray(songsRes.data.data)) {
         setSongs(songsRes.data.data);
       }
       await fetchPayoutHistory();
-    } catch {
-      // Fallback
+    } catch (err: any) {
+      if (err.response?.status === 403) {
+        setStudioStats(null);
+        setSongs([]);
+      }
     } finally {
       setLoading(false);
     }
@@ -300,6 +302,25 @@ export default function CreatorStudioScreen() {
     }
   }, [isAuthenticated]);
 
+  useEffect(() => {
+    Promise.all([api.get("/api/v1/genres"), api.get("/api/v1/artists?limit=100")])
+      .then(([genresRes, artistsRes]) => {
+        if (genresRes.data?.success && Array.isArray(genresRes.data?.data)) {
+          setGenresList(genresRes.data.data);
+        }
+        if (artistsRes.data?.success && Array.isArray(artistsRes.data?.data)) {
+          setArtistsList(artistsRes.data.data);
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const toggleGenre = (genreId: string) => {
+    setSelectedGenreIds((current) =>
+      current.includes(genreId) ? current.filter((id) => id !== genreId) : [...current, genreId]
+    );
+  };
+
   const handleRegisterCreator = async () => {
     if (!artistName.trim()) {
       Alert.alert("Lỗi", "Vui lòng nhập nghệ danh của bạn");
@@ -348,7 +369,9 @@ export default function CreatorStudioScreen() {
         duration: Number(duration) || 180,
         fileUrl: audioUrl.trim() || "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3",
         coverUrl: coverUrl.trim() || "https://images.unsplash.com/photo-1578632767115-351597cf2477?w=400&q=80",
-        genreIds: [selectedGenreId],
+        genreIds: selectedGenreIds,
+        artistIds: selectedArtistId ? [selectedArtistId] : [],
+        copyrightOwnerName: copyrightOwnerName.trim() || undefined,
         licenseType,
         isrc: isrcCode.trim() || undefined,
         commercialUse,
@@ -370,6 +393,9 @@ export default function CreatorStudioScreen() {
         setSongTitle("");
         setAudioUrl("");
         setCoverUrl("");
+        setSelectedGenreIds([]);
+        setGenreSearch("");
+        setCopyrightOwnerName(studioStats?.artist?.name || "");
         setAgreedToTerms(false);
         fetchStudioData();
       }
@@ -439,7 +465,7 @@ export default function CreatorStudioScreen() {
         </View>
         <TouchableOpacity
           style={styles.publishIconBtn}
-          onPress={() => setShowPublishModal(true)}
+          onPress={() => (studioStats ? setShowPublishModal(true) : setShowRegisterModal(true))}
           activeOpacity={0.85}
         >
           <Ionicons name="cloud-upload" size={20} color="#fff" />
@@ -451,6 +477,17 @@ export default function CreatorStudioScreen() {
           <View style={styles.loadingBox}>
             <ActivityIndicator size="large" color={Colors.dark.primary} />
             <Text style={styles.loadingText}>Đang tải phòng sáng tạo...</Text>
+          </View>
+        ) : !studioStats ? (
+          <View style={styles.emptyCard}>
+            <Ionicons name="mic-outline" size={48} color={Colors.dark.primary} />
+            <Text style={styles.emptyTitle}>Đăng ký trở thành Nhà sáng tạo</Text>
+            <Text style={styles.emptySub}>
+              Việc mở trang này không thay đổi role. Hãy tạo và xác nhận hồ sơ trước khi phát hành bài hát.
+            </Text>
+            <TouchableOpacity style={styles.emptyPublishBtn} onPress={() => setShowRegisterModal(true)} activeOpacity={0.85}>
+              <Text style={styles.emptyPublishText}>Tạo hồ sơ Creator</Text>
+            </TouchableOpacity>
           </View>
         ) : (
           <>
@@ -723,6 +760,36 @@ export default function CreatorStudioScreen() {
                 />
               </View>
 
+              <View style={styles.formGroup}>
+                <Text style={styles.formLabel}>Nghệ sĩ hiển thị trên bài hát *</Text>
+                <Text style={styles.formHint}>
+                  Đây là nghệ sĩ được ghi công công khai. Bạn là người đăng, không tự động là nghệ sĩ của bài.
+                </Text>
+                <TextInput
+                  style={styles.formInput}
+                  placeholder="Tìm nghệ sĩ để ghi công..."
+                  placeholderTextColor={Colors.dark.textMuted}
+                  value={artistSearch}
+                  onChangeText={setArtistSearch}
+                />
+                <ScrollView style={styles.artistPickerList} nestedScrollEnabled keyboardShouldPersistTaps="handled">
+                  {artistsList
+                    .filter((artist) => artist.name.toLowerCase().includes(artistSearch.trim().toLowerCase()))
+                    .slice(0, 20)
+                    .map((artist) => (
+                    <TouchableOpacity
+                      key={artist.id}
+                      style={[styles.artistPickerItem, selectedArtistId === artist.id && styles.artistPickerItemActive]}
+                      onPress={() => setSelectedArtistId(artist.id)}
+                    >
+                      <Text style={[styles.genreChipText, selectedArtistId === artist.id && { color: "#fff" }]}>
+                        {artist.name}{artist.id === studioStats?.artist?.id ? " (Bạn)" : ""}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
+              </View>
+
               {/* Audio Source Picker */}
               <View style={styles.formGroup}>
                 <View style={styles.fieldHeaderRow}>
@@ -830,19 +897,37 @@ export default function CreatorStudioScreen() {
               </View>
 
               <View style={styles.formGroup}>
-                <Text style={styles.formLabel}>Thể loại chính</Text>
-                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginVertical: 6 }}>
-                  {GENRES.map((g) => (
+                <Text style={styles.formLabel}>Thể loại ({selectedGenreIds.length} đã chọn)</Text>
+                <Text style={styles.formHint}>Bạn có thể chọn nhiều thể loại, không giới hạn số lượng.</Text>
+                <TextInput
+                  style={styles.formInput}
+                  placeholder="Tìm thể loại..."
+                  placeholderTextColor={Colors.dark.textMuted}
+                  value={genreSearch}
+                  onChangeText={setGenreSearch}
+                />
+                <ScrollView style={styles.artistPickerList} nestedScrollEnabled keyboardShouldPersistTaps="handled">
+                  {genresList
+                    .filter((genre) => genre.name.toLowerCase().includes(genreSearch.trim().toLowerCase()))
+                    .map((g) => (
                     <TouchableOpacity
                       key={g.id}
-                      style={[styles.genreChip, selectedGenreId === g.id && styles.genreChipActive]}
-                      onPress={() => setSelectedGenreId(g.id)}
+                      style={[styles.artistPickerItem, selectedGenreIds.includes(g.id) && styles.artistPickerItemActive]}
+                      onPress={() => toggleGenre(g.id)}
                     >
-                      <Text style={[styles.genreChipText, selectedGenreId === g.id && { color: "#fff" }]}>
+                      <Ionicons
+                        name={selectedGenreIds.includes(g.id) ? "checkbox" : "square-outline"}
+                        size={18}
+                        color={selectedGenreIds.includes(g.id) ? Colors.dark.primaryLight : Colors.dark.textMuted}
+                      />
+                      <Text style={[styles.genreChipText, { marginLeft: 8 }, selectedGenreIds.includes(g.id) && { color: "#fff" }]}>
                         {g.name}
                       </Text>
                     </TouchableOpacity>
                   ))}
+                  {genresList.length > 0 && genresList.filter((genre) => genre.name.toLowerCase().includes(genreSearch.trim().toLowerCase())).length === 0 ? (
+                    <Text style={styles.genreEmptyText}>Không tìm thấy thể loại phù hợp.</Text>
+                  ) : null}
                 </ScrollView>
               </View>
 
@@ -854,6 +939,17 @@ export default function CreatorStudioScreen() {
                   placeholderTextColor={Colors.dark.textMuted}
                   value={isrcCode}
                   onChangeText={setIsrcCode}
+                />
+              </View>
+
+              <View style={styles.formGroup}>
+                <Text style={styles.formLabel}>Chủ sở hữu bản quyền</Text>
+                <TextInput
+                  style={styles.formInput}
+                  placeholder="Cá nhân hoặc tổ chức nắm quyền khai thác"
+                  placeholderTextColor={Colors.dark.textMuted}
+                  value={copyrightOwnerName}
+                  onChangeText={setCopyrightOwnerName}
                 />
               </View>
 
@@ -1743,6 +1839,12 @@ const styles = StyleSheet.create({
     fontWeight: "600",
     marginBottom: 6,
   },
+  formHint: {
+    color: Colors.dark.textMuted,
+    fontSize: 11,
+    lineHeight: 16,
+    marginBottom: 4,
+  },
   formInput: {
     backgroundColor: Colors.dark.card,
     borderRadius: 10,
@@ -1764,6 +1866,30 @@ const styles = StyleSheet.create({
   genreChipActive: {
     backgroundColor: Colors.dark.primary,
     borderColor: Colors.dark.primary,
+  },
+  artistPickerList: {
+    maxHeight: 156,
+    marginTop: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: Colors.dark.border,
+    backgroundColor: Colors.dark.card,
+  },
+  artistPickerItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.dark.border,
+  },
+  artistPickerItemActive: {
+    backgroundColor: "rgba(233, 30, 140, 0.22)",
+  },
+  genreEmptyText: {
+    color: Colors.dark.textMuted,
+    fontSize: 12,
+    padding: 12,
   },
   genreChipText: {
     color: Colors.dark.textMuted,

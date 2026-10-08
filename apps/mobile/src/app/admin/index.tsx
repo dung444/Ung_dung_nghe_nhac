@@ -25,6 +25,7 @@ import type {
   Song,
   Artist,
   Album,
+  Genre,
   CopyrightClaim,
   Role,
   PaymentOrder,
@@ -47,6 +48,7 @@ export default function AdminPortalScreen() {
   const [claims, setClaims] = useState<CopyrightClaim[]>([]);
   const [artists, setArtists] = useState<Artist[]>([]);
   const [albums, setAlbums] = useState<Album[]>([]);
+  const [genres, setGenres] = useState<Genre[]>([]);
 
   // Bank & VietQR Configuration states
   const [adminBankId, setAdminBankId] = useState("MB");
@@ -121,6 +123,9 @@ export default function AdminPortalScreen() {
   const [showAddArtistModal, setShowAddArtistModal] = useState(false);
   const [newArtistName, setNewArtistName] = useState("");
   const [newArtistBio, setNewArtistBio] = useState("");
+
+  const [showAddGenreModal, setShowAddGenreModal] = useState(false);
+  const [newGenreName, setNewGenreName] = useState("");
 
   const [showAddAlbumModal, setShowAddAlbumModal] = useState(false);
   const [newAlbumTitle, setNewAlbumTitle] = useState("");
@@ -219,9 +224,20 @@ export default function AdminPortalScreen() {
 
   // Initial load
   useEffect(() => {
-    if (!isAuthenticated) return;
+    if (!isAuthenticated) {
+      router.replace("/(auth)/login" as any);
+      return;
+    }
+    if (!isAdmin) {
+      try {
+        const { useToastStore } = require("../../store/toastStore");
+        useToastStore.getState().showWarning("Không có quyền truy cập", "Khu vực quản trị chỉ dành cho tài khoản ADMIN.");
+      } catch {}
+      router.replace("/" as any);
+      return;
+    }
     loadDashboardData();
-  }, [isAuthenticated, activeTab]);
+  }, [isAuthenticated, isAdmin, activeTab]);
 
   const loadDashboardData = async () => {
     setLoading(true);
@@ -249,7 +265,7 @@ export default function AdminPortalScreen() {
       } else if (activeTab === "songs") {
         const [songsRes, artistsRes, albumsRes] = await Promise.all([
           api.get("/api/v1/songs"),
-          api.get("/api/v1/artists"),
+          api.get("/api/v1/artists?limit=100"),
           api.get("/api/v1/albums"),
         ]);
         if (songsRes.data?.success) setSongs(songsRes.data.data);
@@ -262,12 +278,14 @@ export default function AdminPortalScreen() {
         const res = await api.get("/api/v1/copyright/claims");
         if (res.data?.success) setClaims(res.data.data);
       } else if (activeTab === "artists_albums") {
-        const [artistsRes, albumsRes] = await Promise.all([
-          api.get("/api/v1/artists"),
+        const [artistsRes, albumsRes, genresRes] = await Promise.all([
+          api.get("/api/v1/artists?limit=100"),
           api.get("/api/v1/albums"),
+          api.get("/api/v1/genres"),
         ]);
         if (artistsRes.data?.success) setArtists(artistsRes.data.data);
         if (albumsRes.data?.success) setAlbums(albumsRes.data.data);
+        if (genresRes.data?.success) setGenres(genresRes.data.data);
       } else if (activeTab === "banking") {
         const [bankRes, txRes, payoutRes] = await Promise.all([
           api.get("/api/v1/payments/bank-config").catch(() => ({ data: null })),
@@ -318,6 +336,19 @@ export default function AdminPortalScreen() {
           recentUsers: [],
           recentSongs: [],
         });
+      }
+    } catch (err: any) {
+      if (err.response?.status === 403) {
+        try {
+          const { useToastStore } = require("../../store/toastStore");
+          useToastStore.getState().showWarning("Không có quyền truy cập", "Tài khoản hiện tại không có quyền quản trị.");
+        } catch {}
+        router.replace("/" as any);
+      } else {
+        try {
+          const { useToastStore } = require("../../store/toastStore");
+          useToastStore.getState().showError("Không tải được dữ liệu quản trị", "Vui lòng thử lại sau.");
+        } catch {}
       }
     } finally {
       setLoading(false);
@@ -553,6 +584,24 @@ export default function AdminPortalScreen() {
       }
     } catch (err: any) {
       Alert.alert("Lỗi", err.response?.data?.error || "Không thể tạo nghệ sĩ");
+    }
+  };
+
+  const handleCreateGenre = async () => {
+    if (!newGenreName.trim()) {
+      Alert.alert("Lỗi", "Vui lòng nhập tên thể loại");
+      return;
+    }
+    try {
+      const res = await api.post("/api/v1/admin/genres", { name: newGenreName.trim() });
+      if (res.data?.success) {
+        Alert.alert("Thành công", `Đã thêm thể loại "${newGenreName.trim()}"`);
+        setShowAddGenreModal(false);
+        setNewGenreName("");
+        loadDashboardData();
+      }
+    } catch (err: any) {
+      Alert.alert("Lỗi", err.response?.data?.error || "Không thể thêm thể loại");
     }
   };
 
@@ -1561,6 +1610,31 @@ export default function AdminPortalScreen() {
                   ))}
                 </View>
 
+                {/* Genres Section */}
+                <View style={[styles.sectionHeaderRow, { marginTop: 28 }]}>
+                  <View>
+                    <Text style={styles.sectionTitle}>Quản Lý Thể Loại ({genres.length})</Text>
+                    <Text style={styles.sectionSubtitle}>Creator có thể chọn nhiều thể loại cho mỗi bài hát.</Text>
+                  </View>
+                  <TouchableOpacity
+                    style={styles.primaryActionBtn}
+                    onPress={() => setShowAddGenreModal(true)}
+                  >
+                    <Ionicons name="add" size={18} color="#fff" />
+                    <Text style={styles.primaryActionBtnText}>Thêm Thể Loại</Text>
+                  </TouchableOpacity>
+                </View>
+
+                <View style={styles.artistsGrid}>
+                  {genres.map((genre) => (
+                    <View key={genre.id} style={styles.artistCard}>
+                      <Ionicons name="pricetag" size={28} color="#a855f7" />
+                      <Text style={styles.artistCardName} numberOfLines={1}>{genre.name}</Text>
+                      <Text style={styles.artistCardBio}>{genre.slug}</Text>
+                    </View>
+                  ))}
+                </View>
+
                 {/* Albums Section */}
                 <View style={[styles.sectionHeaderRow, { marginTop: 28 }]}>
                   <Text style={styles.sectionTitle}>Quản Lý Album ({albums.length})</Text>
@@ -2351,6 +2425,46 @@ export default function AdminPortalScreen() {
         </View>
       </Modal>
 
+      {/* ─── MODAL: ADD GENRE ──────────────────────────────────────────── */}
+      <Modal
+        visible={showAddGenreModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowAddGenreModal(false)}
+      >
+        <View style={styles.modalBgCenter}>
+          <View style={styles.modalCardCenter}>
+            <Text style={styles.modalDialogTitle}>Thêm Thể Loại Mới 🏷️</Text>
+            <Text style={styles.inputFieldLabel}>Tên thể loại *</Text>
+            <TextInput
+              style={styles.dialogInput}
+              placeholder="Ví dụ: Symphonic Rock, Indie Pop..."
+              placeholderTextColor={Colors.dark.textMuted}
+              value={newGenreName}
+              onChangeText={setNewGenreName}
+              autoCapitalize="words"
+            />
+            <Text style={styles.modalHint}>
+              Tên phải là duy nhất. Thể loại này sẽ xuất hiện ngay trong màn đăng nhạc của Creator.
+            </Text>
+            <View style={styles.modalDialogActions}>
+              <TouchableOpacity
+                style={styles.modalCancelBtn}
+                onPress={() => setShowAddGenreModal(false)}
+              >
+                <Text style={{ color: Colors.dark.textMuted }}>Hủy</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.modalConfirmBtn}
+                onPress={handleCreateGenre}
+              >
+                <Text style={{ color: "#fff", fontWeight: "700" }}>Thêm Thể Loại</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
       {/* ─── MODAL: ADD ALBUM ──────────────────────────────────────────── */}
       <Modal
         visible={showAddAlbumModal}
@@ -3005,6 +3119,11 @@ const styles = StyleSheet.create({
     color: "#fff",
     marginBottom: 16,
   },
+  sectionSubtitle: {
+    color: Colors.dark.textMuted,
+    fontSize: 11,
+    marginTop: -12,
+  },
   sectionHeaderRow: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -3360,6 +3479,13 @@ const styles = StyleSheet.create({
   modalDialogSub: {
     fontSize: 12,
     color: Colors.dark.textMuted,
+    marginBottom: 16,
+  },
+  modalHint: {
+    color: Colors.dark.textMuted,
+    fontSize: 12,
+    lineHeight: 18,
+    marginTop: -4,
     marginBottom: 16,
   },
   inputFieldLabel: {

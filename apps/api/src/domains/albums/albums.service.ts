@@ -23,7 +23,7 @@ export async function getAlbumById(id: string) {
     include: {
       artist: { select: { id: true, name: true, avatarUrl: true } },
       songs: {
-        select: { id: true, title: true, duration: true, coverUrl: true, plays: true,
+        select: { id: true, title: true, duration: true, fileUrl: true, coverUrl: true, plays: true,
           artists: { select: { artist: { select: { id: true, name: true } } } } },
         orderBy: { createdAt: "asc" },
       },

@@ -1,10 +1,26 @@
 import multer from "multer";
+import fs from "fs";
 import path from "path";
 import { env } from "../config/env";
 import { AppError } from "./error.middleware";
 
+const uploadPath = (...parts: string[]) => path.join(process.cwd(), env.UPLOAD_DIR, ...parts);
+
+const ensureDirExists = (dirPath: string) => {
+  if (!fs.existsSync(dirPath)) {
+    fs.mkdirSync(dirPath, { recursive: true });
+  }
+};
+
+ensureDirExists(uploadPath("audio"));
+ensureDirExists(uploadPath("covers"));
+
 const audioStorage = multer.diskStorage({
-  destination: (_req, _file, cb) => cb(null, path.join(env.UPLOAD_DIR, "audio")),
+  destination: (_req, _file, cb) => {
+    const destination = uploadPath("audio");
+    ensureDirExists(destination);
+    cb(null, destination);
+  },
   filename: (_req, file, cb) => {
     const unique = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
     cb(null, `${unique}${path.extname(file.originalname)}`);
@@ -12,7 +28,11 @@ const audioStorage = multer.diskStorage({
 });
 
 const coverStorage = multer.diskStorage({
-  destination: (_req, _file, cb) => cb(null, path.join(env.UPLOAD_DIR, "covers")),
+  destination: (_req, _file, cb) => {
+    const destination = uploadPath("covers");
+    ensureDirExists(destination);
+    cb(null, destination);
+  },
   filename: (_req, file, cb) => {
     const unique = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
     cb(null, `${unique}${path.extname(file.originalname)}`);

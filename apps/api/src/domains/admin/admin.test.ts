@@ -12,8 +12,12 @@ describe("Admin Management Endpoints", () => {
   let normalUserId: string;
   let testArtistId: string;
   let testAlbumId: string;
+  let testGenreId: string;
 
   beforeAll(async () => {
+    await prisma.artist.deleteMany({ where: { name: "Admin Created Artist Test" } });
+    await prisma.genre.deleteMany({ where: { name: "Admin Created Genre Test" } });
+
     // 1. Create admin user
     const adminData = {
       email: "admintest@waifu.moe",
@@ -48,6 +52,9 @@ describe("Admin Management Endpoints", () => {
   });
 
   afterAll(async () => {
+    if (testGenreId) {
+      await prisma.genre.deleteMany({ where: { id: testGenreId } });
+    }
     if (testAlbumId) {
       await prisma.album.deleteMany({ where: { id: testAlbumId } });
     }
@@ -132,6 +139,47 @@ describe("Admin Management Endpoints", () => {
     expect(res.body.success).toBe(true);
     expect(res.body.data.name).toBe("Admin Created Artist Test");
     testArtistId = res.body.data.id;
+  });
+
+  it("should allow an admin to add a genre and expose it in the public catalogue", async () => {
+    const createRes = await request(app)
+      .post("/api/v1/admin/genres")
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({ name: "Admin Created Genre Test" });
+
+    expect(createRes.status).toBe(201);
+    expect(createRes.body.success).toBe(true);
+    expect(createRes.body.data).toMatchObject({ name: "Admin Created Genre Test", slug: "admin-created-genre-test" });
+    testGenreId = createRes.body.data.id;
+
+    const catalogueRes = await request(app).get("/api/v1/genres");
+    expect(catalogueRes.status).toBe(200);
+    expect(catalogueRes.body.data).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: testGenreId, name: "Admin Created Genre Test" }),
+    ]));
+  });
+
+  it("should reject duplicate genre names", async () => {
+    const res = await request(app)
+      .post("/api/v1/admin/genres")
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({ name: "Admin Created Genre Test" });
+
+    expect(res.status).toBe(409);
+    expect(res.body.success).toBe(false);
+  });
+
+  it("should reject a duplicate artist name (409)", async () => {
+    const res = await request(app)
+      .post("/api/v1/admin/artists")
+      .set("Authorization", `Bearer ${adminToken}`)
+      .send({
+        name: "Admin Created Artist Test",
+        bio: "Duplicate artist should not be created",
+      });
+
+    expect(res.status).toBe(409);
+    expect(res.body.success).toBe(false);
   });
 
   it("should allow admin to create a new album (201)", async () => {

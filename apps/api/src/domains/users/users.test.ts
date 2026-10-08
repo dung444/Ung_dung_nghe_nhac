@@ -1,5 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import request from "supertest";
+import fs from "fs";
+import path from "path";
 import { createApp } from "../../app";
 import { prisma } from "../../config/database";
 
@@ -9,6 +11,7 @@ describe("Users Endpoints", () => {
   let userToken: string;
   let userId: string;
   let songId: string;
+  let uploadedAvatarPath: string | undefined;
 
   beforeAll(async () => {
     // Register and login test user
@@ -51,6 +54,9 @@ describe("Users Endpoints", () => {
     await prisma.likedSong.deleteMany({ where: { userId } });
     await prisma.song.deleteMany({ where: { id: songId } });
     await prisma.user.deleteMany({ where: { id: userId } });
+    if (uploadedAvatarPath) {
+      fs.rmSync(uploadedAvatarPath, { force: true });
+    }
     await prisma.$disconnect();
   });
 
@@ -63,6 +69,7 @@ describe("Users Endpoints", () => {
     expect(Array.isArray(res.body.data)).toBe(true);
     expect(res.body.data.length).toBeGreaterThanOrEqual(1);
     expect(res.body.data[0].song.title).toBe("User Test Song");
+    expect(res.body.data[0].song.fileUrl).toBe("/audio/test.mp3");
   });
 
   it("should get liked songs", async () => {
@@ -74,6 +81,7 @@ describe("Users Endpoints", () => {
     expect(Array.isArray(res.body.data)).toBe(true);
     expect(res.body.data.length).toBeGreaterThanOrEqual(1);
     expect(res.body.data[0].title).toBe("User Test Song");
+    expect(res.body.data[0].fileUrl).toBe("/audio/test.mp3");
   });
 
   it("should update user profile", async () => {
@@ -84,6 +92,22 @@ describe("Users Endpoints", () => {
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
     expect(res.body.data.displayName).toBe("Updated Waifu User");
+  });
+
+  it("should upload and persist an avatar under the covers directory", async () => {
+    const res = await request(app)
+      .post("/api/v1/users/me/avatar")
+      .set("Authorization", `Bearer ${userToken}`)
+      .attach("avatar", Buffer.from("test-avatar-image"), {
+        filename: "avatar.png",
+        contentType: "image/png",
+      });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.avatarUrl).toMatch(/^\/uploads\/covers\//);
+    uploadedAvatarPath = path.join(process.cwd(), res.body.data.avatarUrl.replace(/^\/uploads\//, "uploads/"));
+    expect(fs.existsSync(uploadedAvatarPath)).toBe(true);
   });
 
   it("should clear listening history", async () => {

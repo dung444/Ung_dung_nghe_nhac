@@ -1,6 +1,6 @@
 import { prisma } from "../../config/database";
 
-const songSel = { id: true, title: true, duration: true, coverUrl: true,
+const songSel = { id: true, title: true, duration: true, fileUrl: true, coverUrl: true,
   artists: { select: { artist: { select: { id: true, name: true } } } } };
 
 export async function getQueue(userId: string) {

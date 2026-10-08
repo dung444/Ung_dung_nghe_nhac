@@ -1,5 +1,6 @@
 import axios from "axios";
 import { API_BASE_URL, ENDPOINTS } from "../constants/api";
+import { normalizeMediaUrls } from "../utils/media";
 
 export const api = axios.create({
   baseURL: API_BASE_URL,
@@ -17,7 +18,10 @@ api.interceptors.request.use((config) => {
 
 // Response interceptor: auto-refresh on 401
 api.interceptors.response.use(
-  (res) => res,
+  (res) => {
+    res.data = normalizeMediaUrls(res.data);
+    return res;
+  },
   async (error) => {
     const original = error.config;
     if (error.response?.status === 401 && !original._retry) {

@@ -92,7 +92,7 @@ const styles = StyleSheet.create({
     paddingBottom: 4,
   },
   container: {
-    backgroundColor: "rgba(26, 26, 46, 0.95)",
+    backgroundColor: "#121224",
     borderRadius: 14,
     borderWidth: 1,
     borderColor: "rgba(233, 30, 140, 0.35)",

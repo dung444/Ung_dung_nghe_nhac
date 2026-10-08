@@ -11,6 +11,7 @@ import {
   Image,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 import { Colors } from "../../constants/colors";
 import { api } from "../../services/api";
 import { ENDPOINTS } from "../../constants/api";
@@ -65,6 +66,7 @@ interface GiftModalProps {
 export function GiftModal({ visible, song, onClose, onGiftSuccess }: GiftModalProps) {
   const { isAuthenticated } = useAuthStore();
   const { showSuccess, showWarning, showError } = useToastStore();
+  const router = useRouter();
 
   const [gifts, setGifts] = useState<AnimeGift[]>(DEFAULT_GIFTS);
   const [coinPackages, setCoinPackages] = useState<CoinPackage[]>(DEFAULT_COIN_PACKAGES);
@@ -79,6 +81,7 @@ export function GiftModal({ visible, song, onClose, onGiftSuccess }: GiftModalPr
   const [showTopupModal, setShowTopupModal] = useState(false);
   const [selectedPkgForCheckout, setSelectedPkgForCheckout] = useState<CoinPackage | null>(null);
   const [showCheckoutModal, setShowCheckoutModal] = useState(false);
+  const [showLoginPrompt, setShowLoginPrompt] = useState(false);
 
   const loadCoinsAndGifts = async () => {
     try {
@@ -110,6 +113,7 @@ export function GiftModal({ visible, song, onClose, onGiftSuccess }: GiftModalPr
     if (!song) return;
     if (!isAuthenticated) {
       showWarning("Chưa đăng nhập", "Vui lòng đăng nhập để tặng quà cho bài hát!");
+      setShowLoginPrompt(true);
       return;
     }
     if (userCoins < totalCost) {
@@ -149,10 +153,25 @@ export function GiftModal({ visible, song, onClose, onGiftSuccess }: GiftModalPr
   const handleBuyCoinPackage = (pkg: CoinPackage) => {
     if (!isAuthenticated) {
       showWarning("Chưa đăng nhập", "Vui lòng đăng nhập trước khi nạp xu!");
+      setShowLoginPrompt(true);
       return;
     }
     setSelectedPkgForCheckout(pkg);
     setShowTopupModal(false);
+    setShowCheckoutModal(true);
+  };
+
+  const handleQuickTopup = () => {
+    if (!isAuthenticated) {
+      showWarning("Chưa đăng nhập", "Vui lòng đăng nhập trước khi nạp xu!");
+      setShowLoginPrompt(true);
+      return;
+    }
+
+    const requiredCoins = Math.max(1, totalCost - userCoins);
+    const packageToBuy = coinPackages.find((pkg) => pkg.coins >= requiredCoins) ?? coinPackages[coinPackages.length - 1] ?? null;
+    setSelectedPkgForCheckout(packageToBuy);
+    onClose();
     setShowCheckoutModal(true);
   };
 
@@ -275,6 +294,37 @@ export function GiftModal({ visible, song, onClose, onGiftSuccess }: GiftModalPr
                     <Text style={styles.sendBtnText}>Tặng Quà Ngay ✨</Text>
                   </>
                 )}
+              </TouchableOpacity>
+            </View>
+            {userCoins < totalCost && (
+              <TouchableOpacity style={styles.quickTopupBtn} onPress={handleQuickTopup} activeOpacity={0.85}>
+                <Ionicons name="flash" size={17} color="#fff" />
+                <Text style={styles.quickTopupBtnText}>Nạp xu ngay ⚡</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+      </Modal>
+
+      <Modal visible={showLoginPrompt} transparent animationType="fade" onRequestClose={() => setShowLoginPrompt(false)}>
+        <View style={styles.loginPromptOverlay}>
+          <View style={styles.loginPromptCard}>
+            <Ionicons name="lock-closed" size={28} color={Colors.dark.primaryLight} />
+            <Text style={styles.loginPromptTitle}>Cần đăng nhập</Text>
+            <Text style={styles.loginPromptText}>Đăng nhập để tặng quà và nạp xu cho tài khoản của bạn.</Text>
+            <View style={styles.loginPromptActions}>
+              <TouchableOpacity style={styles.loginPromptCancel} onPress={() => setShowLoginPrompt(false)}>
+                <Text style={styles.loginPromptCancelText}>Để sau</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.loginPromptLogin}
+                onPress={() => {
+                  setShowLoginPrompt(false);
+                  onClose();
+                  router.push("/(auth)/login" as never);
+                }}
+              >
+                <Text style={styles.loginPromptLoginText}>Đăng nhập</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -566,6 +616,76 @@ const styles = StyleSheet.create({
   sendBtnText: {
     color: "#fff",
     fontSize: 14,
+    fontWeight: "800",
+  },
+  quickTopupBtn: {
+    marginTop: 12,
+    backgroundColor: "#f59e0b",
+    paddingVertical: 12,
+    borderRadius: 12,
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 7,
+  },
+  quickTopupBtnText: {
+    color: "#fff",
+    fontWeight: "800",
+    fontSize: 14,
+  },
+  loginPromptOverlay: {
+    flex: 1,
+    backgroundColor: "rgba(0, 0, 0, 0.75)",
+    justifyContent: "center",
+    padding: 24,
+  },
+  loginPromptCard: {
+    backgroundColor: Colors.dark.surface,
+    borderRadius: 18,
+    padding: 20,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: Colors.dark.border,
+  },
+  loginPromptTitle: {
+    color: Colors.dark.text,
+    fontSize: 18,
+    fontWeight: "800",
+    marginTop: 10,
+  },
+  loginPromptText: {
+    color: Colors.dark.textMuted,
+    textAlign: "center",
+    lineHeight: 19,
+    marginTop: 7,
+  },
+  loginPromptActions: {
+    flexDirection: "row",
+    gap: 10,
+    marginTop: 20,
+    width: "100%",
+  },
+  loginPromptCancel: {
+    flex: 1,
+    paddingVertical: 11,
+    borderRadius: 10,
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: Colors.dark.border,
+  },
+  loginPromptCancelText: {
+    color: Colors.dark.textMuted,
+    fontWeight: "700",
+  },
+  loginPromptLogin: {
+    flex: 1,
+    paddingVertical: 11,
+    borderRadius: 10,
+    alignItems: "center",
+    backgroundColor: Colors.dark.primary,
+  },
+  loginPromptLoginText: {
+    color: "#fff",
     fontWeight: "800",
   },
   topupCard: {
