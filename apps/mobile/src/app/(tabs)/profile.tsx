@@ -180,36 +180,13 @@ export default function ProfileScreen() {
     Alert.alert("Đã sao chép! 📋", `Đã sao chép ${label}: "${text}" vào khay nhớ tạm.`);
   };
 
-  const handleBuyVip = async () => {
-    setPaymentLoading(true);
-    try {
-      const res = await api.post("/api/v1/payments/buy-vip", {
-        packageId: selectedPackageId,
-        method: selectedPaymentMethod,
-      });
-
-      if (res.data?.success) {
-        if (user) setUser({ ...user, isPremium: true });
-        try {
-          const { useToastStore } = require("../../store/toastStore");
-          useToastStore.getState().showSuccess("Nâng cấp VIP thành công 💎", "Tài khoản của bạn đã được kích hoạt Waifu VIP Pass!");
-        } catch {}
-        Alert.alert("Chúc mừng! 💎", res.data.message || "Bạn đã nâng cấp thành công gói Waifu VIP Pass!");
-        setShowPremiumModal(false);
-      }
-    } catch (err: any) {
-      const errMsg = err.response?.data?.error || "Không thể xử lý giao dịch";
-      try {
-        const { useToastStore } = require("../../store/toastStore");
-        useToastStore.getState().showError("Lỗi thanh toán", errMsg);
-      } catch {}
-      Alert.alert("Lỗi", errMsg);
-    } finally {
-      setPaymentLoading(false);
-    }
+  const handleBuyVip = () => {
+    setCheckoutType("BUY_VIP");
+    setShowPremiumModal(false);
+    setShowCheckoutModal(true);
   };
 
-  const handleTopup = async () => {
+  const handleTopup = () => {
     const amount = Number(customTopupAmount);
     if (!amount || amount < 10000) {
       try {
@@ -219,32 +196,10 @@ export default function ProfileScreen() {
       Alert.alert("Lỗi", "Số tiền nạp tối thiểu là 10.000 VNĐ");
       return;
     }
-
-    setPaymentLoading(true);
-    try {
-      const res = await api.post("/api/v1/payments/topup", {
-        amount,
-        method: selectedPaymentMethod,
-      });
-
-      if (res.data?.success) {
-        try {
-          const { useToastStore } = require("../../store/toastStore");
-          useToastStore.getState().showSuccess("Nạp tiền thành công 🎉", `Đã nạp ${amount.toLocaleString("vi-VN")} đ vào tài khoản Waifu Coins!`);
-        } catch {}
-        Alert.alert("Nạp tiền thành công! 🎉", `Đã nạp ${amount.toLocaleString()} VNĐ vào tài khoản Waifu Coins!`);
-        setVipTab("PACKAGES");
-      }
-    } catch (err: any) {
-      const errMsg = err.response?.data?.error || "Không thể nạp tiền";
-      try {
-        const { useToastStore } = require("../../store/toastStore");
-        useToastStore.getState().showError("Lỗi nạp tiền", errMsg);
-      } catch {}
-      Alert.alert("Lỗi", errMsg);
-    } finally {
-      setPaymentLoading(false);
-    }
+    setCheckoutType("COIN_TOPUP");
+    setCheckoutCustomAmount(amount);
+    setShowPremiumModal(false);
+    setShowCheckoutModal(true);
   };
 
   const fetchPaymentHistory = async () => {
@@ -1247,7 +1202,7 @@ export default function ProfileScreen() {
                     ) : (
                       <>
                         <Ionicons name="checkmark-circle" size={18} color="#fff" />
-                        <Text style={styles.paySubmitText}>Tôi Đã Chuyển Khoản • Kích Hoạt VIP Ngay</Text>
+                        <Text style={styles.paySubmitText}>Tạo Đơn VIP & Gửi Biên Lai</Text>
                       </>
                     )}
                   </TouchableOpacity>
@@ -1434,7 +1389,7 @@ export default function ProfileScreen() {
                       <>
                         <Ionicons name="card" size={18} color="#fff" />
                         <Text style={styles.paySubmitText}>
-                          Xác Nhận Đã Chuyển Khoản Nạp {Number(customTopupAmount || 0).toLocaleString()} ₫
+                          Tạo Đơn Nạp {Number(customTopupAmount || 0).toLocaleString()} ₫ & Gửi Biên Lai
                         </Text>
                       </>
                     )}

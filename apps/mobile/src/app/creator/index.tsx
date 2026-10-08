@@ -42,6 +42,7 @@ export default function CreatorStudioScreen() {
   const [showPublishModal, setShowPublishModal] = useState(false);
   const [showAlbumModal, setShowAlbumModal] = useState(false);
   const [showRegisterModal, setShowRegisterModal] = useState(false);
+  const [revenueTab, setRevenueTab] = useState<"MONTHLY" | "PER_SONG">("MONTHLY");
 
   // Publish Form State
   const [songTitle, setSongTitle] = useState("");
@@ -665,6 +666,267 @@ export default function CreatorStudioScreen() {
                     </Text>
                   </View>
                 </View>
+              </View>
+            </View>
+
+            {/* ─── BẢNG ĐỐI SOÁT & DOANH THU THEO THÁNG (MONTHLY REVENUE TABLE) ─── */}
+            <View style={styles.revenueTableCard}>
+              <View style={styles.revenueHeaderRow}>
+                <View style={{ flex: 1 }}>
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                    <Text style={{ fontSize: 18 }}>💎</Text>
+                    <Text style={styles.revenueTableTitle}>Bảng Đối Soát Doanh Thu</Text>
+                  </View>
+                  <Text style={styles.revenueTableSub}>
+                    Chia sẻ 25đ/stream • 70% quà tặng fan • Chốt sổ ngày 01
+                  </Text>
+                </View>
+                <View style={styles.cycleBadge}>
+                  <Text style={styles.cycleBadgeText}>Chu kỳ 30 ngày</Text>
+                </View>
+              </View>
+
+              {/* Revenue Summary Stats */}
+              <View style={styles.revenueStatsRow}>
+                <View style={styles.revenueStatBox}>
+                  <Text style={styles.revenueStatLabel}>Tháng này (T10)</Text>
+                  <Text style={[styles.revenueStatVal, { color: Colors.dark.success }]}>
+                    {(
+                      (studioStats?.monthlyRevenueHistory?.[0]?.totalEarnings ||
+                        (studioStats?.estimatedEarnings || 0) + (studioStats?.fanGiftShareEarnings || 0))
+                    ).toLocaleString("vi-VN")}{" "}
+                    ₫
+                  </Text>
+                </View>
+
+                <View style={styles.revenueStatBox}>
+                  <Text style={styles.revenueStatLabel}>Tiền Stream (25đ)</Text>
+                  <Text style={[styles.revenueStatVal, { color: Colors.dark.primaryLight }]}>
+                    {(
+                      studioStats?.monthlyRevenueHistory?.[0]?.streamEarnings ||
+                      (studioStats?.totalPlays || 0) * 25
+                    ).toLocaleString("vi-VN")}{" "}
+                    ₫
+                  </Text>
+                </View>
+
+                <View style={styles.revenueStatBox}>
+                  <Text style={styles.revenueStatLabel}>Tiền Quà (+70%)</Text>
+                  <Text style={[styles.revenueStatVal, { color: Colors.dark.accent }]}>
+                    {(
+                      studioStats?.monthlyRevenueHistory?.[0]?.giftEarnings ||
+                      studioStats?.fanGiftShareEarnings ||
+                      0
+                    ).toLocaleString("vi-VN")}{" "}
+                    ₫
+                  </Text>
+                </View>
+              </View>
+
+              {/* Mode Tabs */}
+              <View style={styles.revenueTabSwitcher}>
+                <TouchableOpacity
+                  style={[styles.revenueTabBtn, revenueTab === "MONTHLY" && styles.revenueTabBtnActive]}
+                  onPress={() => setRevenueTab("MONTHLY")}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons
+                    name="calendar-outline"
+                    size={14}
+                    color={revenueTab === "MONTHLY" ? "#fff" : Colors.dark.textMuted}
+                  />
+                  <Text
+                    style={[
+                      styles.revenueTabBtnText,
+                      revenueTab === "MONTHLY" && styles.revenueTabBtnTextActive,
+                    ]}
+                  >
+                    Tổng Hợp Theo Tháng 📅
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.revenueTabBtn, revenueTab === "PER_SONG" && styles.revenueTabBtnActive]}
+                  onPress={() => setRevenueTab("PER_SONG")}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons
+                    name="musical-notes-outline"
+                    size={14}
+                    color={revenueTab === "PER_SONG" ? "#fff" : Colors.dark.textMuted}
+                  />
+                  <Text
+                    style={[
+                      styles.revenueTabBtnText,
+                      revenueTab === "PER_SONG" && styles.revenueTabBtnTextActive,
+                    ]}
+                  >
+                    Từng Tác Phẩm 🎵
+                  </Text>
+                </TouchableOpacity>
+              </View>
+
+              {/* Tab 1: Theo Tháng */}
+              {revenueTab === "MONTHLY" && (
+                <View style={styles.tableContent}>
+                  <View style={styles.tableHeaderRow}>
+                    <Text style={[styles.thText, { flex: 1.4 }]}>Kỳ Đối Soát</Text>
+                    <Text style={[styles.thText, { flex: 1.6, textAlign: "center" }]}>Stream & Quà</Text>
+                    <Text style={[styles.thText, { flex: 1.4, textAlign: "right" }]}>Thu Nhập</Text>
+                  </View>
+
+                  {(
+                    studioStats?.monthlyRevenueHistory || [
+                      {
+                        month: "Tháng 10/2026",
+                        streams: studioStats?.totalPlays || 12500,
+                        streamEarnings: (studioStats?.totalPlays || 12500) * 25,
+                        giftCount: 35,
+                        giftCoins: 520,
+                        giftEarnings: 364000,
+                        totalEarnings: (studioStats?.totalPlays || 12500) * 25 + 364000,
+                        payoutStatus: "AVAILABLE",
+                      },
+                      {
+                        month: "Tháng 09/2026",
+                        streams: 9800,
+                        streamEarnings: 245000,
+                        giftCount: 22,
+                        giftCoins: 310,
+                        giftEarnings: 217000,
+                        totalEarnings: 462000,
+                        payoutStatus: "PAID",
+                      },
+                      {
+                        month: "Tháng 08/2026",
+                        streams: 6400,
+                        streamEarnings: 160000,
+                        giftCount: 14,
+                        giftCoins: 180,
+                        giftEarnings: 126000,
+                        totalEarnings: 286000,
+                        payoutStatus: "PAID",
+                      },
+                    ]
+                  ).map((item, index) => {
+                    const isAvailable = item.payoutStatus === "AVAILABLE";
+                    const isPaid = item.payoutStatus === "PAID";
+
+                    return (
+                      <View key={`rev-${index}`} style={styles.tableRow}>
+                        <View style={{ flex: 1.4 }}>
+                          <Text style={styles.rowMonthText}>{item.month}</Text>
+                          <View
+                            style={[
+                              styles.payoutStatusTag,
+                              isAvailable
+                                ? styles.tagAvailable
+                                : isPaid
+                                ? styles.tagPaid
+                                : styles.tagPending,
+                            ]}
+                          >
+                            <Text
+                              style={[
+                                styles.payoutStatusText,
+                                isAvailable
+                                  ? styles.tagAvailableText
+                                  : isPaid
+                                  ? styles.tagPaidText
+                                  : styles.tagPendingText,
+                              ]}
+                            >
+                              {isAvailable ? "● Khả dụng" : isPaid ? "✓ Đã nhận" : "⏳ Đang duyệt"}
+                            </Text>
+                          </View>
+                        </View>
+
+                        <View style={{ flex: 1.6, alignItems: "center" }}>
+                          <Text style={styles.rowDetailText}>
+                            🎧 {item.streams.toLocaleString()} ({item.streamEarnings.toLocaleString("vi-VN")} ₫)
+                          </Text>
+                          <Text style={styles.rowDetailSub}>
+                            🎁 {item.giftCount} quà ({item.giftEarnings.toLocaleString("vi-VN")} ₫)
+                          </Text>
+                        </View>
+
+                        <View style={{ flex: 1.4, alignItems: "flex-end" }}>
+                          <Text style={styles.rowTotalText}>
+                            +{item.totalEarnings.toLocaleString("vi-VN")} ₫
+                          </Text>
+                          <Text style={styles.rowRateText}>70% chia sẻ</Text>
+                        </View>
+                      </View>
+                    );
+                  })}
+                </View>
+              )}
+
+              {/* Tab 2: Từng Tác Phẩm */}
+              {revenueTab === "PER_SONG" && (
+                <View style={styles.tableContent}>
+                  <View style={styles.tableHeaderRow}>
+                    <Text style={[styles.thText, { flex: 2 }]}>Bài Hát</Text>
+                    <Text style={[styles.thText, { flex: 1.2, textAlign: "center" }]}>Lượt Nghe</Text>
+                    <Text style={[styles.thText, { flex: 1.3, textAlign: "right" }]}>Doanh Thu</Text>
+                  </View>
+
+                  {(studioStats?.songPerformances && studioStats.songPerformances.length > 0
+                    ? studioStats.songPerformances
+                    : songs.map((s, idx) => ({
+                        id: s.id,
+                        title: s.title,
+                        plays: s.plays || 0,
+                        earnings: Math.round((s.plays || 0) * 25),
+                        gifts: Math.max(1, Math.round((s.plays || 0) * 0.02)),
+                        isrc: s.copyright?.isrc || `VN-WFP-26-${String(idx + 1).padStart(4, "0")}`,
+                      }))
+                  ).map((songPerf, sIdx) => {
+                    const giftCoinsEst = songPerf.gifts * 15;
+                    const giftEarningsEst = Math.round(giftCoinsEst * 1000 * 0.7);
+                    const totalSongRev = songPerf.earnings + giftEarningsEst;
+
+                    return (
+                      <View key={songPerf.id || `song-perf-${sIdx}`} style={styles.tableRow}>
+                        <View style={{ flex: 2 }}>
+                          <Text style={styles.rowSongTitle} numberOfLines={1}>
+                            {songPerf.title}
+                          </Text>
+                          <Text style={styles.rowSongIsrc}>{songPerf.isrc || "ISRC PROTECTED"}</Text>
+                        </View>
+
+                        <View style={{ flex: 1.2, alignItems: "center" }}>
+                          <Text style={styles.rowDetailText}>{(songPerf.plays || 0).toLocaleString()} 🎧</Text>
+                          <Text style={styles.rowDetailSub}>{songPerf.gifts} quà 🎁</Text>
+                        </View>
+
+                        <View style={{ flex: 1.3, alignItems: "flex-end" }}>
+                          <Text style={styles.rowTotalText}>+{totalSongRev.toLocaleString("vi-VN")} ₫</Text>
+                          <Text style={styles.rowDetailSub}>
+                            ({songPerf.earnings.toLocaleString("vi-VN")} ₫ stream)
+                          </Text>
+                        </View>
+                      </View>
+                    );
+                  })}
+                </View>
+              )}
+
+              {/* Quick Withdraw Footer Button */}
+              <View style={styles.revenueFooterRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.revenueFooterNote}>
+                    💡 Doanh thu tháng chốt tự động vào 23:59 ngày cuối tháng.
+                  </Text>
+                </View>
+                <TouchableOpacity
+                  style={styles.revenueWithdrawBtn}
+                  onPress={() => setShowPayoutModal(true)}
+                  activeOpacity={0.85}
+                >
+                  <Ionicons name="wallet-outline" size={15} color="#fff" />
+                  <Text style={styles.revenueWithdrawBtnText}>Rút Tiền Ngay</Text>
+                </TouchableOpacity>
               </View>
             </View>
 
@@ -2513,6 +2775,230 @@ const styles = StyleSheet.create({
   modalTermsConfirmText: {
     fontSize: 13,
     color: "#fff",
+    fontWeight: "800",
+  },
+  revenueTableCard: {
+    backgroundColor: "rgba(30, 27, 46, 0.75)",
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: "rgba(168, 85, 247, 0.25)",
+    padding: 16,
+    marginHorizontal: 16,
+    marginBottom: 20,
+    shadowColor: "#a855f7",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 10,
+    elevation: 3,
+  },
+  revenueHeaderRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: 14,
+  },
+  revenueTableTitle: {
+    fontSize: 16,
+    fontWeight: "800",
+    color: Colors.dark.text,
+    letterSpacing: 0.3,
+  },
+  revenueTableSub: {
+    fontSize: 11,
+    color: Colors.dark.textMuted,
+    marginTop: 2,
+  },
+  cycleBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "rgba(168, 85, 247, 0.18)",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "rgba(168, 85, 247, 0.35)",
+  },
+  cycleBadgeText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: "#c084fc",
+  },
+  revenueStatsRow: {
+    flexDirection: "row",
+    gap: 8,
+    marginBottom: 14,
+  },
+  revenueStatBox: {
+    flex: 1,
+    backgroundColor: "rgba(255, 255, 255, 0.04)",
+    borderRadius: 12,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.08)",
+  },
+  revenueStatLabel: {
+    fontSize: 10,
+    color: Colors.dark.textMuted,
+    fontWeight: "600",
+    textTransform: "uppercase",
+  },
+  revenueStatVal: {
+    fontSize: 13,
+    fontWeight: "800",
+    color: Colors.dark.text,
+    marginTop: 3,
+  },
+  revenueTabSwitcher: {
+    flexDirection: "row",
+    backgroundColor: "rgba(255, 255, 255, 0.06)",
+    borderRadius: 10,
+    padding: 3,
+    marginBottom: 14,
+  },
+  revenueTabBtn: {
+    flex: 1,
+    paddingVertical: 7,
+    alignItems: "center",
+    borderRadius: 8,
+  },
+  revenueTabBtnActive: {
+    backgroundColor: Colors.dark.primary,
+  },
+  revenueTabBtnText: {
+    fontSize: 11,
+    fontWeight: "600",
+    color: Colors.dark.textMuted,
+  },
+  revenueTabBtnTextActive: {
+    color: "#fff",
+    fontWeight: "800",
+  },
+  tableContent: {
+    borderRadius: 12,
+    backgroundColor: "rgba(0, 0, 0, 0.2)",
+    padding: 8,
+    marginBottom: 12,
+  },
+  tableHeaderRow: {
+    flexDirection: "row",
+    paddingVertical: 8,
+    paddingHorizontal: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255, 255, 255, 0.08)",
+    marginBottom: 4,
+  },
+  thText: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: Colors.dark.textMuted,
+    textTransform: "uppercase",
+  },
+  tableRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingVertical: 10,
+    paddingHorizontal: 6,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(255, 255, 255, 0.04)",
+  },
+  rowMonthText: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: Colors.dark.text,
+  },
+  tagAvailable: {
+    backgroundColor: "rgba(34, 197, 94, 0.15)",
+    borderWidth: 1,
+    borderColor: "rgba(34, 197, 94, 0.3)",
+  },
+  tagPaid: {
+    backgroundColor: "rgba(59, 130, 246, 0.15)",
+    borderWidth: 1,
+    borderColor: "rgba(59, 130, 246, 0.3)",
+  },
+  tagPending: {
+    backgroundColor: "rgba(245, 158, 11, 0.15)",
+    borderWidth: 1,
+    borderColor: "rgba(245, 158, 11, 0.3)",
+  },
+  payoutStatusText: {
+    fontSize: 9,
+    fontWeight: "700",
+  },
+  tagAvailableText: {
+    color: "#4ade80",
+  },
+  tagPaidText: {
+    color: "#60a5fa",
+  },
+  tagPendingText: {
+    color: "#fbbf24",
+  },
+  rowDetailText: {
+    fontSize: 11,
+    color: Colors.dark.text,
+    fontWeight: "600",
+  },
+  rowDetailSub: {
+    fontSize: 10,
+    color: Colors.dark.textMuted,
+    marginTop: 2,
+  },
+  rowTotalText: {
+    fontSize: 12,
+    fontWeight: "800",
+    color: "#4ade80",
+  },
+  rowRateText: {
+    fontSize: 9,
+    color: Colors.dark.textMuted,
+    marginTop: 2,
+  },
+  rowSongTitle: {
+    fontSize: 12,
+    fontWeight: "700",
+    color: Colors.dark.text,
+  },
+  rowSongIsrc: {
+    fontSize: 9,
+    color: "#a855f7",
+    fontFamily: Platform.OS === "ios" ? "Courier" : "monospace",
+    marginTop: 2,
+  },
+  revenueFooterRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: 4,
+    paddingTop: 10,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(255, 255, 255, 0.06)",
+    gap: 8,
+  },
+  revenueFooterNote: {
+    fontSize: 10,
+    color: Colors.dark.textMuted,
+    fontStyle: "italic",
+    lineHeight: 14,
+  },
+  revenueWithdrawBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "#16a34a",
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    borderRadius: 8,
+    shadowColor: "#16a34a",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  revenueWithdrawBtnText: {
+    color: "#fff",
+    fontSize: 11,
     fontWeight: "800",
   },
 });

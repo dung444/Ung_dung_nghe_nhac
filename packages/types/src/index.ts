@@ -338,6 +338,16 @@ export interface CreatorStudioStats {
     gifts: number;
     isrc?: string | null;
   }>;
+  monthlyRevenueHistory?: Array<{
+    month: string;
+    streams: number;
+    streamEarnings: number;
+    giftCount: number;
+    giftCoins: number;
+    giftEarnings: number;
+    totalEarnings: number;
+    payoutStatus: "AVAILABLE" | "PAID" | "PENDING";
+  }>;
 }
 
 // ─── Payment & Gift System ───────────────────────────────────────────────────

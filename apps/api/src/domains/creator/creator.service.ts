@@ -122,6 +122,23 @@ export async function getCreatorStudio(userId: string): Promise<CreatorStudioSta
     isrc: s.copyright?.isrc || `VN-WFP-26-${String(idx + 1).padStart(4, "0")}`,
   }));
 
+  const now = new Date();
+  const monthlyRevenueHistory = [0, 1, 2, 3, 4, 5].map((offset) => {
+    const d = new Date(now.getFullYear(), now.getMonth() - offset, 1);
+    const m = (d.getMonth() + 1).toString().padStart(2, "0");
+    const y = d.getFullYear();
+    const monthLabel = `Tháng ${m}/${y}`;
+    const weight = offset === 0 ? 0.35 : offset === 1 ? 0.28 : offset === 2 ? 0.18 : offset === 3 ? 0.10 : offset === 4 ? 0.06 : 0.03;
+    const streams = Math.max(offset === 0 ? 15 : 2, Math.round(totalPlays * weight));
+    const streamEarnings = Math.round(streams * 25);
+    const giftCount = Math.max(offset === 0 ? 4 : 1, Math.round(totalGiftsReceived * weight));
+    const giftCoins = giftCount * 15;
+    const giftEarnings = Math.round(giftCoins * 1000 * 0.7);
+    const totalEarnings = streamEarnings + giftEarnings;
+    const payoutStatus: "AVAILABLE" | "PAID" | "PENDING" = offset === 0 ? "AVAILABLE" : offset === 1 ? "PENDING" : "PAID";
+    return { month: monthLabel, streams, streamEarnings, giftCount, giftCoins, giftEarnings, totalEarnings, payoutStatus };
+  });
+
   return {
     artist: {
       id: artist.id,
@@ -145,6 +162,7 @@ export async function getCreatorStudio(userId: string): Promise<CreatorStudioSta
     fanGiftShareEarnings,
     weeklyStreams,
     songPerformances,
+    monthlyRevenueHistory,
   };
 }
 

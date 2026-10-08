@@ -631,7 +631,29 @@ export interface PaymentOrder {
 
 const paymentOrders = new Map<string, PaymentOrder>();
 
-const PAYMENT_DATA_FILE = path.join(process.cwd(), "uploads", "payment_data.json");
+function expireOrderIfPastDeadline(order: PaymentOrder): boolean {
+  if (
+    (order.status === "PENDING" || order.status === "WAITING_APPROVAL") &&
+    new Date(order.expiresAt).getTime() <= Date.now()
+  ) {
+    order.status = "EXPIRED";
+    const tx = transactions.find((item) => item.id === `tx_${order.id}` || item.transactionCode === order.orderCode);
+    if (tx && tx.status === "PENDING") {
+      tx.status = "FAILED";
+    }
+    return true;
+  }
+
+  return false;
+}
+
+const isTestRuntime = process.env.NODE_ENV === "test" || process.env.VITEST === "true";
+
+const PAYMENT_DATA_FILE = path.join(
+  process.cwd(),
+  "uploads",
+  isTestRuntime ? `payment_data.test.${process.pid}.json` : "payment_data.json"
+);
 
 function savePaymentDataToDisk() {
   try {
@@ -800,8 +822,8 @@ export async function getPaymentOrder(orderId: string, userId: string) {
     if (user?.role !== "ADMIN") throw new AppError("Không có quyền xem đơn hàng này", 403);
   }
 
-  if (order.status === "PENDING" && new Date(order.expiresAt).getTime() < Date.now()) {
-    order.status = "EXPIRED";
+  if (expireOrderIfPastDeadline(order)) {
+    savePaymentDataToDisk();
   }
 
   return {
@@ -869,6 +891,11 @@ export async function cancelPaymentOrder(orderId: string, userId: string) {
     throw new AppError("Không có quyền hủy đơn hàng này", 403);
   }
 
+  if (expireOrderIfPastDeadline(order) || order.status === "EXPIRED") {
+    savePaymentDataToDisk();
+    throw new AppError("Đơn hàng đã hết hạn thanh toán", 400);
+  }
+
   if (order.status !== "PENDING") {
     throw new AppError("Chỉ có thể hủy đơn hàng đang chờ thanh toán", 400);
   }
@@ -893,6 +920,8 @@ export async function getUserOrders(userId: string) {
   const userOrders = Array.from(paymentOrders.values())
     .filter((o) => o.userId === userId)
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  const expiredAny = userOrders.some(expireOrderIfPastDeadline);
+  if (expiredAny) savePaymentDataToDisk();
 
   return {
     orders: userOrders,
@@ -910,6 +939,11 @@ export async function submitPaymentProof(
 
   if (order.userId !== userId) {
     throw new AppError("Không có quyền gửi biên lai cho đơn này", 403);
+  }
+
+  if (expireOrderIfPastDeadline(order) || order.status === "EXPIRED") {
+    savePaymentDataToDisk();
+    throw new AppError("Đơn hàng đã hết hạn thanh toán, không thể gửi biên lai", 400);
   }
 
   if (!data.proofImageUrl) {
@@ -950,8 +984,17 @@ export async function adminReviewPaymentOrder(
   }
   if (!order) throw new AppError("Đơn hàng không tồn tại", 404);
 
+  if (expireOrderIfPastDeadline(order) || order.status === "EXPIRED") {
+    savePaymentDataToDisk();
+    throw new AppError("Đơn hàng đã hết hạn thanh toán, không thể duyệt", 400);
+  }
+
   if (data.action !== "APPROVE" && data.action !== "REJECT") {
     throw new AppError("Hành động không hợp lệ", 400);
+  }
+
+  if (data.action === "APPROVE" && order.status !== "WAITING_APPROVAL") {
+    throw new AppError("Chỉ có thể duyệt đơn đang chờ xác minh biên lai", 400);
   }
 
   order.reviewedAt = new Date().toISOString();
@@ -1010,6 +1053,8 @@ export async function adminReviewPaymentOrder(
 
 export async function getAdminPaymentOrders(query?: { status?: string; type?: string }) {
   let list = Array.from(paymentOrders.values());
+  const expiredAny = list.some(expireOrderIfPastDeadline);
+  if (expiredAny) savePaymentDataToDisk();
 
   if (query?.status) {
     list = list.filter((o) => o.status === query.status);

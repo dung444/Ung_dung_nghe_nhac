@@ -43,6 +43,13 @@ export const handleGenerateQr = async (req: Request, res: Response, next: NextFu
   }
 };
 
+export const handleLegacyPaymentFlowDisabled = (_req: Request, res: Response) => {
+  res.status(410).json({
+    success: false,
+    error: "Luồng thanh toán cũ đã bị vô hiệu hóa. Hãy tạo đơn VietQR và chờ Admin hoặc webhook xác nhận giao dịch.",
+  });
+};
+
 export const handleTopup = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const result = await svc.topup(req.user!.userId, req.body);

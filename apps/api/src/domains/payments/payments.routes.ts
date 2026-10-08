@@ -13,18 +13,18 @@ paymentsRouter.get("/gifts/leaderboard", ctrl.handleGetGiftLeaderboard);
 paymentsRouter.get("/gifts/song/:songId", ctrl.handleGetSongGiftStats);
 
 // Authenticated user routes
-paymentsRouter.post("/topup", authenticate, ctrl.handleTopup);
-paymentsRouter.post("/buy-vip", authenticate, ctrl.handleBuyVip);
+paymentsRouter.post("/topup", authenticate, ctrl.handleLegacyPaymentFlowDisabled);
+paymentsRouter.post("/buy-vip", authenticate, ctrl.handleLegacyPaymentFlowDisabled);
 paymentsRouter.get("/history", authenticate, ctrl.getHistory);
 paymentsRouter.get("/coins/balance", authenticate, ctrl.handleGetUserCoins);
-paymentsRouter.post("/coins/topup", authenticate, ctrl.handleTopupCoins);
+paymentsRouter.post("/coins/topup", authenticate, ctrl.handleLegacyPaymentFlowDisabled);
 paymentsRouter.post("/gifts/send", authenticate, ctrl.handleSendGift);
 
 // Payment Orders & Checkout Workflow
 paymentsRouter.post("/orders/create", authenticate, ctrl.handleCreatePaymentOrder);
 paymentsRouter.get("/orders", authenticate, ctrl.handleGetUserOrders);
 paymentsRouter.get("/orders/:orderId", authenticate, ctrl.handleGetPaymentOrder);
-paymentsRouter.post("/orders/:orderId/confirm", authenticate, ctrl.handleConfirmPaymentOrder);
+paymentsRouter.post("/orders/:orderId/confirm", authenticate, ctrl.handleLegacyPaymentFlowDisabled);
 paymentsRouter.post("/orders/:orderId/cancel", authenticate, ctrl.handleCancelPaymentOrder);
 
 paymentsRouter.post("/orders/:orderId/submit-proof", authenticate, ctrl.handleSubmitPaymentProof);

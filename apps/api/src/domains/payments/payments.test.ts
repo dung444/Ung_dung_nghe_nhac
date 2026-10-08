@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll } from "vitest";
+import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
 import request from "supertest";
 import { createApp } from "../../app";
 import { prisma } from "../../config/database";
@@ -115,7 +115,7 @@ describe("Payments & VIP Subscription Endpoints", () => {
     expect(res.body.data.transactionCode).toBeDefined();
   });
 
-  it("should process top-up successfully", async () => {
+  it("should reject legacy top-up endpoints that credit value without a verified payment", async () => {
     const res = await request(app)
       .post("/api/v1/payments/topup")
       .set("Authorization", `Bearer ${userToken}`)
@@ -124,13 +124,10 @@ describe("Payments & VIP Subscription Endpoints", () => {
         method: "VIETQR_BANKING",
       });
 
-    expect(res.status).toBe(200);
-    expect(res.body.success).toBe(true);
-    expect(res.body.data.transaction.amount).toBe(100000);
-    expect(res.body.data.transaction.qrUrl).toContain("amount=100000");
+    expect(res.status).toBe(410);
   });
 
-  it("should purchase VIP subscription and upgrade user to isPremium", async () => {
+  it("should reject the legacy VIP purchase endpoint", async () => {
     const res = await request(app)
       .post("/api/v1/payments/buy-vip")
       .set("Authorization", `Bearer ${userToken}`)
@@ -139,13 +136,7 @@ describe("Payments & VIP Subscription Endpoints", () => {
         method: "VIETQR_BANKING",
       });
 
-    expect(res.status).toBe(200);
-    expect(res.body.success).toBe(true);
-    expect(res.body.data.user.isPremium).toBe(true);
-
-    // Verify in database
-    const userInDb = await prisma.user.findUnique({ where: { id: testUserId } });
-    expect(userInDb?.isPremium).toBe(true);
+    expect(res.status).toBe(410);
   });
 
   it("should get user payment and transaction history", async () => {
@@ -156,7 +147,7 @@ describe("Payments & VIP Subscription Endpoints", () => {
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
     expect(Array.isArray(res.body.data.transactions)).toBe(true);
-    expect(res.body.data.transactions.length).toBeGreaterThanOrEqual(2);
+    expect(res.body.data.transactions.length).toBeGreaterThanOrEqual(0);
   });
 
   it("should allow admin to view all transactions ledger", async () => {
@@ -167,7 +158,7 @@ describe("Payments & VIP Subscription Endpoints", () => {
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
     expect(Array.isArray(res.body.data.transactions)).toBe(true);
-    expect(res.body.data.totalRevenue).toBeGreaterThan(0);
+    expect(res.body.data.totalRevenue).toBeGreaterThanOrEqual(0);
   });
 
   it("should get anime gift catalog and coin packages", async () => {
@@ -179,7 +170,7 @@ describe("Payments & VIP Subscription Endpoints", () => {
     expect(Array.isArray(res.body.data.coinPackages)).toBe(true);
   });
 
-  it("should check user coin balance and top up coins", async () => {
+  it("should check user coin balance but reject legacy direct coin credit", async () => {
     const balanceRes = await request(app)
       .get("/api/v1/payments/coins/balance")
       .set("Authorization", `Bearer ${userToken}`);
@@ -192,9 +183,7 @@ describe("Payments & VIP Subscription Endpoints", () => {
       .set("Authorization", `Bearer ${userToken}`)
       .send({ packageId: "COIN_120" });
 
-    expect(topupRes.status).toBe(200);
-    expect(topupRes.body.success).toBe(true);
-    expect(topupRes.body.data.addedCoins).toBe(120);
+    expect(topupRes.status).toBe(410);
   });
 
   it("should send anime gift to a song and update leaderboard", async () => {
@@ -268,7 +257,7 @@ describe("Payments & VIP Subscription Endpoints", () => {
     expect(getRes.body.data.order.status).toBe("PENDING");
   });
 
-  it("should confirm payment order, credit coins to user balance, and update status to SUCCESS", async () => {
+  it("should reject a customer's attempt to confirm their own payment order", async () => {
     // 1. Get initial balance
     const initRes = await request(app)
       .get("/api/v1/payments/coins/balance")
@@ -286,21 +275,50 @@ describe("Payments & VIP Subscription Endpoints", () => {
       });
     const orderId = createRes.body.data.order.id;
 
-    // 3. Confirm order payment
+    // 3. A customer must not be able to self-confirm a payment.
     const confirmRes = await request(app)
       .post(`/api/v1/payments/orders/${orderId}/confirm`)
       .set("Authorization", `Bearer ${userToken}`);
 
-    expect(confirmRes.status).toBe(200);
-    expect(confirmRes.body.success).toBe(true);
-    expect(confirmRes.body.data.order.status).toBe("SUCCESS");
-    expect(confirmRes.body.data.balance).toBe(initialCoins + 350);
+    expect(confirmRes.status).toBe(410);
 
-    // 4. Verify balance via endpoint
+    // 4. Verify that no coins were credited.
     const finalRes = await request(app)
       .get("/api/v1/payments/coins/balance")
       .set("Authorization", `Bearer ${userToken}`);
-    expect(finalRes.body.data.coins).toBe(initialCoins + 350);
+    expect(finalRes.body.data.coins).toBe(initialCoins);
+  });
+
+  it("should reject proof submission and admin approval after an order expires", async () => {
+    const realNow = Date.now();
+    const dateNowSpy = vi.spyOn(Date, "now").mockReturnValue(realNow - 15 * 60 * 1000 - 1);
+    const expiredOrderRes = await request(app)
+      .post("/api/v1/payments/orders/create")
+      .set("Authorization", `Bearer ${userToken}`)
+      .send({ type: "COIN_TOPUP", packageId: "COIN_50", method: "VIETQR_BANKING" });
+    const expiredOrder = expiredOrderRes.body.data.order;
+    dateNowSpy.mockRestore();
+
+    try {
+      const proofRes = await request(app)
+        .post(`/api/v1/payments/orders/${expiredOrder.id}/submit-proof`)
+        .set("Authorization", `Bearer ${userToken}`)
+        .send({ proofImageUrl: "https://example.com/expired-proof.png" });
+      expect(proofRes.status).toBe(400);
+
+      const reviewRes = await request(app)
+        .post(`/api/v1/payments/admin/orders/${expiredOrder.id}/review`)
+        .set("Authorization", `Bearer ${adminToken}`)
+        .send({ action: "APPROVE" });
+      expect(reviewRes.status).toBe(400);
+
+      const statusRes = await request(app)
+        .get(`/api/v1/payments/orders/${expiredOrder.id}`)
+        .set("Authorization", `Bearer ${userToken}`);
+      expect(statusRes.body.data.order.status).toBe("EXPIRED");
+    } finally {
+      dateNowSpy.mockRestore();
+    }
   });
 
   it("should allow cancelling a pending payment order", async () => {
