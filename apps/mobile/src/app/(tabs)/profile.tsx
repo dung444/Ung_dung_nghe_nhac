@@ -52,6 +52,18 @@ export default function ProfileScreen() {
   const [showPremiumModal, setShowPremiumModal] = useState(false);
   const [selectedQuality, setSelectedQuality] = useState("high");
 
+  // Edit Profile States
+  const [showEditProfileModal, setShowEditProfileModal] = useState(false);
+  const [editDisplayName, setEditDisplayName] = useState("");
+  const [editUsername, setEditUsername] = useState("");
+  const [editAvatarUrl, setEditAvatarUrl] = useState("");
+  const [showChangePasswordSection, setShowChangePasswordSection] = useState(false);
+  const [editCurrentPassword, setEditCurrentPassword] = useState("");
+  const [editNewPassword, setEditNewPassword] = useState("");
+  const [editConfirmPassword, setEditConfirmPassword] = useState("");
+  const [showPasswordText, setShowPasswordText] = useState(false);
+  const [editProfileLoading, setEditProfileLoading] = useState(false);
+
   // Helper lấy URL ảnh hoàn chỉnh (hỗ trợ relative uploads, base64, blob, http)
   const getDisplayAvatarUrl = (url?: string | null) => {
     if (!url) return null;
@@ -475,6 +487,123 @@ export default function ProfileScreen() {
     ]);
   };
 
+  const handleOpenEditProfile = () => {
+    setEditDisplayName(user?.displayName || "");
+    setEditUsername(user?.username || "");
+    setEditAvatarUrl(user?.avatarUrl || "");
+    setShowChangePasswordSection(false);
+    setEditCurrentPassword("");
+    setEditNewPassword("");
+    setEditConfirmPassword("");
+    setShowPasswordText(false);
+    setShowEditProfileModal(true);
+  };
+
+  const handlePickAvatarForEdit = () => {
+    if (typeof document === "undefined") {
+      Alert.alert("Thông báo", "Vui lòng chọn ảnh trên trình duyệt web hoặc nhập liên kết ảnh.");
+      return;
+    }
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = "image/png,image/jpeg,image/jpg,image/webp,image/*";
+    input.onchange = async (e: any) => {
+      const file = e.target?.files?.[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const base64Url = event.target?.result as string;
+        if (base64Url) {
+          setEditAvatarUrl(base64Url);
+        }
+      };
+      reader.readAsDataURL(file);
+
+      // Tự động tải lên máy chủ backend
+      setUploadingAvatar(true);
+      try {
+        const formData = new FormData();
+        formData.append("avatar", file);
+        const res = await api.post("/api/v1/users/me/avatar", formData, {
+          headers: { "Content-Type": undefined },
+        });
+        if (res.data?.success && res.data?.data?.avatarUrl) {
+          const rawUrl = res.data.data.avatarUrl;
+          const fullUrl = getDisplayAvatarUrl(rawUrl) || rawUrl;
+          setEditAvatarUrl(fullUrl);
+          savePersonalPhotos([fullUrl, ...personalPhotos.filter((p) => p !== fullUrl)]);
+        }
+      } catch (err) {
+        console.warn("Upload ảnh gặp lỗi, sử dụng ảnh xem trước:", err);
+      } finally {
+        setUploadingAvatar(false);
+      }
+    };
+    input.click();
+  };
+
+  const handleSaveProfile = async () => {
+    const trimmedUsername = editUsername.trim();
+    if (!trimmedUsername || trimmedUsername.length < 3) {
+      Alert.alert("Lỗi", "Tên người dùng (@username) phải có ít nhất 3 ký tự!");
+      return;
+    }
+
+    if (showChangePasswordSection && (editCurrentPassword || editNewPassword || editConfirmPassword)) {
+      if (!editCurrentPassword) {
+        Alert.alert("Lỗi", "Vui lòng nhập mật khẩu hiện tại!");
+        return;
+      }
+      if (!editNewPassword || editNewPassword.length < 6) {
+        Alert.alert("Lỗi", "Mật khẩu mới phải có ít nhất 6 ký tự!");
+        return;
+      }
+      if (editNewPassword !== editConfirmPassword) {
+        Alert.alert("Lỗi", "Mật khẩu xác nhận không khớp!");
+        return;
+      }
+    }
+
+    setEditProfileLoading(true);
+    try {
+      const payload: any = {
+        displayName: editDisplayName.trim() || trimmedUsername,
+        username: trimmedUsername,
+      };
+      if (editAvatarUrl.trim()) {
+        payload.avatarUrl = editAvatarUrl.trim();
+      }
+      if (showChangePasswordSection && editNewPassword) {
+        payload.currentPassword = editCurrentPassword;
+        payload.newPassword = editNewPassword;
+      }
+
+      const res = await api.patch("/api/v1/users/me", payload);
+      if (res.data?.success && res.data?.data) {
+        setUser(res.data.data);
+        if (payload.avatarUrl) {
+          savePersonalPhotos([payload.avatarUrl, ...personalPhotos.filter((p) => p !== payload.avatarUrl)]);
+        }
+        try {
+          const { useToastStore } = require("../../store/toastStore");
+          useToastStore.getState().showSuccess("Cập nhật thành công! ✨", "Thông tin cá nhân của bạn đã được lưu.");
+        } catch {}
+        Alert.alert("Thành công! ✨", "Thông tin hồ sơ cá nhân đã được lưu thành công!");
+        setShowEditProfileModal(false);
+      }
+    } catch (err: any) {
+      const msg = err.response?.data?.error || "Không thể cập nhật hồ sơ cá nhân";
+      try {
+        const { useToastStore } = require("../../store/toastStore");
+        useToastStore.getState().showError("Lỗi cập nhật", msg);
+      } catch {}
+      Alert.alert("Lỗi cập nhật", msg);
+    } finally {
+      setEditProfileLoading(false);
+    }
+  };
+
   const handleLogout = () => {
     const doLogout = () => {
       logout();
@@ -530,17 +659,30 @@ export default function ProfileScreen() {
 
           <View style={styles.userInfo}>
             <View style={styles.nameRow}>
-              <Text style={styles.username}>{user?.username || "Anime Lover"}</Text>
+              <Text style={styles.username}>{user?.displayName || user?.username || "Anime Lover"}</Text>
               {user?.isPremium && (
                 <View style={styles.premiumBadge}>
                   <Text style={styles.premiumText}>VIP WAIFU</Text>
                 </View>
               )}
             </View>
+            {user?.displayName && user?.username && user.displayName !== user.username && (
+              <Text style={styles.handleText}>@{user.username}</Text>
+            )}
             <Text style={styles.email}>{user?.email || "chua_dang_nhap@waifu.moe"}</Text>
-            <Text style={styles.roleText}>
-              Vai trò: <Text style={{ color: Colors.dark.primaryLight }}>{user?.role || "USER"}</Text>
-            </Text>
+            <View style={styles.userCardActions}>
+              <Text style={styles.roleText}>
+                Vai trò: <Text style={{ color: Colors.dark.primaryLight }}>{user?.role || "USER"}</Text>
+              </Text>
+              <TouchableOpacity
+                style={styles.editProfileBtnSmall}
+                onPress={handleOpenEditProfile}
+                activeOpacity={0.8}
+              >
+                <Ionicons name="create-outline" size={13} color={Colors.dark.primary} />
+                <Text style={styles.editProfileBtnSmallText}>Chỉnh sửa</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
 
@@ -685,7 +827,16 @@ export default function ProfileScreen() {
 
         {/* Settings Menu */}
         <View style={styles.menuContainer}>
-          <Text style={styles.menuSectionTitle}>Cài đặt trải nghiệm</Text>
+          <Text style={styles.menuSectionTitle}>Cài đặt tài khoản & trải nghiệm</Text>
+
+          <TouchableOpacity style={styles.menuItem} onPress={handleOpenEditProfile}>
+            <Ionicons name="person-circle-outline" size={22} color={Colors.dark.primary} />
+            <View style={styles.menuItemCenter}>
+              <Text style={styles.menuText}>Chỉnh sửa trang cá nhân</Text>
+              <Text style={styles.menuSubText}>Đổi tên hiển thị, tên người dùng, avatar & mật khẩu</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={Colors.dark.textMuted} />
+          </TouchableOpacity>
 
           <TouchableOpacity style={styles.menuItem} onPress={() => setShowQualityModal(true)}>
             <Ionicons name="musical-notes-outline" size={22} color={Colors.dark.primary} />
@@ -1641,6 +1792,259 @@ export default function ProfileScreen() {
               </View>
             </View>
           )}
+        </View>
+      </Modal>
+
+      {/* ─── MODAL CHỈNH SỬA HỒ SƠ CÁ NHÂN (EDIT PROFILE MODAL) ──────────────── */}
+      <Modal
+        visible={showEditProfileModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowEditProfileModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalCard, { maxHeight: "92%", paddingBottom: 16 }]}>
+            {/* Modal Header */}
+            <View style={styles.modalHeader}>
+              <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                <Ionicons name="sparkles" size={20} color={Colors.dark.primary} />
+                <Text style={styles.modalTitle}>Chỉnh Sửa Hồ Sơ Cá Nhân ✨</Text>
+              </View>
+              <TouchableOpacity onPress={() => setShowEditProfileModal(false)} style={styles.closeModalBtn}>
+                <Ionicons name="close" size={24} color={Colors.dark.textMuted} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 24 }}>
+              {/* Avatar Preview & Quick Select */}
+              <View style={styles.editAvatarCenterSection}>
+                <View style={styles.editAvatarBigWrap}>
+                  {editAvatarUrl ? (
+                    <Image
+                      source={{ uri: getDisplayAvatarUrl(editAvatarUrl) || editAvatarUrl }}
+                      style={styles.editAvatarBigImg}
+                    />
+                  ) : (
+                    <View style={styles.editAvatarBigPlaceholder}>
+                      <Ionicons name="person" size={44} color="#fff" />
+                    </View>
+                  )}
+                  <TouchableOpacity
+                    style={styles.editAvatarPickBadge}
+                    onPress={handlePickAvatarForEdit}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons name="camera" size={16} color="#fff" />
+                  </TouchableOpacity>
+                </View>
+
+                <View style={styles.editAvatarActionsRow}>
+                  <TouchableOpacity
+                    style={styles.editAvatarBtn}
+                    onPress={handlePickAvatarForEdit}
+                    disabled={uploadingAvatar}
+                    activeOpacity={0.8}
+                  >
+                    {uploadingAvatar ? (
+                      <ActivityIndicator size="small" color="#fff" />
+                    ) : (
+                      <>
+                        <Ionicons name="cloud-upload" size={15} color="#fff" />
+                        <Text style={styles.editAvatarBtnText}>Tải ảnh từ máy</Text>
+                      </>
+                    )}
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.editAvatarBtn, { backgroundColor: "rgba(255,255,255,0.08)", borderColor: Colors.dark.border, borderWidth: 1 }]}
+                    onPress={() => {
+                      setShowEditProfileModal(false);
+                      setShowAvatarModal(true);
+                    }}
+                    activeOpacity={0.8}
+                  >
+                    <Ionicons name="images-outline" size={15} color={Colors.dark.text} />
+                    <Text style={[styles.editAvatarBtnText, { color: Colors.dark.text }]}>Chọn từ kho Anime</Text>
+                  </TouchableOpacity>
+                </View>
+
+                {/* Quick Presets Carousel */}
+                <Text style={styles.quickSelectAvatarLabel}>Gợi ý ảnh đại diện Anime:</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.quickPresetsRow}>
+                  {WAIFU_AVATARS.map((waifuUrl, idx) => {
+                    const isSelected = editAvatarUrl === waifuUrl;
+                    return (
+                      <TouchableOpacity
+                        key={`quick-preset-${idx}`}
+                        style={[styles.quickPresetItem, isSelected && styles.quickPresetItemActive]}
+                        onPress={() => setEditAvatarUrl(waifuUrl)}
+                        activeOpacity={0.7}
+                      >
+                        <Image source={{ uri: waifuUrl }} style={styles.quickPresetImg} />
+                        {isSelected && (
+                          <View style={styles.quickPresetCheck}>
+                            <Ionicons name="checkmark" size={12} color="#fff" />
+                          </View>
+                        )}
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+              </View>
+
+              {/* Input: Tên hiển thị (DisplayName) */}
+              <View style={styles.formGroup}>
+                <Text style={styles.formLabel}>TÊN HIỂN THỊ (DISPLAY NAME)</Text>
+                <View style={styles.inputWrap}>
+                  <Ionicons name="person-outline" size={18} color={Colors.dark.textMuted} style={styles.inputIcon} />
+                  <TextInput
+                    style={styles.textInput}
+                    placeholder="VD: Hatsune Miku, Shiro, Kuro..."
+                    placeholderTextColor={Colors.dark.textMuted}
+                    value={editDisplayName}
+                    onChangeText={setEditDisplayName}
+                    maxLength={50}
+                  />
+                </View>
+                <Text style={styles.inputHint}>Tên xuất hiện trên thanh phát nhạc, phòng nghe chung và bình luận.</Text>
+              </View>
+
+              {/* Input: Tên người dùng (@username) */}
+              <View style={styles.formGroup}>
+                <Text style={styles.formLabel}>TÊN NGƯỜI DÙNG (@USERNAME)</Text>
+                <View style={styles.inputWrap}>
+                  <Text style={styles.atSymbol}>@</Text>
+                  <TextInput
+                    style={styles.textInput}
+                    placeholder="VD: hat_sune_miku"
+                    placeholderTextColor={Colors.dark.textMuted}
+                    value={editUsername}
+                    onChangeText={setEditUsername}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    maxLength={30}
+                  />
+                </View>
+                <Text style={styles.inputHint}>Định danh duy nhất dùng để đăng nhập và chia sẻ hồ sơ (tối thiểu 3 ký tự).</Text>
+              </View>
+
+              {/* Email (Read-Only) */}
+              <View style={styles.formGroup}>
+                <Text style={styles.formLabel}>ĐỊA CHỈ EMAIL LIÊN KẾT</Text>
+                <View style={[styles.inputWrap, styles.inputWrapDisabled]}>
+                  <Ionicons name="mail-outline" size={18} color={Colors.dark.textMuted} style={styles.inputIcon} />
+                  <Text style={styles.disabledText}>{user?.email || "chua_dang_nhap@waifu.moe"}</Text>
+                  <View style={styles.lockBadge}>
+                    <Ionicons name="lock-closed" size={12} color={Colors.dark.textMuted} />
+                    <Text style={styles.lockBadgeText}>Cố định</Text>
+                  </View>
+                </View>
+                <Text style={styles.inputHint}>Email bảo mật không thể thay đổi trực tiếp.</Text>
+              </View>
+
+              {/* Section: Đổi mật khẩu (Collapsible) */}
+              <View style={styles.passwordSectionBox}>
+                <TouchableOpacity
+                  style={styles.passwordSectionHeader}
+                  onPress={() => setShowChangePasswordSection(!showChangePasswordSection)}
+                  activeOpacity={0.8}
+                >
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+                    <Ionicons name="key-outline" size={18} color={Colors.dark.primary} />
+                    <Text style={styles.passwordSectionTitle}>Đổi mật khẩu tài khoản</Text>
+                  </View>
+                  <Ionicons
+                    name={showChangePasswordSection ? "chevron-up" : "chevron-down"}
+                    size={18}
+                    color={Colors.dark.textMuted}
+                  />
+                </TouchableOpacity>
+
+                {showChangePasswordSection && (
+                  <View style={styles.passwordFieldsWrap}>
+                    <View style={styles.passwordToggleRow}>
+                      <Text style={styles.inputHint}>Để bảo mật, vui lòng nhập mật khẩu hiện tại trước khi đặt mật khẩu mới.</Text>
+                      <TouchableOpacity
+                        onPress={() => setShowPasswordText(!showPasswordText)}
+                        style={styles.showPassBtn}
+                      >
+                        <Ionicons name={showPasswordText ? "eye-off-outline" : "eye-outline"} size={16} color={Colors.dark.primaryLight} />
+                        <Text style={styles.showPassBtnText}>{showPasswordText ? "Ẩn" : "Hiện"}</Text>
+                      </TouchableOpacity>
+                    </View>
+
+                    {/* Mật khẩu hiện tại */}
+                    <View style={[styles.inputWrap, { marginTop: 8 }]}>
+                      <Ionicons name="lock-closed-outline" size={18} color={Colors.dark.textMuted} style={styles.inputIcon} />
+                      <TextInput
+                        style={styles.textInput}
+                        placeholder="Mật khẩu hiện tại"
+                        placeholderTextColor={Colors.dark.textMuted}
+                        value={editCurrentPassword}
+                        onChangeText={setEditCurrentPassword}
+                        secureTextEntry={!showPasswordText}
+                        autoCapitalize="none"
+                      />
+                    </View>
+
+                    {/* Mật khẩu mới */}
+                    <View style={[styles.inputWrap, { marginTop: 10 }]}>
+                      <Ionicons name="shield-outline" size={18} color={Colors.dark.primaryLight} style={styles.inputIcon} />
+                      <TextInput
+                        style={styles.textInput}
+                        placeholder="Mật khẩu mới (tối thiểu 6 ký tự)"
+                        placeholderTextColor={Colors.dark.textMuted}
+                        value={editNewPassword}
+                        onChangeText={setEditNewPassword}
+                        secureTextEntry={!showPasswordText}
+                        autoCapitalize="none"
+                      />
+                    </View>
+
+                    {/* Xác nhận mật khẩu mới */}
+                    <View style={[styles.inputWrap, { marginTop: 10 }]}>
+                      <Ionicons name="checkmark-circle-outline" size={18} color={Colors.dark.primaryLight} style={styles.inputIcon} />
+                      <TextInput
+                        style={styles.textInput}
+                        placeholder="Xác nhận lại mật khẩu mới"
+                        placeholderTextColor={Colors.dark.textMuted}
+                        value={editConfirmPassword}
+                        onChangeText={setEditConfirmPassword}
+                        secureTextEntry={!showPasswordText}
+                        autoCapitalize="none"
+                      />
+                    </View>
+                  </View>
+                )}
+              </View>
+
+              {/* Action Buttons */}
+              <View style={styles.modalActionButtonsRow}>
+                <TouchableOpacity
+                  style={styles.cancelModalBtn}
+                  onPress={() => setShowEditProfileModal(false)}
+                  disabled={editProfileLoading}
+                >
+                  <Text style={styles.cancelModalBtnText}>Hủy</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.saveProfileSubmitBtn}
+                  onPress={handleSaveProfile}
+                  disabled={editProfileLoading}
+                  activeOpacity={0.85}
+                >
+                  {editProfileLoading ? (
+                    <ActivityIndicator size="small" color="#fff" />
+                  ) : (
+                    <>
+                      <Ionicons name="save-outline" size={18} color="#fff" />
+                      <Text style={styles.saveProfileSubmitBtnText}>Lưu Thay Đổi</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
+          </View>
         </View>
       </Modal>
 
@@ -2742,6 +3146,280 @@ const styles = StyleSheet.create({
     color: "#fff",
     fontSize: 13,
     fontWeight: "700",
+  },
+  handleText: {
+    fontSize: 13,
+    color: Colors.dark.textMuted,
+    marginBottom: 2,
+    fontWeight: "500",
+  },
+  userCardActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: 4,
+  },
+  editProfileBtnSmall: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "rgba(168, 85, 247, 0.15)",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "rgba(168, 85, 247, 0.3)",
+  },
+  editProfileBtnSmallText: {
+    color: Colors.dark.primaryLight,
+    fontSize: 11,
+    fontWeight: "700",
+  },
+  closeModalBtn: {
+    padding: 4,
+  },
+  editAvatarCenterSection: {
+    alignItems: "center",
+    marginBottom: 20,
+    backgroundColor: Colors.dark.card,
+    borderRadius: 16,
+    padding: 16,
+    borderWidth: 1,
+    borderColor: Colors.dark.border,
+  },
+  editAvatarBigWrap: {
+    position: "relative",
+    marginBottom: 12,
+  },
+  editAvatarBigImg: {
+    width: 90,
+    height: 90,
+    borderRadius: 45,
+    borderWidth: 3,
+    borderColor: Colors.dark.primary,
+  },
+  editAvatarBigPlaceholder: {
+    width: 90,
+    height: 90,
+    borderRadius: 45,
+    backgroundColor: Colors.dark.primary,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  editAvatarPickBadge: {
+    position: "absolute",
+    bottom: 0,
+    right: 0,
+    backgroundColor: Colors.dark.primary,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 2,
+    borderColor: Colors.dark.surface,
+  },
+  editAvatarActionsRow: {
+    flexDirection: "row",
+    gap: 10,
+    marginBottom: 14,
+  },
+  editAvatarBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    backgroundColor: Colors.dark.primary,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+  },
+  editAvatarBtnText: {
+    color: "#fff",
+    fontSize: 12,
+    fontWeight: "700",
+  },
+  quickSelectAvatarLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: Colors.dark.textMuted,
+    textTransform: "uppercase",
+    alignSelf: "flex-start",
+    marginBottom: 8,
+  },
+  quickPresetsRow: {
+    gap: 8,
+    paddingVertical: 2,
+  },
+  quickPresetItem: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    borderWidth: 2,
+    borderColor: Colors.dark.border,
+    overflow: "hidden",
+    position: "relative",
+  },
+  quickPresetItemActive: {
+    borderColor: Colors.dark.primary,
+    borderWidth: 2,
+  },
+  quickPresetImg: {
+    width: "100%",
+    height: "100%",
+  },
+  quickPresetCheck: {
+    position: "absolute",
+    bottom: 0,
+    right: 0,
+    backgroundColor: Colors.dark.primary,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  formGroup: {
+    marginBottom: 16,
+  },
+  formLabel: {
+    fontSize: 11,
+    fontWeight: "700",
+    color: Colors.dark.textMuted,
+    letterSpacing: 0.5,
+    marginBottom: 6,
+  },
+  inputWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: Colors.dark.card,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: Colors.dark.border,
+    paddingHorizontal: 12,
+    height: 46,
+  },
+  inputWrapDisabled: {
+    backgroundColor: "rgba(255,255,255,0.03)",
+    borderColor: "rgba(255,255,255,0.08)",
+  },
+  inputIcon: {
+    marginRight: 8,
+  },
+  atSymbol: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: Colors.dark.primaryLight,
+    marginRight: 4,
+  },
+  textInput: {
+    flex: 1,
+    color: Colors.dark.text,
+    fontSize: 14,
+  },
+  disabledText: {
+    flex: 1,
+    color: Colors.dark.textMuted,
+    fontSize: 14,
+  },
+  lockBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    backgroundColor: "rgba(255,255,255,0.06)",
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 6,
+  },
+  lockBadgeText: {
+    color: Colors.dark.textMuted,
+    fontSize: 11,
+  },
+  inputHint: {
+    fontSize: 11,
+    color: Colors.dark.textMuted,
+    marginTop: 4,
+  },
+  passwordSectionBox: {
+    backgroundColor: Colors.dark.card,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: Colors.dark.border,
+    padding: 14,
+    marginBottom: 18,
+  },
+  passwordSectionHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  passwordSectionTitle: {
+    fontSize: 14,
+    fontWeight: "700",
+    color: Colors.dark.text,
+  },
+  passwordFieldsWrap: {
+    marginTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: Colors.dark.border,
+    paddingTop: 10,
+  },
+  passwordToggleRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 6,
+  },
+  showPassBtn: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    paddingVertical: 2,
+    paddingHorizontal: 6,
+  },
+  showPassBtnText: {
+    fontSize: 11,
+    color: Colors.dark.primaryLight,
+    fontWeight: "600",
+  },
+  modalActionButtonsRow: {
+    flexDirection: "row",
+    gap: 12,
+    marginTop: 8,
+  },
+  cancelModalBtn: {
+    flex: 1,
+    backgroundColor: "rgba(255, 255, 255, 0.08)",
+    paddingVertical: 13,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.12)",
+  },
+  cancelModalBtnText: {
+    color: Colors.dark.textMuted,
+    fontSize: 14,
+    fontWeight: "700",
+  },
+  saveProfileSubmitBtn: {
+    flex: 2,
+    flexDirection: "row",
+    backgroundColor: Colors.dark.primary,
+    paddingVertical: 13,
+    borderRadius: 12,
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 6,
+    shadowColor: Colors.dark.primary,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  saveProfileSubmitBtnText: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "800",
   },
 });
 
