@@ -112,4 +112,59 @@ describe("Songs Endpoints", () => {
 
     expect(res.status).toBe(404);
   });
+
+  it("should NOT increment play count if durationPlayed is under 30 seconds", async () => {
+    const song = await prisma.song.findFirst();
+    if (song) {
+      const initialPlays = song.plays;
+      const res = await request(app)
+        .post(`/api/v1/songs/${song.id}/play`)
+        .set("Authorization", `Bearer ${userToken}`)
+        .send({ durationPlayed: 12 });
+
+      expect(res.status).toBe(200);
+      expect(res.body.data.counted).toBe(false);
+
+      const unchanged = await prisma.song.findUnique({ where: { id: song.id } });
+      expect(unchanged?.plays).toBe(initialPlays);
+    }
+  });
+
+  it("should increment play count if durationPlayed is at least 30 seconds", async () => {
+    const song = await prisma.song.create({
+      data: {
+        title: "Anti-Spam 30s Test Song",
+        duration: 180,
+        fileUrl: "/audio/test-30s.mp3",
+        plays: 0,
+      },
+    });
+
+    const res = await request(app)
+      .post(`/api/v1/songs/${song.id}/play`)
+      .set("Authorization", `Bearer ${userToken}`)
+      .send({ durationPlayed: 32 });
+
+    expect(res.status).toBe(200);
+    expect(res.body.data.counted).toBe(true);
+    expect(res.body.data.plays).toBe(1);
+
+    const updated = await prisma.song.findUnique({ where: { id: song.id } });
+    expect(updated?.plays).toBe(1);
+
+    // Immediate second call should be caught by anti-spam cooldown
+    const spamRes = await request(app)
+      .post(`/api/v1/songs/${song.id}/play`)
+      .set("Authorization", `Bearer ${userToken}`)
+      .send({ durationPlayed: 35 });
+
+    expect(spamRes.status).toBe(200);
+    expect(spamRes.body.data.counted).toBe(false);
+
+    const stillOne = await prisma.song.findUnique({ where: { id: song.id } });
+    expect(stillOne?.plays).toBe(1);
+
+    await prisma.listeningHistory.deleteMany({ where: { songId: song.id } });
+    await prisma.song.delete({ where: { id: song.id } });
+  });
 });

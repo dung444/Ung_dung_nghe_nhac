@@ -45,12 +45,10 @@ interface PlayerState {
   setSleepTimer: (minutes: number | null) => void;
 }
 
-function notifyPresenceAndRecordPlay(song: Song) {
-  try {
-    const { api } = require("../services/api");
-    api.post(`/api/v1/songs/${song.id}/play`).catch(() => {});
-  } catch {}
+// Track ID bài hát đã được tính lượt view hợp lệ (tránh trùng lặp trong 1 lần phát)
+let countedSongPlayId: string | null = null;
 
+function notifyPresencePlaying(song: Song) {
   try {
     const { getPresenceSocket } = require("../services/socket");
     const artistName = song.artists?.map((a: any) => a.name).join(", ") || "";
@@ -60,6 +58,14 @@ function notifyPresenceAndRecordPlay(song: Song) {
       artistName,
       coverUrl: song.coverUrl,
     });
+  } catch {}
+}
+
+function recordValidPlay(songId: string, durationPlayed: number) {
+  try {
+    const { api } = require("../services/api");
+    // Gửi thời lượng thực nghe lên server theo quy tắc 30s để tăng view & tính doanh thu hợp lệ
+    api.post(`/api/v1/songs/${songId}/play`, { durationPlayed }).catch(() => {});
   } catch {}
 }
 
@@ -74,17 +80,38 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
   // Setup listeners from audioPlayer service
   setAudioEventListeners({
     onProgress: (pos, dur) => {
-      set((state) => ({
-        position: Math.floor(pos),
-        duration: dur > 0 ? Math.floor(dur) : state.duration,
-      }));
+      const currentPos = Math.floor(pos);
+      const currentDur = dur > 0 ? Math.floor(dur) : get().duration;
+      set({
+        position: currentPos,
+        duration: currentDur,
+      });
+
+      // Quy tắc tính 1 lượt view hợp lệ: nghe >= 30s (hoặc >= 50% nếu bài hát ngắn < 60s)
+      const currentSong = get().currentSong;
+      if (currentSong && countedSongPlayId !== currentSong.id) {
+        const threshold = currentDur > 0 && currentDur < 60 ? Math.max(10, Math.floor(currentDur * 0.5)) : 30;
+        if (currentPos >= threshold) {
+          countedSongPlayId = currentSong.id;
+          recordValidPlay(currentSong.id, currentPos);
+        }
+      }
     },
     onEnded: () => {
-      const { repeatMode, currentSong, playNext } = get();
+      const { repeatMode, currentSong, playNext, position, duration } = get();
+      // Kiểm tra nếu bài hát kết thúc mà chưa kịp tính view (ví dụ bài ngắn)
+      if (currentSong && countedSongPlayId !== currentSong.id) {
+        const threshold = duration > 0 && duration < 60 ? Math.max(10, Math.floor(duration * 0.5)) : 30;
+        if (position >= threshold) {
+          countedSongPlayId = currentSong.id;
+          recordValidPlay(currentSong.id, position);
+        }
+      }
       if (repeatMode === "track" && currentSong) {
+        countedSongPlayId = null; // Reset để tính view cho lần nghe lặp lại tiếp theo
         set({ position: 0 });
         playSongOnPlayer(currentSong).catch(() => {});
-        notifyPresenceAndRecordPlay(currentSong);
+        notifyPresencePlaying(currentSong);
       } else {
         playNext();
       }
@@ -114,9 +141,10 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
         }
         return;
       }
+      countedSongPlayId = null;
       set({ currentSong: song, isPlaying: true, position: 0, duration: song.duration || 0 });
       playSongOnPlayer(song).catch(() => {});
-      notifyPresenceAndRecordPlay(song);
+      notifyPresencePlaying(song);
     },
 
     setQueue: (songs, startIndex = 0) => {
@@ -138,8 +166,9 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
         duration: startSong?.duration || 0,
       });
       if (startSong) {
+        countedSongPlayId = null;
         playSongOnPlayer(startSong).catch(() => {});
-        notifyPresenceAndRecordPlay(startSong);
+        notifyPresencePlaying(startSong);
       }
       // Sync queue to backend if authenticated
       try {
@@ -195,7 +224,7 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
       if (playing) {
         resumeAudio().catch(() => {});
         const current = get().currentSong;
-        if (current) notifyPresenceAndRecordPlay(current);
+        if (current) notifyPresencePlaying(current);
       } else {
         pauseAudio().catch(() => {});
         notifyPresencePaused();
@@ -248,9 +277,10 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
         return;
       }
       const nextSong = queue[nextIdx];
+      countedSongPlayId = null;
       set({ currentSong: nextSong, isPlaying: true, position: 0, duration: nextSong.duration || 0 });
       playSongOnPlayer(nextSong).catch(() => {});
-      notifyPresenceAndRecordPlay(nextSong);
+      notifyPresencePlaying(nextSong);
     },
 
     playPrev: () => {
@@ -267,9 +297,10 @@ export const usePlayerStore = create<PlayerState>((set, get) => {
       const idx = queue.findIndex((s) => s.id === currentSong.id);
       if (idx > 0) {
         const prevSong = queue[idx - 1];
+        countedSongPlayId = null;
         set({ currentSong: prevSong, isPlaying: true, position: 0, duration: prevSong.duration || 0 });
         playSongOnPlayer(prevSong).catch(() => {});
-        notifyPresenceAndRecordPlay(prevSong);
+        notifyPresencePlaying(prevSong);
       } else {
         set({ position: 0 });
         seekToPosition(0).catch(() => {});

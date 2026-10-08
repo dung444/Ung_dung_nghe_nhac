@@ -35,13 +35,58 @@ export async function getSongById(id: string) {
   return formatSong(song);
 }
 
-export async function recordPlay(songId: string, userId: string) {
+export async function recordPlay(songId: string, userId: string, durationPlayed?: number) {
   const song = await prisma.song.findUnique({ where: { id: songId } });
   if (!song) throw new AppError("Song not found", 404);
-  await Promise.all([
+
+  // Nguong tinh view hop le: toi thieu 30 giay (hoac 50% thoi luong neu bai hat ngan < 60s)
+  const duration = durationPlayed !== undefined ? Math.max(0, durationPlayed) : 30;
+  const minThreshold = song.duration > 0 && song.duration < 60 ? Math.floor(song.duration * 0.5) : 30;
+
+  if (duration < minThreshold) {
+    // Luu lich su nghe voi thoi luong thuc te nhung KHONG tang view de chong spam va gian lan doanh thu
+    await prisma.listeningHistory.create({
+      data: { userId, songId, durationPlayed: Math.floor(duration) },
+    });
+    return {
+      counted: false,
+      reason: `Thời lượng nghe (${Math.floor(duration)}s) chưa đạt ngưỡng tối thiểu (${minThreshold}s)`,
+      plays: song.plays,
+    };
+  }
+
+  // Cooldown chong spam: trong vong 20 giay khong tinh lap lai cung 1 bai hat cho cung 1 user
+  const recentHistory = await prisma.listeningHistory.findFirst({
+    where: {
+      userId,
+      songId,
+      durationPlayed: { gte: minThreshold },
+      playedAt: {
+        gte: new Date(Date.now() - 20 * 1000),
+      },
+    },
+    orderBy: { playedAt: "desc" },
+  });
+
+  if (recentHistory) {
+    return {
+      counted: false,
+      reason: "Lượt nghe lặp lại trong thời gian ngắn (cooldown 20s)",
+      plays: song.plays,
+    };
+  }
+
+  const [updatedSong] = await Promise.all([
     prisma.song.update({ where: { id: songId }, data: { plays: { increment: 1 } } }),
-    prisma.listeningHistory.create({ data: { userId, songId } }),
+    prisma.listeningHistory.create({
+      data: { userId, songId, durationPlayed: Math.floor(duration) },
+    }),
   ]);
+
+  return {
+    counted: true,
+    plays: updatedSong.plays,
+  };
 }
 
 export async function toggleLike(songId: string, userId: string) {

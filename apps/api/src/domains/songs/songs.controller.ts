@@ -23,8 +23,9 @@ export async function streamSong(req: Request, res: Response, next: NextFunction
 
 export async function recordPlay(req: Request, res: Response, next: NextFunction) {
   try {
-    await songsService.recordPlay(req.params.id, req.user!.userId);
-    res.json({ success: true });
+    const durationPlayed = req.body?.durationPlayed !== undefined ? Number(req.body.durationPlayed) : undefined;
+    const result = await songsService.recordPlay(req.params.id, req.user!.userId, durationPlayed);
+    res.json({ success: true, data: result });
   } catch (err) { next(err); }
 }
 
