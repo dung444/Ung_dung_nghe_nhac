@@ -1,5 +1,7 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Platform } from "react-native";
 import type { User } from "@waifu-player/types";
 
 interface AuthState {
@@ -16,26 +18,37 @@ interface AuthState {
   logout: () => void;
 }
 
-const customStorage = {
-  getItem: (name: string): string | null => {
+const hybridStorage = {
+  getItem: async (name: string): Promise<string | null> => {
     try {
-      if (typeof window !== "undefined" && window.localStorage) {
-        return window.localStorage.getItem(name);
+      if (Platform.OS === "web") {
+        return typeof window !== "undefined" && window.localStorage
+          ? window.localStorage.getItem(name)
+          : null;
       }
+      return await AsyncStorage.getItem(name);
     } catch {}
     return null;
   },
-  setItem: (name: string, value: string): void => {
+  setItem: async (name: string, value: string): Promise<void> => {
     try {
-      if (typeof window !== "undefined" && window.localStorage) {
-        window.localStorage.setItem(name, value);
+      if (Platform.OS === "web") {
+        if (typeof window !== "undefined" && window.localStorage) {
+          window.localStorage.setItem(name, value);
+        }
+      } else {
+        await AsyncStorage.setItem(name, value);
       }
     } catch {}
   },
-  removeItem: (name: string): void => {
+  removeItem: async (name: string): Promise<void> => {
     try {
-      if (typeof window !== "undefined" && window.localStorage) {
-        window.localStorage.removeItem(name);
+      if (Platform.OS === "web") {
+        if (typeof window !== "undefined" && window.localStorage) {
+          window.localStorage.removeItem(name);
+        }
+      } else {
+        await AsyncStorage.removeItem(name);
       }
     } catch {}
   },
@@ -61,8 +74,8 @@ export const useAuthStore = create<AuthState>()(
         set({ user: null, accessToken: null, refreshToken: null, isAuthenticated: false }),
     }),
     {
-      name: "waifu-player-auth",
-      storage: createJSONStorage(() => customStorage),
+      name: "waifu-auth-storage",
+      storage: createJSONStorage(() => hybridStorage),
     }
   )
 );

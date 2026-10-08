@@ -1,10 +1,28 @@
+import Constants from "expo-constants";
+
 declare const process: { env: Record<string, string | undefined> };
 
-export const API_BASE_URL =
-  process.env.EXPO_PUBLIC_API_URL ??
-  (typeof window !== "undefined" && window.location?.hostname
-    ? `http://${window.location.hostname}:3000`
-    : "http://192.168.1.4:3000");
+function resolveApiBaseUrl(): string {
+  if (process.env.EXPO_PUBLIC_API_URL) {
+    return process.env.EXPO_PUBLIC_API_URL;
+  }
+
+  if (typeof window !== "undefined" && window.location?.hostname) {
+    return `http://${window.location.hostname}:3000`;
+  }
+
+  const hostUri = Constants.expoConfig?.hostUri;
+  if (hostUri) {
+    const hostIp = hostUri.split(":")[0];
+    if (hostIp) {
+      return `http://${hostIp}:3000`;
+    }
+  }
+
+  return "http://localhost:3000";
+}
+
+export const API_BASE_URL = resolveApiBaseUrl();
 export const API_V1 = `${API_BASE_URL}/api/v1`;
 
 export const SOCKET_URL = API_BASE_URL;

@@ -17,6 +17,7 @@ import { ENDPOINTS } from "../../constants/api";
 import { useAuthStore } from "../../store/authStore";
 import { useToastStore } from "../../store/toastStore";
 import { GoldCoin } from "../../components/ui/GoldCoin";
+import { pickImageFromDevice } from "../../utils/filePicker";
 import type { CoinPackage, PaymentOrder } from "@waifu-player/types";
 
 export interface PaymentCheckoutModalProps {
@@ -229,34 +230,17 @@ export function PaymentCheckoutModal({
   }, [step, currentOrder?.id, currentOrder?.status]);
 
   // Hàm chọn ảnh biên lai từ máy tính / điện thoại
-  const handlePickProofFromFile = () => {
-    if (typeof document !== "undefined") {
-      const input = document.createElement("input");
-      input.type = "file";
-      input.accept = "image/*";
-      input.onchange = (e: any) => {
-        const file = e.target?.files?.[0];
-        if (file) {
-          if (file.size > 10 * 1024 * 1024) {
-            showError("Ảnh quá lớn", "Vui lòng chọn ảnh biên lai dưới 10MB");
-            return;
-          }
-          setProofFileName(file.name);
-          const reader = new FileReader();
-          reader.onload = (event) => {
-            const result = event.target?.result as string;
-            if (result) {
-              setProofImageUrl(result);
-              showSuccess("Đã tải ảnh biên lai!", `Đã chọn ảnh: ${file.name}`);
-            }
-          };
-          reader.readAsDataURL(file);
-        }
-      };
-      input.click();
-    } else {
-      showInfo("Thông báo", "Vui lòng dán liên kết ảnh biên lai vào ô bên dưới.");
+  const handlePickProofFromFile = async () => {
+    const picked = await pickImageFromDevice();
+    if (!picked) return;
+    if (picked.size && picked.size > 10 * 1024 * 1024) {
+      showError("Ảnh quá lớn", "Vui lòng chọn ảnh biên lai dưới 10MB");
+      return;
     }
+
+    setProofFileName(picked.name);
+    setProofImageUrl(picked.dataUrl || picked.uri);
+    showSuccess("Đã tải ảnh biên lai!", `Đã chọn ảnh: ${picked.name}`);
   };
 
   const handleRemoveProofImage = () => {

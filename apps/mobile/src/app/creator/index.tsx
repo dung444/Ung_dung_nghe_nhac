@@ -10,6 +10,7 @@ import {
   Modal,
   Alert,
   ActivityIndicator,
+  Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -20,6 +21,7 @@ import { api } from "../../services/api";
 import { API_BASE_URL } from "../../constants/api";
 import { formatDuration } from "@waifu-player/utils";
 import type { Artist, CreatorStudioStats, Genre, Song } from "@waifu-player/types";
+import { pickAudioFileFromDevice, pickImageFromDevice } from "../../utils/filePicker";
 
 const LICENSE_TYPES = [
   { id: "ALL_RIGHTS_RESERVED", name: "Bảo lưu mọi quyền (All Rights Reserved)" },
@@ -69,84 +71,75 @@ export default function CreatorStudioScreen() {
   const [uploadingCover, setUploadingCover] = useState(false);
 
   // Function to pick audio file from local machine
-  const handlePickLocalAudio = () => {
-    if (typeof document === "undefined") return;
-    const input = document.createElement("input");
-    input.type = "file";
-    input.accept = "audio/mp3,audio/wav,audio/flac,audio/ogg,audio/m4a,audio/*,.mp3,.wav,.flac,.m4a";
-    input.onchange = async (e: any) => {
-      const file = e.target?.files?.[0];
-      if (!file) return;
+  const handlePickLocalAudio = async () => {
+    const picked = await pickAudioFileFromDevice();
+    if (!picked) return;
 
-      setLocalAudioName(file.name);
-      setLocalAudioSize((file.size / (1024 * 1024)).toFixed(2));
+    setLocalAudioName(picked.name);
+    setLocalAudioSize(picked.size ? (picked.size / (1024 * 1024)).toFixed(2) : null);
 
-      // Auto populate song title if empty
-      if (!songTitle.trim()) {
-        const cleanName = file.name.replace(/\.[^/.]+$/, "").replace(/[-_]/g, " ");
-        setSongTitle(cleanName);
-      }
+    if (!songTitle.trim()) {
+      const cleanName = picked.name.replace(/\.[^/.]+$/, "").replace(/[-_]/g, " ");
+      setSongTitle(cleanName);
+    }
 
-      // Auto detect duration via HTML5 Audio
+    if (Platform.OS === "web" && picked.file) {
       try {
-        const tempAudio = new Audio(URL.createObjectURL(file));
+        const tempAudio = new Audio(URL.createObjectURL(picked.file));
         tempAudio.onloadedmetadata = () => {
           if (tempAudio.duration && !isNaN(tempAudio.duration)) {
             setDuration(Math.round(tempAudio.duration).toString());
           }
         };
       } catch {}
+    }
 
-      // Upload file to backend
-      setUploadingAudio(true);
-      try {
-        const formData = new FormData();
-        formData.append("file", file);
-        const res = await api.post("/api/v1/creator/upload/audio", formData, {
-          headers: { "Content-Type": "multipart/form-data" },
-        });
-        if (res.data?.success && res.data?.data?.url) {
-          setAudioUrl(res.data.data.url);
-        }
-      } catch (err) {
-        console.warn("Upload audio error:", err);
-      } finally {
-        setUploadingAudio(false);
+    setUploadingAudio(true);
+    try {
+      const formData = new FormData();
+      if (Platform.OS === "web" && picked.file) {
+        formData.append("file", picked.file);
+      } else {
+        formData.append("file", { uri: picked.uri, name: picked.name, type: picked.type } as any);
       }
-    };
-    input.click();
+      const res = await api.post("/api/v1/creator/upload/audio", formData, {
+        headers: { "Content-Type": undefined },
+      });
+      if (res.data?.success && res.data?.data?.url) {
+        setAudioUrl(res.data.data.url);
+      }
+    } catch (err) {
+      console.warn("Upload audio error:", err);
+    } finally {
+      setUploadingAudio(false);
+    }
   };
 
   // Function to pick cover art image from local machine
-  const handlePickLocalCover = () => {
-    if (typeof document === "undefined") return;
-    const input = document.createElement("input");
-    input.type = "file";
-    input.accept = "image/jpeg,image/png,image/webp,image/gif,image/*";
-    input.onchange = async (e: any) => {
-      const file = e.target?.files?.[0];
-      if (!file) return;
+  const handlePickLocalCover = async () => {
+    const picked = await pickImageFromDevice();
+    if (!picked) return;
 
-      setLocalCoverName(file.name);
-
-      // Upload file to backend
-      setUploadingCover(true);
-      try {
-        const formData = new FormData();
-        formData.append("file", file);
-        const res = await api.post("/api/v1/creator/upload/cover", formData, {
-          headers: { "Content-Type": "multipart/form-data" },
-        });
-        if (res.data?.success && res.data?.data?.url) {
-          setCoverUrl(res.data.data.url);
-        }
-      } catch (err) {
-        console.warn("Upload cover error:", err);
-      } finally {
-        setUploadingCover(false);
+    setLocalCoverName(picked.name);
+    setUploadingCover(true);
+    try {
+      const formData = new FormData();
+      if (Platform.OS === "web" && picked.file) {
+        formData.append("file", picked.file);
+      } else {
+        formData.append("file", { uri: picked.uri, name: picked.name, type: picked.type } as any);
       }
-    };
-    input.click();
+      const res = await api.post("/api/v1/creator/upload/cover", formData, {
+        headers: { "Content-Type": undefined },
+      });
+      if (res.data?.success && res.data?.data?.url) {
+        setCoverUrl(res.data.data.url);
+      }
+    } catch (err) {
+      console.warn("Upload cover error:", err);
+    } finally {
+      setUploadingCover(false);
+    }
   };
 
   // Album Form State

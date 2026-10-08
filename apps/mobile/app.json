@@ -12,17 +12,33 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "dev.waifuplayer.app"
+      "bundleIdentifier": "dev.waifuplayer.app",
+      "infoPlist": {
+        "UIBackgroundModes": ["audio"],
+        "NSPhotoLibraryUsageDescription": "Cho phép Waifu Player truy cập thư viện ảnh để cập nhật avatar và tải ảnh bìa."
+      }
     },
     "android": {
-      "package": "dev.waifuplayer.app"
+      "package": "dev.waifuplayer.app",
+      "permissions": [
+        "FOREGROUND_SERVICE",
+        "WAKE_LOCK",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE"
+      ]
     },
     "web": {
       "bundler": "metro",
       "output": "static"
     },
     "plugins": [
-      ["expo-router", { "root": "./src/app" }]
+      ["expo-router", { "root": "./src/app" }],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Cho phép Waifu Player truy cập thư viện ảnh để chọn avatar."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

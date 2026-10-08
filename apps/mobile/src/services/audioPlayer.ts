@@ -1,4 +1,4 @@
-import { NativeModules } from "react-native";
+import { NativeModules, Platform } from "react-native";
 import type { Song } from "@waifu-player/types";
 import { API_BASE_URL } from "../constants/api";
 
@@ -21,7 +21,19 @@ if (isTrackPlayerAvailable) {
   }
 }
 
-// Fallback HTML5 audio element for Web & Expo Go preview
+// Safely load expo-av dynamically to prevent crashing on clients where ExponentAV is missing (e.g. Expo Go iOS)
+let ExpoAudio: any = null;
+try {
+  const av = require("expo-av");
+  if (av?.Audio) {
+    ExpoAudio = av.Audio;
+  }
+} catch {
+  // ExponentAV native module is not bundled in this client
+}
+
+// Expo Go uses expo-av if available; HTML5 Audio remains the browser fallback.
+let expoSound: any = null;
 let webAudio: HTMLAudioElement | null = null;
 let currentVolume = 1.0;
 let currentRate = 1.0;
@@ -97,6 +109,7 @@ export async function playSongOnPlayer(song: Song): Promise<void> {
       ? song.fileUrl
       : `${API_BASE_URL}${song.fileUrl.startsWith("/") ? "" : "/"}${song.fileUrl}`;
 
+    // 1. Production Native Player (react-native-track-player)
     if (isTrackPlayerAvailable && TrackPlayer) {
       await TrackPlayer.reset();
       await TrackPlayer.add({
@@ -108,7 +121,47 @@ export async function playSongOnPlayer(song: Song): Promise<void> {
         duration: song.duration,
       });
       await TrackPlayer.play();
-    } else if (typeof window !== "undefined" && typeof Audio !== "undefined") {
+      return;
+    }
+
+    // 2. Mobile Player with Expo Audio (if native module ExponentAV is present)
+    if (Platform.OS !== "web" && ExpoAudio?.Sound) {
+      try {
+        if (expoSound) {
+          try {
+            await expoSound.unloadAsync();
+          } catch {}
+          expoSound = null;
+        }
+        await ExpoAudio.setAudioModeAsync({
+          playsInSilentModeIOS: true,
+          staysActiveInBackground: true,
+          shouldDuckAndroid: true,
+        });
+        const { sound } = await ExpoAudio.Sound.createAsync(
+          { uri: streamUrl },
+          { shouldPlay: true, volume: currentVolume, rate: currentRate },
+          (status: any) => {
+            if (status?.isLoaded) {
+              eventCallbacks.onProgress?.(
+                status.positionMillis / 1000,
+                (status.durationMillis || song.duration * 1000) / 1000
+              );
+              if (status.didJustFinish) {
+                eventCallbacks.onEnded?.();
+              }
+            }
+          }
+        );
+        expoSound = sound;
+        return;
+      } catch (error) {
+        console.warn("[ExpoAudio] Error playing stream:", error);
+      }
+    }
+
+    // 3. Web Player (HTML5 Audio)
+    if (typeof window !== "undefined" && typeof Audio !== "undefined") {
       if (webAudio) {
         try {
           webAudio.pause();
@@ -157,6 +210,10 @@ export async function pauseAudio(): Promise<void> {
   try {
     if (isTrackPlayerAvailable && TrackPlayer) {
       await TrackPlayer.pause();
+    } else if (expoSound) {
+      try {
+        await expoSound.pauseAsync();
+      } catch {}
     } else if (webAudio) {
       webAudio.pause();
     }
@@ -169,6 +226,10 @@ export async function resumeAudio(): Promise<void> {
   try {
     if (isTrackPlayerAvailable && TrackPlayer) {
       await TrackPlayer.play();
+    } else if (expoSound) {
+      try {
+        await expoSound.playAsync();
+      } catch {}
     } else if (webAudio) {
       webAudio.play().catch(() => {});
     }
@@ -181,6 +242,10 @@ export async function seekToPosition(seconds: number): Promise<void> {
   try {
     if (isTrackPlayerAvailable && TrackPlayer) {
       await TrackPlayer.seekTo(seconds);
+    } else if (expoSound) {
+      try {
+        await expoSound.setPositionAsync(seconds * 1000);
+      } catch {}
     } else if (webAudio) {
       webAudio.currentTime = seconds;
     }
@@ -196,6 +261,10 @@ export async function setAudioVolume(volume: number): Promise<void> {
     currentVolume = clamped;
     if (isTrackPlayerAvailable && TrackPlayer) {
       await TrackPlayer.setVolume(clamped);
+    } else if (expoSound) {
+      try {
+        await expoSound.setVolumeAsync(clamped);
+      } catch {}
     } else if (webAudio) {
       webAudio.volume = clamped;
     }
@@ -209,6 +278,10 @@ export async function setPlaybackRate(rate: number): Promise<void> {
     currentRate = rate;
     if (isTrackPlayerAvailable && TrackPlayer) {
       await TrackPlayer.setRate(rate);
+    } else if (expoSound) {
+      try {
+        await expoSound.setRateAsync(rate, true);
+      } catch {}
     } else if (webAudio) {
       webAudio.playbackRate = rate;
     }
@@ -226,4 +299,3 @@ export async function playbackService() {
     TrackPlayer.addEventListener(Event.RemoteSeek, (event: any) => TrackPlayer.seekTo(event.position));
   }
 }
-
