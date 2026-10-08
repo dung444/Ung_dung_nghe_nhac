@@ -1,3 +1,5 @@
+import fs from "fs";
+import path from "path";
 import { prisma } from "../../config/database";
 import { AppError } from "../../middleware/error.middleware";
 
@@ -629,6 +631,56 @@ export interface PaymentOrder {
 
 const paymentOrders = new Map<string, PaymentOrder>();
 
+const PAYMENT_DATA_FILE = path.join(process.cwd(), "uploads", "payment_data.json");
+
+function savePaymentDataToDisk() {
+  try {
+    const uploadDir = path.join(process.cwd(), "uploads");
+    if (!fs.existsSync(uploadDir)) {
+      fs.mkdirSync(uploadDir, { recursive: true });
+    }
+    const data = {
+      orders: Array.from(paymentOrders.entries()),
+      transactions,
+      userBalances: Array.from(userCoinBalances.entries()),
+      bankConfig,
+    };
+    fs.writeFileSync(PAYMENT_DATA_FILE, JSON.stringify(data, null, 2), "utf-8");
+  } catch (err) {
+    console.error("Error saving payment data to disk:", err);
+  }
+}
+
+function loadPaymentDataFromDisk() {
+  try {
+    if (fs.existsSync(PAYMENT_DATA_FILE)) {
+      const raw = fs.readFileSync(PAYMENT_DATA_FILE, "utf-8");
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed.orders)) {
+        for (const [k, v] of parsed.orders) {
+          paymentOrders.set(k, v);
+        }
+      }
+      if (Array.isArray(parsed.transactions)) {
+        transactions.length = 0;
+        transactions.push(...parsed.transactions);
+      }
+      if (Array.isArray(parsed.userBalances)) {
+        for (const [k, v] of parsed.userBalances) {
+          userCoinBalances.set(k, v);
+        }
+      }
+      if (parsed.bankConfig) {
+        Object.assign(bankConfig, parsed.bankConfig);
+      }
+    }
+  } catch (err) {
+    console.error("Error loading payment data from disk:", err);
+  }
+}
+
+loadPaymentDataFromDisk();
+
 export async function createPaymentOrder(
   userId: string,
   data: {
@@ -731,6 +783,8 @@ export async function createPaymentOrder(
   };
   transactions.unshift(tx);
 
+  savePaymentDataToDisk();
+
   return {
     success: true,
     order,
@@ -794,6 +848,8 @@ export async function confirmPaymentOrder(orderId: string, userId: string) {
     }
   }
 
+  savePaymentDataToDisk();
+
   return {
     success: true,
     order,
@@ -823,6 +879,8 @@ export async function cancelPaymentOrder(orderId: string, userId: string) {
   if (tx) {
     tx.status = "FAILED";
   }
+
+  savePaymentDataToDisk();
 
   return {
     success: true,
@@ -868,6 +926,8 @@ export async function submitPaymentProof(
     tx.status = "PENDING";
   }
 
+  savePaymentDataToDisk();
+
   return {
     success: true,
     order,
@@ -880,7 +940,14 @@ export async function adminReviewPaymentOrder(
   adminUserId: string,
   data: { action: "APPROVE" | "REJECT"; adminNote?: string }
 ) {
-  const order = paymentOrders.get(orderId);
+  let order = paymentOrders.get(orderId);
+  if (!order) {
+    order = Array.from(paymentOrders.values()).find((o) => o.id === orderId || o.orderCode === orderId);
+  }
+  if (!order) {
+    loadPaymentDataFromDisk();
+    order = paymentOrders.get(orderId) || Array.from(paymentOrders.values()).find((o) => o.id === orderId || o.orderCode === orderId);
+  }
   if (!order) throw new AppError("Đơn hàng không tồn tại", 404);
 
   if (data.action !== "APPROVE" && data.action !== "REJECT") {
@@ -912,6 +979,8 @@ export async function adminReviewPaymentOrder(
       tx.status = "SUCCESS";
     }
 
+    savePaymentDataToDisk();
+
     return {
       success: true,
       order,
@@ -928,6 +997,8 @@ export async function adminReviewPaymentOrder(
     if (tx) {
       tx.status = "FAILED";
     }
+
+    savePaymentDataToDisk();
 
     return {
       success: true,

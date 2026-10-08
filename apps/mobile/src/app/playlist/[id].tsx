@@ -315,9 +315,9 @@ export default function PlaylistDetailScreen() {
             </View>
           )}
           <Text style={styles.playlistTitle}>{playlist.name}</Text>
-          {playlist.description && (
+          {!!playlist.description ? (
             <Text style={styles.playlistDesc}>{playlist.description}</Text>
-          )}
+          ) : null}
           <Text style={styles.playlistMeta}>
             Tạo bởi {playlist.user?.username || "Bạn"} • {playlistSongs.length} bài hát
           </Text>

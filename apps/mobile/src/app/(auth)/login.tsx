@@ -64,11 +64,6 @@ export default function LoginScreen() {
     }
   };
 
-  const handleQuickAdminLogin = () => {
-    setEmail("admin");
-    setPassword("123");
-    handleLogin("admin", "123");
-  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -110,17 +105,6 @@ export default function LoginScreen() {
           )}
         </TouchableOpacity>
 
-        {/* Quick Admin Login button */}
-        <TouchableOpacity
-          style={styles.quickAdminBtn}
-          onPress={handleQuickAdminLogin}
-          disabled={loading}
-          activeOpacity={0.8}
-        >
-          <Ionicons name="shield-checkmark" size={18} color={Colors.dark.accent} />
-          <Text style={styles.quickAdminBtnText}>Đăng nhập nhanh Admin (admin / 123) 👑</Text>
-        </TouchableOpacity>
-
         <TouchableOpacity style={styles.registerBtn} onPress={() => router.push("/(auth)/register")}>
           <Text style={styles.registerBtnText}>Chưa có tài khoản? Đăng ký ngay</Text>
         </TouchableOpacity>
@@ -140,19 +124,6 @@ const styles = StyleSheet.create({
   input: { backgroundColor: Colors.dark.surface, borderWidth: 1, borderColor: Colors.dark.border, borderRadius: 8, padding: 14, color: Colors.dark.text, fontSize: 16 },
   loginBtn: { backgroundColor: Colors.dark.primary, padding: 16, borderRadius: 8, alignItems: "center", marginTop: 12 },
   loginBtnText: { color: "#fff", fontSize: 16, fontWeight: "bold" },
-  quickAdminBtn: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 8,
-    backgroundColor: "rgba(6, 182, 212, 0.12)",
-    borderWidth: 1,
-    borderColor: "rgba(6, 182, 212, 0.35)",
-    padding: 14,
-    borderRadius: 8,
-    marginTop: 12,
-  },
-  quickAdminBtnText: { color: Colors.dark.accent, fontSize: 14, fontWeight: "700" },
   registerBtn: { padding: 16, alignItems: "center", marginTop: 8 },
   registerBtnText: { color: Colors.dark.secondary, fontSize: 14, fontWeight: "600" },
 });

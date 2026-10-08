@@ -91,6 +91,10 @@ export default function AdminPortalScreen() {
   const [selectedOrderToReject, setSelectedOrderToReject] = useState<PaymentOrder | null>(null);
   const [rejectReason, setRejectReason] = useState("");
 
+  const [showApproveModal, setShowApproveModal] = useState(false);
+  const [selectedOrderToApprove, setSelectedOrderToApprove] = useState<PaymentOrder | null>(null);
+  const [approveNote, setApproveNote] = useState("");
+
   // Statistics Interactive Category & Time Range Buttons States
   type StatCategory = "ALL" | "REVENUE" | "GROWTH" | "RANKINGS" | "USERS" | "PAYOUTS_GIFTS";
   type StatTimeRange = "TODAY" | "7D" | "30D" | "ALL_TIME";
@@ -346,64 +350,75 @@ export default function AdminPortalScreen() {
   };
 
   const handleDeleteUser = (u: AdminUserItem) => {
-    Alert.alert(
-      "Xác nhận xóa tài khoản",
-      `Bạn có chắc chắn muốn xóa người dùng "${u.username}"? Hành động này không thể hoàn tác.`,
-      [
-        { text: "Hủy", style: "cancel" },
-        {
-          text: "Xóa vĩnh viễn",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              const res = await api.delete(`/api/v1/admin/users/${u.id}`);
-              if (res.data?.success) {
-                Alert.alert("Đã xóa", "Người dùng đã bị xóa khỏi hệ thống");
-                loadDashboardData();
-              }
-            } catch (err: any) {
-              Alert.alert("Lỗi", err.response?.data?.error || "Không thể xóa người dùng");
-            }
-          },
-        },
-      ]
-    );
+    const doDelete = async () => {
+      try {
+        const res = await api.delete(`/api/v1/admin/users/${u.id}`);
+        if (res.data?.success) {
+          if (Platform.OS === "web") {
+            window.alert(`Đã xóa người dùng "${u.username}" khỏi hệ thống.`);
+          } else {
+            Alert.alert("Đã xóa", "Người dùng đã bị xóa khỏi hệ thống");
+          }
+          loadDashboardData();
+        }
+      } catch (err: any) {
+        const msg = err.response?.data?.error || "Không thể xóa người dùng";
+        if (Platform.OS === "web") window.alert(`Lỗi: ${msg}`);
+        else Alert.alert("Lỗi", msg);
+      }
+    };
+
+    if (Platform.OS === "web") {
+      if (typeof window !== "undefined" && window.confirm(`Bạn có chắc chắn muốn xóa người dùng "${u.username}"? Hành động này không thể hoàn tác.`)) {
+        doDelete();
+      }
+    } else {
+      Alert.alert(
+        "Xác nhận xóa tài khoản",
+        `Bạn có chắc chắn muốn xóa người dùng "${u.username}"? Hành động này không thể hoàn tác.`,
+        [
+          { text: "Hủy", style: "cancel" },
+          { text: "Xóa vĩnh viễn", style: "destructive", onPress: doDelete },
+        ]
+      );
+    }
   };
 
   // Actions: Payment Orders (Xu & VIP) Review
   const handleApproveOrder = (order: PaymentOrder) => {
-    const actionDesc =
-      order.type === "COIN_TOPUP"
-        ? `Nạp +${order.coins} Xu Waifu`
-        : `Kích hoạt Gói VIP Pass (${order.packageName})`;
+    setSelectedOrderToApprove(order);
+    setApproveNote("Admin đã xác nhận ảnh chuyển khoản và phê duyệt thành công");
+    setShowApproveModal(true);
+  };
 
-    Alert.alert(
-      "Duyệt đơn thanh toán ✅",
-      `Bạn có chắc chắn muốn duyệt đơn ${order.orderCode} (${order.amount.toLocaleString()} ₫)?\nHệ thống sẽ tự động ${actionDesc} cho người dùng ngay lập tức.`,
-      [
-        { text: "Hủy", style: "cancel" },
-        {
-          text: "Duyệt & Kích Hoạt Ngay",
-          onPress: async () => {
-            setOrderReviewLoading(true);
-            try {
-              const res = await api.post(`/api/v1/payments/admin/orders/${order.id}/review`, {
-                action: "APPROVE",
-                adminNote: "Admin đã xác nhận ảnh chuyển khoản và phê duyệt thành công",
-              });
-              if (res.data?.success) {
-                Alert.alert("Thành công! 🎉", `Đã duyệt đơn ${order.orderCode} và cập nhật quyền lợi cho tài khoản.`);
-                loadDashboardData();
-              }
-            } catch (err: any) {
-              Alert.alert("Lỗi", err.response?.data?.error || "Không thể duyệt đơn");
-            } finally {
-              setOrderReviewLoading(false);
-            }
-          },
-        },
-      ]
-    );
+  const handleConfirmApproveOrder = async () => {
+    if (!selectedOrderToApprove) return;
+    setOrderReviewLoading(true);
+    try {
+      const res = await api.post(`/api/v1/payments/admin/orders/${selectedOrderToApprove.id}/review`, {
+        action: "APPROVE",
+        adminNote: approveNote.trim() || "Admin đã xác nhận ảnh chuyển khoản và phê duyệt thành công",
+      });
+      if (res.data?.success) {
+        if (Platform.OS === "web") {
+          window.alert(`Thành công! 🎉\nĐã duyệt đơn ${selectedOrderToApprove.orderCode} và cập nhật quyền lợi cho tài khoản.`);
+        } else {
+          Alert.alert("Thành công! 🎉", `Đã duyệt đơn ${selectedOrderToApprove.orderCode} và cập nhật quyền lợi cho tài khoản.`);
+        }
+        setShowApproveModal(false);
+        setSelectedOrderToApprove(null);
+        loadDashboardData();
+      }
+    } catch (err: any) {
+      const msg = err.response?.data?.error || "Không thể duyệt đơn";
+      if (Platform.OS === "web") {
+        window.alert(`Lỗi: ${msg}`);
+      } else {
+        Alert.alert("Lỗi", msg);
+      }
+    } finally {
+      setOrderReviewLoading(false);
+    }
   };
 
   const handleOpenRejectModal = (order: PaymentOrder) => {
@@ -435,28 +450,38 @@ export default function AdminPortalScreen() {
 
   // Actions: Song Management
   const handleDeleteSong = (song: Song) => {
-    Alert.alert(
-      "Xóa bài hát",
-      `Bạn có chắc chắn muốn gỡ bỏ bài hát "${song.title}"?`,
-      [
-        { text: "Hủy", style: "cancel" },
-        {
-          text: "Xóa bài hát",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              const res = await api.delete(`/api/v1/songs/${song.id}`);
-              if (res.data?.success) {
-                Alert.alert("Đã xóa", `Bài hát "${song.title}" đã được gỡ bỏ.`);
-                loadDashboardData();
-              }
-            } catch (err: any) {
-              Alert.alert("Lỗi", err.response?.data?.error || "Không thể xóa bài hát");
-            }
-          },
-        },
-      ]
-    );
+    const doDelete = async () => {
+      try {
+        const res = await api.delete(`/api/v1/songs/${song.id}`);
+        if (res.data?.success) {
+          if (Platform.OS === "web") {
+            window.alert(`Bài hát "${song.title}" đã được gỡ bỏ.`);
+          } else {
+            Alert.alert("Đã xóa", `Bài hát "${song.title}" đã được gỡ bỏ.`);
+          }
+          loadDashboardData();
+        }
+      } catch (err: any) {
+        const msg = err.response?.data?.error || "Không thể xóa bài hát";
+        if (Platform.OS === "web") window.alert(`Lỗi: ${msg}`);
+        else Alert.alert("Lỗi", msg);
+      }
+    };
+
+    if (Platform.OS === "web") {
+      if (typeof window !== "undefined" && window.confirm(`Bạn có chắc chắn muốn gỡ bỏ bài hát "${song.title}"?`)) {
+        doDelete();
+      }
+    } else {
+      Alert.alert(
+        "Xóa bài hát",
+        `Bạn có chắc chắn muốn gỡ bỏ bài hát "${song.title}"?`,
+        [
+          { text: "Hủy", style: "cancel" },
+          { text: "Xóa bài hát", style: "destructive", onPress: doDelete },
+        ]
+      );
+    }
   };
 
   const handleCreateSong = async () => {
@@ -2733,6 +2758,79 @@ export default function AdminPortalScreen() {
                   <ActivityIndicator color="#fff" />
                 ) : (
                   <Text style={{ color: "#fff", fontWeight: "700" }}>Xác Nhận Từ Chối</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Modal Duyệt Đơn Thanh Toán */}
+      <Modal
+        visible={showApproveModal}
+        transparent={true}
+        animationType="slide"
+        onRequestClose={() => setShowApproveModal(false)}
+      >
+        <View style={styles.modalBgCenter}>
+          <View style={[styles.modalCardCenter, { maxWidth: 480 }]}>
+            <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8 }}>
+              <Ionicons name="checkmark-circle" size={24} color="#10b981" />
+              <Text style={styles.modalDialogTitle}>Phê Duyệt Đơn Thanh Toán</Text>
+            </View>
+
+            <View style={{ backgroundColor: "rgba(16, 185, 129, 0.08)", padding: 14, borderRadius: 12, marginBottom: 14, borderWidth: 1, borderColor: "rgba(16, 185, 129, 0.25)" }}>
+              <Text style={styles.modalDialogSub}>
+                Mã đơn: <Text style={{ color: "#fff", fontWeight: "700" }}>{selectedOrderToApprove?.orderCode}</Text>
+              </Text>
+              <Text style={styles.modalDialogSub}>
+                Khách hàng: <Text style={{ color: "#fff", fontWeight: "700" }}>{selectedOrderToApprove?.userName || selectedOrderToApprove?.userEmail}</Text>
+              </Text>
+              <Text style={styles.modalDialogSub}>
+                Số tiền: <Text style={{ color: "#10b981", fontWeight: "700" }}>{Number(selectedOrderToApprove?.amount || 0).toLocaleString()} VNĐ</Text>
+              </Text>
+              <Text style={styles.modalDialogSub}>
+                Quyền lợi: <Text style={{ color: "#38bdf8", fontWeight: "700" }}>
+                  {selectedOrderToApprove?.type === "COIN_TOPUP"
+                    ? `Nạp +${selectedOrderToApprove?.coins} Xu Waifu`
+                    : `Kích hoạt ${selectedOrderToApprove?.packageName}`}
+                </Text>
+              </Text>
+            </View>
+
+            <Text style={styles.inputFieldLabel}>Ghi chú phê duyệt của Admin</Text>
+            <TextInput
+              style={styles.textArea}
+              placeholder="Admin đã xác nhận ảnh chuyển khoản và phê duyệt thành công"
+              placeholderTextColor={Colors.dark.textMuted}
+              multiline
+              numberOfLines={2}
+              value={approveNote}
+              onChangeText={setApproveNote}
+            />
+
+            <View style={styles.modalDialogActions}>
+              <TouchableOpacity
+                style={styles.modalCancelBtn}
+                onPress={() => {
+                  setShowApproveModal(false);
+                  setSelectedOrderToApprove(null);
+                }}
+              >
+                <Text style={{ color: Colors.dark.textMuted }}>Hủy Bỏ</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalConfirmBtn, { backgroundColor: "#10b981" }]}
+                onPress={handleConfirmApproveOrder}
+                disabled={orderReviewLoading}
+              >
+                {orderReviewLoading ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+                    <Ionicons name="checkmark" size={16} color="#fff" />
+                    <Text style={{ color: "#fff", fontWeight: "700" }}>Xác Nhận Duyệt Đơn ✅</Text>
+                  </View>
                 )}
               </TouchableOpacity>
             </View>
