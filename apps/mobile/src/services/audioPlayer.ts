@@ -21,19 +21,23 @@ if (isTrackPlayerAvailable) {
   }
 }
 
-// Safely load expo-av dynamically to prevent crashing on clients where ExponentAV is missing (e.g. Expo Go iOS)
+// 1. Modern Expo Audio (expo-audio - Standard in modern Expo SDK)
 let ExpoAudio: any = null;
+try {
+  ExpoAudio = require("expo-audio");
+} catch {}
+
+// 2. Legacy Expo AV (expo-av)
+let LegacyExpoAV: any = null;
 try {
   const av = require("expo-av");
   if (av?.Audio) {
-    ExpoAudio = av.Audio;
+    LegacyExpoAV = av.Audio;
   }
-} catch {
-  // ExponentAV native module is not bundled in this client
-}
+} catch {}
 
-// Expo Go uses expo-av if available; HTML5 Audio remains the browser fallback.
-let expoSound: any = null;
+let expoAudioPlayer: any = null;
+let legacySound: any = null;
 let webAudio: HTMLAudioElement | null = null;
 let currentVolume = 1.0;
 let currentRate = 1.0;
@@ -109,7 +113,9 @@ export async function playSongOnPlayer(song: Song): Promise<void> {
       ? song.fileUrl
       : `${API_BASE_URL}${song.fileUrl.startsWith("/") ? "" : "/"}${song.fileUrl}`;
 
-    // 1. Production Native Player (react-native-track-player)
+    console.log("[audioPlayer] Streaming audio from:", streamUrl);
+
+    // 1. Native TrackPlayer (Standalone App / Development Build)
     if (isTrackPlayerAvailable && TrackPlayer) {
       await TrackPlayer.reset();
       await TrackPlayer.add({
@@ -124,21 +130,67 @@ export async function playSongOnPlayer(song: Song): Promise<void> {
       return;
     }
 
-    // 2. Mobile Player with Expo Audio (if native module ExponentAV is present)
-    if (Platform.OS !== "web" && ExpoAudio?.Sound) {
+    // 2. Modern Expo Audio on Mobile (expo-audio - Expo Go & Prebuild)
+    if (Platform.OS !== "web" && ExpoAudio?.createAudioPlayer) {
       try {
-        if (expoSound) {
+        if (expoAudioPlayer) {
           try {
-            await expoSound.unloadAsync();
+            expoAudioPlayer.pause();
+            expoAudioPlayer.removeAllListeners?.();
           } catch {}
-          expoSound = null;
+          expoAudioPlayer = null;
         }
-        await ExpoAudio.setAudioModeAsync({
+
+        if (ExpoAudio.setAudioModeAsync) {
+          await ExpoAudio.setAudioModeAsync({
+            playsInSilentMode: true,
+            staysActiveInBackground: true,
+            interruptionMode: "doNotMix",
+          }).catch(() => {});
+        }
+
+        const player = ExpoAudio.createAudioPlayer(streamUrl, {
+          updateInterval: 500,
+        });
+        player.volume = currentVolume;
+        player.playbackRate = currentRate;
+
+        player.addListener("playbackStatusUpdate", (status: any) => {
+          if (status) {
+            const pos = typeof status.currentTime === "number" ? status.currentTime : 0;
+            const dur = typeof status.duration === "number" && status.duration > 0 ? status.duration : (song.duration || 0);
+            eventCallbacks.onProgress?.(pos, dur);
+
+            if (status.didJustFinish) {
+              eventCallbacks.onEnded?.();
+            }
+          }
+        });
+
+        player.play();
+        expoAudioPlayer = player;
+        return;
+      } catch (err) {
+        console.warn("[ExpoAudio] Error playing with expo-audio:", err);
+      }
+    }
+
+    // 3. Legacy Expo AV on Mobile (expo-av fallback if available)
+    if (Platform.OS !== "web" && LegacyExpoAV?.Sound) {
+      try {
+        if (legacySound) {
+          try {
+            await legacySound.unloadAsync();
+          } catch {}
+          legacySound = null;
+        }
+        await LegacyExpoAV.setAudioModeAsync({
           playsInSilentModeIOS: true,
           staysActiveInBackground: true,
           shouldDuckAndroid: true,
-        });
-        const { sound } = await ExpoAudio.Sound.createAsync(
+        }).catch(() => {});
+
+        const { sound } = await LegacyExpoAV.Sound.createAsync(
           { uri: streamUrl },
           { shouldPlay: true, volume: currentVolume, rate: currentRate },
           (status: any) => {
@@ -153,14 +205,14 @@ export async function playSongOnPlayer(song: Song): Promise<void> {
             }
           }
         );
-        expoSound = sound;
+        legacySound = sound;
         return;
-      } catch (error) {
-        console.warn("[ExpoAudio] Error playing stream:", error);
+      } catch (err) {
+        console.warn("[LegacyExpoAV] Error playing stream:", err);
       }
     }
 
-    // 3. Web Player (HTML5 Audio)
+    // 4. Web Browser Player (HTML5 Audio)
     if (typeof window !== "undefined" && typeof Audio !== "undefined") {
       if (webAudio) {
         try {
@@ -196,6 +248,7 @@ export async function playSongOnPlayer(song: Song): Promise<void> {
       webAudio.play().catch((e) => {
         console.warn("[WebAudio] Playback error (may require user interaction):", e);
       });
+      return;
     }
   } catch (error: any) {
     console.warn("[audioPlayer] playSong error:", error);
@@ -210,9 +263,13 @@ export async function pauseAudio(): Promise<void> {
   try {
     if (isTrackPlayerAvailable && TrackPlayer) {
       await TrackPlayer.pause();
-    } else if (expoSound) {
+    } else if (expoAudioPlayer) {
       try {
-        await expoSound.pauseAsync();
+        expoAudioPlayer.pause();
+      } catch {}
+    } else if (legacySound) {
+      try {
+        await legacySound.pauseAsync();
       } catch {}
     } else if (webAudio) {
       webAudio.pause();
@@ -226,9 +283,13 @@ export async function resumeAudio(): Promise<void> {
   try {
     if (isTrackPlayerAvailable && TrackPlayer) {
       await TrackPlayer.play();
-    } else if (expoSound) {
+    } else if (expoAudioPlayer) {
       try {
-        await expoSound.playAsync();
+        expoAudioPlayer.play();
+      } catch {}
+    } else if (legacySound) {
+      try {
+        await legacySound.playAsync();
       } catch {}
     } else if (webAudio) {
       webAudio.play().catch(() => {});
@@ -242,14 +303,23 @@ export async function seekToPosition(seconds: number): Promise<void> {
   try {
     if (isTrackPlayerAvailable && TrackPlayer) {
       await TrackPlayer.seekTo(seconds);
-    } else if (expoSound) {
+    } else if (expoAudioPlayer) {
       try {
-        await expoSound.setPositionAsync(seconds * 1000);
+        await expoAudioPlayer.seekTo(seconds);
+      } catch {}
+    } else if (legacySound) {
+      try {
+        await legacySound.setPositionAsync(seconds * 1000);
       } catch {}
     } else if (webAudio) {
       webAudio.currentTime = seconds;
     }
-    eventCallbacks.onProgress?.(seconds, webAudio?.duration || 0);
+    const duration =
+      expoAudioPlayer?.duration ||
+      (legacySound?.duration ? legacySound.duration / 1000 : 0) ||
+      webAudio?.duration ||
+      0;
+    eventCallbacks.onProgress?.(seconds, duration);
   } catch (error) {
     console.warn("[audioPlayer] seek error:", error);
   }
@@ -261,9 +331,13 @@ export async function setAudioVolume(volume: number): Promise<void> {
     currentVolume = clamped;
     if (isTrackPlayerAvailable && TrackPlayer) {
       await TrackPlayer.setVolume(clamped);
-    } else if (expoSound) {
+    } else if (expoAudioPlayer) {
       try {
-        await expoSound.setVolumeAsync(clamped);
+        expoAudioPlayer.volume = clamped;
+      } catch {}
+    } else if (legacySound) {
+      try {
+        await legacySound.setVolumeAsync(clamped);
       } catch {}
     } else if (webAudio) {
       webAudio.volume = clamped;
@@ -278,9 +352,13 @@ export async function setPlaybackRate(rate: number): Promise<void> {
     currentRate = rate;
     if (isTrackPlayerAvailable && TrackPlayer) {
       await TrackPlayer.setRate(rate);
-    } else if (expoSound) {
+    } else if (expoAudioPlayer) {
       try {
-        await expoSound.setRateAsync(rate, true);
+        expoAudioPlayer.playbackRate = rate;
+      } catch {}
+    } else if (legacySound) {
+      try {
+        await legacySound.setRateAsync(rate, true);
       } catch {}
     } else if (webAudio) {
       webAudio.playbackRate = rate;

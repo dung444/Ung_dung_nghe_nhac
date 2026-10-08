@@ -1,4 +1,5 @@
 import Constants from "expo-constants";
+import { Platform } from "react-native";
 
 declare const process: { env: Record<string, string | undefined> };
 
@@ -11,15 +12,20 @@ function resolveApiBaseUrl(): string {
     return `http://${window.location.hostname}:3000`;
   }
 
-  const hostUri = Constants.expoConfig?.hostUri;
+  const hostUri =
+    Constants.expoConfig?.hostUri ||
+    (Constants as any).manifest2?.extra?.expoGo?.debuggerHost ||
+    (Constants as any).manifest?.debuggerHost;
+
   if (hostUri) {
     const hostIp = hostUri.split(":")[0];
-    if (hostIp) {
+    if (hostIp && hostIp !== "localhost" && hostIp !== "127.0.0.1") {
       return `http://${hostIp}:3000`;
     }
   }
 
-  return "http://localhost:3000";
+  // Fallback to active dev machine LAN IP on physical devices
+  return Platform.OS === "web" ? "http://localhost:3000" : "http://172.20.10.4:3000";
 }
 
 export const API_BASE_URL = resolveApiBaseUrl();
@@ -102,5 +108,3 @@ export const ENDPOINTS = {
   adminOrders:        `${API_V1}/payments/admin/orders`,
   adminReviewOrder:   (id: string) => `${API_V1}/payments/admin/orders/${id}/review`,
 } as const;
-
-

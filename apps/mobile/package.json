@@ -22,6 +22,7 @@
     "@waifu-player/utils": "workspace:*",
     "axios": "^1.7.0",
     "expo": "~57.0.23",
+    "expo-audio": "~57.0.5",
     "expo-av": "^16.0.8",
     "expo-document-picker": "^57.0.3",
     "expo-font": "~57.0.4",
