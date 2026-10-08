@@ -96,11 +96,12 @@ const SAMPLE_ANIME_SONGS: Song[] = [
 ];
 
 const FEATURED_ARTISTS = [
-  { id: "art1", name: "Hatsune Miku", role: "Vocaloid Queen", avatar: "https://images.unsplash.com/photo-1578632767115-351597cf2477?w=200&q=80" },
-  { id: "art2", name: "LiSA", role: "Anisong Diva", avatar: "https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?w=200&q=80" },
-  { id: "art3", name: "YOASOBI", role: "J-Pop Duo", avatar: "https://images.unsplash.com/photo-1534447677768-be436bb09401?w=200&q=80" },
-  { id: "art4", name: "Ado", role: "Utaite Legend", avatar: "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=200&q=80" },
-  { id: "art5", name: "Aimer", role: "Mystic Vocals", avatar: "https://images.unsplash.com/photo-1563089145-599997674d42?w=200&q=80" },
+  { id: "f5526f9b-d8ae-4d77-b94e-01da9a215081", name: "Hatsune Miku", role: "Vocaloid Queen", avatar: "https://images.unsplash.com/photo-1578632767115-351597cf2477?w=200&q=80" },
+  { id: "fcf57e1c-802f-424d-96f7-d5f2c1532d2d", name: "LiSA", role: "Anisong Diva", avatar: "https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?w=200&q=80" },
+  { id: "4a178ffe-6907-4335-8f7f-8b4b9c837634", name: "YOASOBI", role: "J-Pop Duo", avatar: "https://images.unsplash.com/photo-1534447677768-be436bb09401?w=200&q=80" },
+  { id: "d46c8018-760a-4d4a-b364-03dd09ec95b6", name: "Ado", role: "Utaite Legend", avatar: "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=200&q=80" },
+  { id: "634d44c6-9984-439e-b15b-c229adfb9647", name: "Aimer", role: "Mystic Vocals", avatar: "https://images.unsplash.com/photo-1563089145-599997674d42?w=200&q=80" },
+  { id: "0dbc1ff1-ea6c-4eb1-9ba9-75c6fcfd996b", name: "EGOIST", role: "Guilty Crown OST", avatar: "https://images.unsplash.com/photo-1488426862026-3ee34a7d66df?w=200&q=80" },
 ];
 
 import { useAuthStore } from "../../store/authStore";
@@ -128,6 +129,7 @@ export default function HomeScreen() {
   const router = useRouter();
   const [activeCategory, setActiveCategory] = useState("Tất cả");
   const [songs, setSongs] = useState<Song[]>(SAMPLE_ANIME_SONGS);
+  const [featuredArtists, setFeaturedArtists] = useState(FEATURED_ARTISTS);
   const [showNotificationModal, setShowNotificationModal] = useState(false);
   const { history } = useToastStore();
   const unreadCount = history.filter((h) => !h.read).length;
@@ -191,6 +193,27 @@ export default function HomeScreen() {
       .catch(() => {
         // Fallback to rich sample data
       });
+
+    // Dynamically load top active artists from database
+    api
+      .get("/api/v1/artists?limit=30")
+      .then((res) => {
+        if (res.data?.success && Array.isArray(res.data?.data)) {
+          const list = res.data.data;
+          const active = list.filter((a: any) => (a.songCount || 0) > 0 || a.verified);
+          if (active.length > 0) {
+            setFeaturedArtists(
+              active.slice(0, 10).map((a: any) => ({
+                id: a.id,
+                name: a.name,
+                role: a.genres?.[0]?.name || (a.songCount ? `${a.songCount} bài hát` : "Nghệ sĩ Waifu"),
+                avatar: a.avatarUrl || "https://images.unsplash.com/photo-1534447677768-be436bb09401?w=200&q=80",
+              }))
+            );
+          }
+        }
+      })
+      .catch(() => {});
 
     loadGiftLeaderboardData();
   }, []);
@@ -502,7 +525,7 @@ export default function HomeScreen() {
         </View>
 
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.artistsScroll}>
-          {FEATURED_ARTISTS.map((artist) => (
+          {featuredArtists.map((artist) => (
             <TouchableOpacity
               key={artist.id}
               style={styles.artistItem}
