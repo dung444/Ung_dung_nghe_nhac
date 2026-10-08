@@ -218,7 +218,11 @@ export async function playSongOnPlayer(song: Song): Promise<void> {
           updateInterval: 250,
         });
         player.volume = currentVolume;
-        player.playbackRate = currentRate;
+        if (typeof player.setPlaybackRate === "function") {
+          try {
+            player.setPlaybackRate(currentRate);
+          } catch {}
+        }
 
         player.addListener("playbackStatusUpdate", (status: any) => {
           if (status) {
@@ -456,9 +460,9 @@ export async function setPlaybackRate(rate: number): Promise<void> {
     if (isTrackPlayerAvailable && TrackPlayer) {
       await TrackPlayer.setRate(rate);
     } else if (expoAudioPlayer) {
-      try {
-        expoAudioPlayer.playbackRate = rate;
-      } catch {}
+        if (typeof expoAudioPlayer.setPlaybackRate === "function") {
+          expoAudioPlayer.setPlaybackRate(rate);
+        }
     } else if (legacySound) {
       try {
         await legacySound.setRateAsync(rate, true);
