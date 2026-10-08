@@ -209,7 +209,6 @@ export default function LibraryScreen() {
       if (!isPlaying) setPlaying(true);
     } else {
       setQueue(songList, index);
-      setCurrentSong(song);
     }
   };
 
@@ -324,7 +323,6 @@ export default function LibraryScreen() {
                     style={styles.heroActionBtn}
                     onPress={() => {
                       setQueue(historySongs, 0);
-                      setCurrentSong(historySongs[0]);
                       showSuccess("Phát lại lịch sử 🎶", `Bắt đầu phát ${historySongs.length} bài hát đã nghe.`);
                     }}
                   >
@@ -1537,3 +1535,4 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
 });
+

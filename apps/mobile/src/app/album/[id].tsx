@@ -103,7 +103,6 @@ export default function AlbumDetailScreen() {
       setPlaying(!isPlaying);
     } else {
       setQueue(albumSongs, index);
-      setCurrentSong(song);
     }
   };
 
@@ -320,3 +319,4 @@ const styles = StyleSheet.create({
     fontSize: 13,
   },
 });
+

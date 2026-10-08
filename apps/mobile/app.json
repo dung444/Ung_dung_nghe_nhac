@@ -15,12 +15,18 @@
       "bundleIdentifier": "dev.waifuplayer.app",
       "infoPlist": {
         "UIBackgroundModes": ["audio"],
+        "NSAppTransportSecurity": {
+          "NSAllowsArbitraryLoads": true
+        },
         "NSPhotoLibraryUsageDescription": "Cho phép Waifu Player truy cập thư viện ảnh để cập nhật avatar và tải ảnh bìa."
       }
     },
     "android": {
       "package": "dev.waifuplayer.app",
+      "usesCleartextTraffic": true,
       "permissions": [
+        "INTERNET",
+        "ACCESS_NETWORK_STATE",
         "FOREGROUND_SERVICE",
         "WAKE_LOCK",
         "READ_EXTERNAL_STORAGE",

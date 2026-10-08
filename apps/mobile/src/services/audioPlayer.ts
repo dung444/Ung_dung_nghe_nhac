@@ -21,7 +21,7 @@ if (isTrackPlayerAvailable) {
   }
 }
 
-// 1. Modern Expo Audio (expo-audio - Standard in modern Expo SDK)
+// 1. Modern Expo Audio (expo-audio - SDK 52/57)
 let ExpoAudio: any = null;
 try {
   ExpoAudio = require("expo-audio");
@@ -42,6 +42,8 @@ let webAudio: HTMLAudioElement | null = null;
 let currentVolume = 1.0;
 let currentRate = 1.0;
 let isPlayerSetup = false;
+let currentPlayingSongId: string | null = null;
+let progressTimer: any = null;
 
 type AudioEventCallbacks = {
   onProgress?: (position: number, duration: number) => void;
@@ -52,6 +54,44 @@ let eventCallbacks: AudioEventCallbacks = {};
 
 export function setAudioEventListeners(callbacks: AudioEventCallbacks) {
   eventCallbacks = { ...eventCallbacks, ...callbacks };
+}
+
+function startProgressTicker(songDuration: number) {
+  stopProgressTicker();
+  progressTimer = setInterval(() => {
+    try {
+      if (Platform.OS === "web" && webAudio) {
+        if (!webAudio.paused && !webAudio.ended) {
+          const cur = webAudio.currentTime || 0;
+          const dur = webAudio.duration && !isNaN(webAudio.duration) ? webAudio.duration : songDuration;
+          eventCallbacks.onProgress?.(cur, dur);
+        }
+      } else if (expoAudioPlayer) {
+        if (expoAudioPlayer.playing) {
+          const cur = typeof expoAudioPlayer.currentTime === "number" ? expoAudioPlayer.currentTime : 0;
+          const dur = typeof expoAudioPlayer.duration === "number" && expoAudioPlayer.duration > 0
+            ? expoAudioPlayer.duration
+            : songDuration;
+          eventCallbacks.onProgress?.(cur, dur);
+        }
+      } else if (legacySound) {
+        legacySound.getStatusAsync().then((status: any) => {
+          if (status?.isLoaded && status.isPlaying) {
+            const cur = status.positionMillis ? status.positionMillis / 1000 : 0;
+            const dur = status.durationMillis ? status.durationMillis / 1000 : songDuration;
+            eventCallbacks.onProgress?.(cur, dur);
+          }
+        }).catch(() => {});
+      }
+    } catch {}
+  }, 500);
+}
+
+function stopProgressTicker() {
+  if (progressTimer) {
+    clearInterval(progressTimer);
+    progressTimer = null;
+  }
 }
 
 export async function setupAudioPlayer(): Promise<boolean> {
@@ -109,25 +149,34 @@ export async function playSongOnPlayer(song: Song): Promise<void> {
     const ready = await setupAudioPlayer();
     if (!ready) return;
 
-    const streamUrl = song.fileUrl.startsWith("http")
+    // Chuẩn hóa và mã hóa an toàn đường dẫn URL (xử lý khoảng trắng và ký tự tiếng Nhật/Việt)
+    const rawUrl = song.fileUrl.startsWith("http")
       ? song.fileUrl
       : `${API_BASE_URL}${song.fileUrl.startsWith("/") ? "" : "/"}${song.fileUrl}`;
+    const streamUrl = encodeURI(rawUrl);
 
-    console.log("[audioPlayer] Streaming audio from:", streamUrl);
+    currentPlayingSongId = song.id;
+    stopProgressTicker();
 
     // 1. Native TrackPlayer (Standalone App / Development Build)
     if (isTrackPlayerAvailable && TrackPlayer) {
-      await TrackPlayer.reset();
-      await TrackPlayer.add({
-        id: song.id,
-        url: streamUrl,
-        title: song.title,
-        artist: song.artists?.map((a: any) => a.name).join(", ") || "Unknown Artist",
-        artwork: song.coverUrl ? (song.coverUrl.startsWith("http") ? song.coverUrl : `${API_BASE_URL}${song.coverUrl}`) : undefined,
-        duration: song.duration,
-      });
-      await TrackPlayer.play();
-      return;
+      try {
+        await TrackPlayer.reset();
+        await TrackPlayer.add({
+          id: song.id,
+          url: streamUrl,
+          title: song.title,
+          artist: song.artists?.map((a: any) => a.name).join(", ") || "Unknown Artist",
+          artwork: song.coverUrl
+            ? (song.coverUrl.startsWith("http") ? encodeURI(song.coverUrl) : encodeURI(`${API_BASE_URL}${song.coverUrl}`))
+            : undefined,
+          duration: song.duration,
+        });
+        await TrackPlayer.play();
+        return;
+      } catch (tpErr) {
+        console.warn("[TrackPlayer] Error playing, falling back to Expo drivers:", tpErr);
+      }
     }
 
     // 2. Modern Expo Audio on Mobile (expo-audio - Expo Go & Prebuild)
@@ -162,6 +211,7 @@ export async function playSongOnPlayer(song: Song): Promise<void> {
             eventCallbacks.onProgress?.(pos, dur);
 
             if (status.didJustFinish) {
+              stopProgressTicker();
               eventCallbacks.onEnded?.();
             }
           }
@@ -169,6 +219,7 @@ export async function playSongOnPlayer(song: Song): Promise<void> {
 
         player.play();
         expoAudioPlayer = player;
+        startProgressTicker(song.duration || 0);
         return;
       } catch (err) {
         console.warn("[ExpoAudio] Error playing with expo-audio:", err);
@@ -200,12 +251,14 @@ export async function playSongOnPlayer(song: Song): Promise<void> {
                 (status.durationMillis || song.duration * 1000) / 1000
               );
               if (status.didJustFinish) {
+                stopProgressTicker();
                 eventCallbacks.onEnded?.();
               }
             }
           }
         );
         legacySound = sound;
+        startProgressTicker(song.duration || 0);
         return;
       } catch (err) {
         console.warn("[LegacyExpoAV] Error playing stream:", err);
@@ -225,18 +278,26 @@ export async function playSongOnPlayer(song: Song): Promise<void> {
         webAudio.onerror = null;
       }
       webAudio = new Audio(streamUrl);
+      webAudio.crossOrigin = "anonymous";
       webAudio.volume = currentVolume;
       webAudio.playbackRate = currentRate;
+
       webAudio.ontimeupdate = () => {
         if (webAudio) {
-          eventCallbacks.onProgress?.(webAudio.currentTime, webAudio.duration || song.duration);
+          const cur = webAudio.currentTime || 0;
+          const dur = webAudio.duration && !isNaN(webAudio.duration) ? webAudio.duration : song.duration;
+          eventCallbacks.onProgress?.(cur, dur);
         }
       };
+
       webAudio.onended = () => {
+        stopProgressTicker();
         eventCallbacks.onEnded?.();
       };
+
       webAudio.onerror = (e) => {
         console.warn("[WebAudio] Audio failed to load:", streamUrl, e);
+        stopProgressTicker();
         try {
           const { useToastStore } = require("../store/toastStore");
           useToastStore.getState().showError(
@@ -245,13 +306,19 @@ export async function playSongOnPlayer(song: Song): Promise<void> {
           );
         } catch {}
       };
-      webAudio.play().catch((e) => {
-        console.warn("[WebAudio] Playback error (may require user interaction):", e);
-      });
+
+      webAudio.play()
+        .then(() => {
+          startProgressTicker(song.duration || 0);
+        })
+        .catch((e) => {
+          console.warn("[WebAudio] Playback error (may require user interaction):", e);
+        });
       return;
     }
   } catch (error: any) {
     console.warn("[audioPlayer] playSong error:", error);
+    stopProgressTicker();
     try {
       const { useToastStore } = require("../store/toastStore");
       useToastStore.getState().showError("Lỗi hệ thống âm thanh", error?.message || "Không thể phát bài hát.");
@@ -261,6 +328,7 @@ export async function playSongOnPlayer(song: Song): Promise<void> {
 
 export async function pauseAudio(): Promise<void> {
   try {
+    stopProgressTicker();
     if (isTrackPlayerAvailable && TrackPlayer) {
       await TrackPlayer.pause();
     } else if (expoAudioPlayer) {
@@ -286,13 +354,16 @@ export async function resumeAudio(): Promise<void> {
     } else if (expoAudioPlayer) {
       try {
         expoAudioPlayer.play();
+        startProgressTicker(expoAudioPlayer.duration || 0);
       } catch {}
     } else if (legacySound) {
       try {
         await legacySound.playAsync();
+        startProgressTicker(legacySound.duration || 0);
       } catch {}
     } else if (webAudio) {
       webAudio.play().catch(() => {});
+      startProgressTicker(webAudio.duration || 0);
     }
   } catch (error) {
     console.warn("[audioPlayer] resume error:", error);

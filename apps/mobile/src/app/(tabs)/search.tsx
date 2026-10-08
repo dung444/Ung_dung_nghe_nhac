@@ -107,7 +107,6 @@ export default function SearchScreen() {
       setPlaying(!isPlaying);
     } else {
       setQueue(songs, index);
-      setCurrentSong(song);
     }
   };
 
@@ -545,3 +544,4 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
 });
+

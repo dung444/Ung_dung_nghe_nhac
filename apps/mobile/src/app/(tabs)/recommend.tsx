@@ -129,7 +129,6 @@ export default function RecommendScreen() {
       setPlaying(!isPlaying);
     } else {
       setQueue(list, index);
-      setCurrentSong(song);
     }
   };
 

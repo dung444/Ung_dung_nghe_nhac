@@ -228,12 +228,15 @@ export default function HomeScreen() {
     loadGiftLeaderboardData();
   }, []);
 
-  const handlePlaySong = (song: Song, index: number) => {
+  const handlePlaySong = (song: Song, index?: number) => {
     if (currentSong?.id === song.id) {
       setPlaying(!isPlaying);
     } else {
-      setQueue(songs, index);
-      setCurrentSong(song);
+      const targetIndex =
+        typeof index === "number" && songs[index]?.id === song.id
+          ? index
+          : songs.findIndex((s) => s.id === song.id);
+      setQueue(songs, targetIndex >= 0 ? targetIndex : 0);
     }
   };
 

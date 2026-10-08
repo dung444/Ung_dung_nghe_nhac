@@ -169,7 +169,6 @@ export default function PlaylistDetailScreen() {
       setPlaying(!isPlaying);
     } else {
       setQueue(playlistSongs, index);
-      setCurrentSong(song);
     }
   };
 
@@ -690,3 +689,4 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
 });
+
