@@ -95,6 +95,14 @@ const SAMPLE_ANIME_SONGS: Song[] = [
   },
 ];
 
+const FEATURED_ARTISTS = [
+  { id: "f5526f9b-d8ae-4d77-b94e-01da9a215081", name: "Hatsune Miku", role: "Vocaloid Queen", avatarUrl: "https://images.unsplash.com/photo-1578632767115-351597cf2477?w=200&q=80", bio: "Vocaloid Queen" },
+  { id: "fcf57e1c-802f-424d-96f7-d5f2c1532d2d", name: "LiSA", role: "Anisong Diva", avatarUrl: "https://images.unsplash.com/photo-1607604276583-eef5d076aa5f?w=200&q=80", bio: "Anisong Diva" },
+  { id: "4a178ffe-6907-4335-8f7f-8b4b9c837634", name: "YOASOBI", role: "J-Pop Duo", avatarUrl: "https://images.unsplash.com/photo-1534447677768-be436bb09401?w=200&q=80", bio: "J-Pop Duo" },
+  { id: "d46c8018-760a-4d4a-b364-03dd09ec95b6", name: "Ado", role: "Utaite Legend", avatarUrl: "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?w=200&q=80", bio: "Utaite Legend" },
+  { id: "634d44c6-9984-439e-b15b-c229adfb9647", name: "Aimer", role: "Mystic Vocals", avatarUrl: "https://images.unsplash.com/photo-1563089145-599997674d42?w=200&q=80", bio: "Mystic Vocals" },
+  { id: "0dbc1ff1-ea6c-4eb1-9ba9-75c6fcfd996b", name: "EGOIST", role: "Guilty Crown OST", avatarUrl: "https://images.unsplash.com/photo-1488426862026-3ee34a7d66df?w=200&q=80", bio: "Guilty Crown OST" },
+];
 import { useAuthStore } from "../../store/authStore";
 import { useToastStore } from "../../store/toastStore";
 import { NotificationModal } from "../../components/ui/NotificationModal";
@@ -120,7 +128,7 @@ export default function HomeScreen() {
   const router = useRouter();
   const [activeCategory, setActiveCategory] = useState("Tất cả");
   const [songs, setSongs] = useState<Song[]>(SAMPLE_ANIME_SONGS);
-  const [featuredArtists, setFeaturedArtists] = useState<Artist[]>([]);
+  const [featuredArtists, setFeaturedArtists] = useState<any[]>(FEATURED_ARTISTS);
   const [showNotificationModal, setShowNotificationModal] = useState(false);
   const { history } = useToastStore();
   const unreadCount = history.filter((h) => !h.read).length;
@@ -185,11 +193,34 @@ export default function HomeScreen() {
         // Fallback to rich sample data
       });
 
+    // Dynamically load top active artists from database
     api
-      .get(ENDPOINTS.artists)
+      .get("/api/v1/artists?limit=30")
       .then((res) => {
         if (res.data?.success && Array.isArray(res.data?.data)) {
-          setFeaturedArtists(res.data.data);
+          const list = res.data.data;
+          const active = list.filter((a: any) => (a.songCount || 0) > 0 || a.verified);
+          if (active.length > 0) {
+            setFeaturedArtists(
+              active.slice(0, 10).map((a: any) => ({
+                id: a.id,
+                name: a.name,
+                role: a.genres?.[0]?.name || (a.songCount ? `${a.songCount} bài hát` : "Nghệ sĩ Waifu"),
+                bio: a.bio || a.genres?.[0]?.name || (a.songCount ? `${a.songCount} bài hát` : "Nghệ sĩ Waifu"),
+                avatarUrl: a.avatarUrl || "https://images.unsplash.com/photo-1534447677768-be436bb09401?w=200&q=80",
+              }))
+            );
+          } else if (list.length > 0) {
+            setFeaturedArtists(
+              list.slice(0, 10).map((a: any) => ({
+                id: a.id,
+                name: a.name,
+                role: a.bio || "Nghệ sĩ Waifu",
+                bio: a.bio || "Nghệ sĩ Waifu",
+                avatarUrl: a.avatarUrl || "https://images.unsplash.com/photo-1534447677768-be436bb09401?w=200&q=80",
+              }))
+            );
+          }
         }
       })
       .catch(() => {});
@@ -504,7 +535,7 @@ export default function HomeScreen() {
         </View>
 
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.artistsScroll}>
-           {featuredArtists.map((artist) => (
+          {featuredArtists.map((artist) => (
             <TouchableOpacity
               key={artist.id}
               style={styles.artistItem}
@@ -512,7 +543,7 @@ export default function HomeScreen() {
               activeOpacity={0.8}
             >
               <View style={styles.artistAvatarWrapper}>
-                <Image source={{ uri: artist.avatarUrl || undefined }} style={styles.artistAvatar} />
+                <Image source={{ uri: artist.avatarUrl || artist.avatar || undefined }} style={styles.artistAvatar} />
                 <View style={styles.verifiedBadge}>
                   <Ionicons name="checkmark-circle" size={14} color={Colors.dark.accent} />
                 </View>
@@ -521,7 +552,7 @@ export default function HomeScreen() {
                 {artist.name}
               </Text>
               <Text style={styles.artistRole} numberOfLines={1}>
-                {artist.bio || "Nghệ sĩ Waifu"}
+                {artist.role || artist.bio || "Nghệ sĩ Waifu"}
               </Text>
             </TouchableOpacity>
           ))}

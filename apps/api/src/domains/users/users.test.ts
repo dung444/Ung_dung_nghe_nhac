@@ -110,6 +110,41 @@ describe("Users Endpoints", () => {
     expect(fs.existsSync(uploadedAvatarPath)).toBe(true);
   });
 
+  it("should update username and fail on existing username", async () => {
+    const res = await request(app)
+      .patch("/api/v1/users/me")
+      .set("Authorization", `Bearer ${userToken}`)
+      .send({ username: "usersdomain_new" });
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(res.body.data.username).toBe("usersdomain_new");
+  });
+
+  it("should fail password change with wrong current password", async () => {
+    const res = await request(app)
+      .patch("/api/v1/users/me")
+      .set("Authorization", `Bearer ${userToken}`)
+      .send({ currentPassword: "wrongpassword", newPassword: "NewPassword123!" });
+    expect(res.status).toBe(400);
+    expect(res.body.success).toBe(false);
+  });
+
+  it("should succeed password change with correct current password", async () => {
+    const res = await request(app)
+      .patch("/api/v1/users/me")
+      .set("Authorization", `Bearer ${userToken}`)
+      .send({ currentPassword: "Password123!", newPassword: "NewPassword123!" });
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+
+    // Verify login with new password
+    const loginRes = await request(app)
+      .post("/api/v1/auth/login")
+      .send({ email: "usersdomain@waifu.test", password: "NewPassword123!" });
+    expect(loginRes.status).toBe(200);
+    expect(loginRes.body.success).toBe(true);
+  });
+
   it("should clear listening history", async () => {
     const res = await request(app)
       .delete("/api/v1/users/me/history")
